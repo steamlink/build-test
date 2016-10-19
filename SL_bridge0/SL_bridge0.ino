@@ -381,12 +381,18 @@ void sendlora() {
   Serial.print(pkt->toaddr);
   Serial.print(" data: ");
   Serial.println(pkt->pkt);
+#ifdef LORA_LED
+  digitalWrite(LORA_LED, LOW);
+#endif    
   if (manager.sendtoWait((uint8_t *)pkt->pkt, pkt->len, pkt->toaddr) == RH_ROUTER_ERROR_NONE) {
     Serial.println("sent OK");
   }
   else {
     Serial.println("send failed");
   } 
+#ifdef LORA_LED
+  digitalWrite(LORA_LED, HIGH);
+#endif    
   free(pkt->pkt);
   free(pkt);
 }
