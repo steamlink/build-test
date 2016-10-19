@@ -1,5 +1,4 @@
-SL_bridge
+SL\_bridge
 
 Bridge between Lora and MQTT
-
 
