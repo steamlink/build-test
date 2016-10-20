@@ -2,7 +2,7 @@
 #include <malloc.h>
 #include "SL_RingBuff.h"
 
-
+// create a ring with 'size' elements
 SL_RingBuff::SL_RingBuff(int size) {
 	_ringsize = size;
 	_ring = (char **)malloc(size * sizeof(char *));
