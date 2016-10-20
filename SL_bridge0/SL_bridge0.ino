@@ -4,7 +4,11 @@
 
 // Mesh has much greater memory requirements, and you may need to limit the
 // max message length to prevent wierd crashes
-#define RH_MESH_MAX_MESSAGE_LEN 50
+// Since our ARM platform has nor immediate memory constraint, we'll go with 
+// a larger message size
+#define RH_MESH_MAX_MESSAGE_LEN 250
+
+#define VER "2"
 
 #include <RHMesh.h>
 #include <RH_RF95.h>
@@ -12,7 +16,8 @@
 #include <ESP8266WiFi.h>
 #include <Adafruit_MQTT.h>
 #include <Adafruit_MQTT_Client.h>
-#include "SL_Creadentials.h"
+
+#include "SL_Credentials.h"
 #include "SL_RingBuff.h"
 
 #define USE_SSL 1
@@ -34,18 +39,21 @@
 #define LORA_LED 2
 // Red LED to flash on mqtt
 #define MQTT_LED 0
-
 #endif
 
 
-// Change to 434.0 or other frequency, must match RX's freq!
+// sizes of queues
+#define LORAQSIZE 20	// probably more than available memory 
+#define MQTTQSIZE 10
+
+// Initial frequency for the bridge, can be changed via .../config/freq topic
 #define RF95_FREQ 915.0
 
-// In this small artifical network of 4 nodes,
-#define CLIENT_ADDRESS 1
-#define SERVER1_ADDRESS 2
-#define SERVER2_ADDRESS 3
-#define SERVER3_ADDRESS 4
+// Inital Lora address of the bridge, can be changes via .../config/addr topic
+#define RF95_ADDRESS 4
+
+// Inital Lora tx power for the bridge, can be changes via .../config/power topic
+#define RF95_POWER 23
 
 // WiFi Creds are in SL_Credentials.h
 
@@ -56,19 +64,25 @@ WiFiClient client;
 #endif
 
 // config variables, matched to config topics
-uint8_t sladdr = SERVER2_ADDRESS;
-double   slfreq = RF95_FREQ;
-uint8_t slpower = 23;
-boolean slinit = false;
+uint8_t rf95addr = RF95_ADDRESS;
+double  rf95freq = RF95_FREQ;
+uint8_t rf95power = RF95_POWER;
+boolean slinitdone = false;
 
-SL_RingBuff mqttQ(8);
-SL_RingBuff loraQ(8);
+// stats counters
+long rf95sent, rf95received = 0;
+long mqttsent, mqttreceived = 0;
 
-// Setup the MQTT client class by passing in the WiFi client and MQTT server and login details.
+// retry times
+long nextretry = 0;
+
+// queues
+SL_RingBuff mqttQ(MQTTQSIZE);
+SL_RingBuff loraQ(LORAQSIZE);
+
+// MQTT client class 
 Adafruit_MQTT_Client mqtt(&client, SL_SERVER, SL_SERVERPORT, SL_CONID,  SL_USERNAME, SL_KEY);
 
-// io.adafruit.com SHA1 fingerprint for mqtt.steamlink.net
-// const char* fingerprint = "7E 68 14 B7 6C B4 B5 2C 8C 6D A0 0E 47 73 CA 6C 82 8C F5 BD";
 // SHA1 fingerprint for mqtt.steamlink.net's SSL certificate
 const char* fingerprint = "E3 B9 24 8E 45 B1 D2 1B 4C EF 10 61 51 35 B2 DE 46 F1 8A 3D";
 
@@ -90,18 +104,16 @@ Adafruit_MQTT_Subscribe slconf_power = Adafruit_MQTT_Subscribe(&mqtt, \
       SL_USERNAME "/" SL_CONID  "/config/power");
 Adafruit_MQTT_Subscribe slconf_node = Adafruit_MQTT_Subscribe(&mqtt, \
       SL_USERNAME "/" SL_CONID  "/config/node");
+Adafruit_MQTT_Subscribe slconf_state = Adafruit_MQTT_Subscribe(&mqtt, \
+      SL_USERNAME "/" SL_CONID  "/state");
 
 
 // Singleton instance of the radio driver
 RH_RF95 driver(RFM95_CS, RFM95_INT);
 
 // Class to manage message delivery and receipt, using the driver declared above
-RHMesh manager(driver, SERVER3_ADDRESS);
+RHMesh manager(driver, RF95_ADDRESS);
 
-// Bug workaround for Arduino 1.6.6, it seems to need a function declaration
-// for some reason (only affects ESP8266, likely an arduino-builder bug).
-// void MQTT_connect();
-// void verifyFingerprint();
 
 #if USE_SSL
 void verifyFingerprint() {
@@ -126,6 +138,18 @@ void verifyFingerprint() {
 #endif
 
 
+void *allocmem(size_t size) {
+
+  void *ret;
+  ret = malloc(size);
+  if (ret == 0) {
+	Serial.println("out of memory!!");
+	while(1);
+  }
+  return ret;
+}
+ 
+
 //
 // SETUP
 //
@@ -134,7 +158,7 @@ void setup()
   int8_t cnt;
   Serial.begin(115200);
   delay(200);
-  Serial.println(F("!ID SL_bridge0"));
+  Serial.println(F("!ID SL_bridge" VER));
   
   pinMode(RFM95_RST, OUTPUT);
   digitalWrite(RFM95_RST, HIGH);
@@ -148,10 +172,6 @@ void setup()
   digitalWrite(MQTT_LED, HIGH);
 #endif
 
-  mqtt.disconnect();
-  
-  delay(1000);
-
   WiFi.begin(WLAN_SSID, WLAN_PASS);
 
   cnt = 40;
@@ -159,7 +179,7 @@ void setup()
     delay(500);
     Serial.print(".");
     if (cnt-- == 0) {
-      Serial.println(F("\nwait for reset"));
+      Serial.println(F("\ndie, wait for reset"));
       while (1);
     }
   }
@@ -174,19 +194,23 @@ void setup()
 #endif
 
   // set callbacks and subscribe to the config topics
-  slconf_addr.setCallback(&CBsladdr);
-  slconf_freq.setCallback(&CBslfreq);
-  slconf_power.setCallback(&CBslpower);
-  slconf_node.setCallback(&CBslnode);
+  slconf_addr.setCallback(&CBsetrf95addr);
+  slconf_freq.setCallback(&CBsetrf95freq);
+  slconf_power.setCallback(&CBsetrf95power);
+  slconf_node.setCallback(&CBsendmsgtonode);
+  slconf_state.setCallback(&CBupdatestate);
 
-  
   mqtt.subscribe(&slconf_addr);
   mqtt.subscribe(&slconf_freq);
   mqtt.subscribe(&slconf_power);
   mqtt.subscribe(&slconf_node);
+  mqtt.subscribe(&slconf_state);
 
-// early connect, to receive config data
-  slinit = false;
+  // set lwt
+  mqtt.will(SL_USERNAME "/" SL_CONID "/status", "OFFLINE", 0, 1);
+
+  // we still must init RH
+  slinitdone = false;
 }
 
 
@@ -215,32 +239,36 @@ void loop()
 #endif
     ret = manager.recvfromAck(pkt.buf, &len, &from);
     if (ret) {
+      rf95received += 1;
       rssi = driver.lastRssi();
-      Serial.printf("rqadd %i RSSI %i data: %s ->", from, rssi, (char*)pkt.buf);
-      // build mqtt preable:  fromaddr, rssi|
+      Serial.printf("node %i RSSI %i data: %s\n", from, rssi, (char*)pkt.buf);
 
+      // build mqtt preable:  fromaddr, rssi|
       snprintf(pkt.preamb, sizeof(pkt.preamb), "%3i,%4i", from, rssi);
       pkt.preamb[sizeof(pkt.preamb)-1]='|';
-      msg = (char *) malloc(len+1);
+      msg = (char *) allocmem(len+1);
       memcpy(msg, &pkt, len+sizeof(pkt.preamb));
-      mqttQ.enqueue(msg);
+      if (mqttQ.enqueue(msg) == 0) {
+		Serial.println("mqttQ FULL, pkt dropped");
+      }
     }
 #ifdef LORA_LED
     digitalWrite(LORA_LED, HIGH);
 #endif    
   }
   
-  if (mqttQ.queuelevel()) {
+  if ((mqttQ.queuelevel())&& (mqtt.connected())) {
 #ifdef MQTT_LED
       digitalWrite(MQTT_LED, LOW);
 #endif
     msg = mqttQ.dequeue();
     ret = slpublish.publish(msg);
     if (!ret) {
-      Serial.println(F(" Failed"));
-    } else {
-      Serial.println(F(" OK!")); 
+      Serial.println(F("mqtt publish failed"));
     }
+	else {
+	  mqttsent += 1;
+	}
     free(msg);
 #ifdef MQTT_LED
     digitalWrite(MQTT_LED, HIGH);
@@ -253,96 +281,135 @@ void loop()
 }
 
 
+void UpdStatus()
+{
+  char buf[40];
+
+  snprintf(buf, sizeof(buf), "Online/%li/%li/%li/%li", rf95sent, rf95received, mqttsent, mqttreceived);
+  while (!slstatus.publish(buf)) {
+      mqtt.processPackets(250);
+      Serial.println(F("status update failed: "));
+      delay(500);
+  }
+  Serial.print(F("status update: "));
+  Serial.println(buf);
+}
+
 //
 // SLConnect:   establish connection to MQTT server and setup RH Mesh
 void SLConnect()
 {
 
   MQTT_connect();
-  mqtt.processPackets(250);
-  if (slinit)
+  // prevent lockout of mqtt
+  mqtt.processPackets(10);
+  if (slinitdone)
     return;
 
-  while (!slstatus.publish("Online")) {
-      mqtt.processPackets(250);
-      Serial.println(F("status update failed: "));
-      delay(500);
-  }
-  Serial.println(F("status update OK!"));
-  
-  Serial.print(F("RHMesh bridge at addr "));
-  Serial.println(sladdr);
+  RH_connect();
+  slinitdone = true;
+}
+
+
+// initialize and connect RadioHead
+void RH_connect()
+{
+
   if (!manager.init())
     Serial.println(F("RHMesh init failed"));
-    
-  // Defaults after init are 434.0MHz, 0.05MHz AFC pull-in, modulation FSK_Rb2_4Fd36
-  Serial.print(F("setFrequency "));
-  Serial.println(slfreq);
-  if (!driver.setFrequency(slfreq)) {
-    Serial.println(F("setFrequency failed"));
-    while (1);
-  }
-  Serial.print(F("setTxPower: "));
-  Serial.println(slpower);
-  driver.setTxPower(slpower, false); 
-  slinit = true;
+  setrf95addr(rf95addr);
+  setrf95freq(rf95freq);
+  setrf95power(rf95power);
 }
 
 
 // Function to connect and reconnect as necessary to the MQTT server.
 // Should be called in the loop function and it will take care if connecting.
-void MQTT_connect() {
+void MQTT_connect()
+{
   int8_t ret;
   
-  // Stop if already connected.
-  if (slinit && mqtt.connected()) {
+  // done if already connected.
+  if (slinitdone && mqtt.connected()) {
+	nextretry = 0;
     return;
   }
+  if (nextretry >= millis())
+	return;
+
   Serial.print(F("MQTT connect to " SL_SERVER " at "));
+  Serial.print(millis());
+  Serial.print(" port ");
   Serial.print(SL_SERVERPORT);
+  Serial.print(": ");
 
-  uint8_t retries = 10;
-  while ((ret = mqtt.connect()) != 0) { // connect will return 0 for connected
-       Serial.println(mqtt.connectErrorString(ret));
-       Serial.println(F("failed! Retry in 5 sec."));
-       mqtt.disconnect();
-       delay(5000);  // wait 5 seconds
-       retries--;
-       if (retries == 0) {
-          Serial.println(F("retry limit! Wait for watchdog"));
-         // basically die and wait for WDT to reset me
-         while (1);
-       }
+  if ((ret = mqtt.connect()) != 0) { // connect will return 0 for connected
+    Serial.print(mqtt.connectErrorString(ret));
+    Serial.println(F("! Retry in 2 sec."));
+    nextretry = millis() + 2000;
+    mqtt.disconnect();
   }
-  Serial.println(" OK");
+  else {
+	Serial.println(" OK");
+    UpdStatus();
+    nextretry = 0;
+  }
 }
-
 
 
 //
 // CallBacks
 //
-void CBsladdr(uint32_t addr) {
-  sladdr = addr;
-  Serial.print(F("config new addr: "));
-  Serial.println(addr);
+void CBsetrf95addr(uint32_t addr) {
+  mqttreceived += 1;
+  setrf95addr(addr);
 }
 
-void CBslfreq(double freq) {
-  slfreq = freq;
-  Serial.print(F("config new freq: "));
+void CBsetrf95freq(double freq) {
+  mqttreceived += 1;
+  setrf95freq(freq);
+}
+
+void CBsetrf95power(uint32_t power) {
+  mqttreceived += 1;
+  setrf95power(power);
+}
+
+void CBsendmsgtonode(char *nodedata, uint16_t len) {
+  mqttreceived += 1;
+  sendmsgtonode(nodedata, len);
+}
+
+void CBupdatestate(char *unused, uint16_t len) {
+  mqttreceived += 1;
+  updatestate(unused, len);
+}
+
+
+
+// Utility
+void setrf95addr(uint32_t addr) {
+  rf95addr = addr;
+  Serial.print(F("RF95 addr: "));
+  Serial.println(addr);
+  manager.setThisAddress(rf95addr);
+}
+
+void setrf95freq(double freq) {
+  rf95freq = freq;
+  Serial.print(F("RF95 freq: "));
   Serial.println(freq); 
-  if (!driver.setFrequency(slfreq)) {
+  if (!driver.setFrequency(rf95freq)) {
     Serial.println(F("setFrequency failed"));
     while (1);
   }
 }
 
-void CBslpower(uint32_t power) {
-  slpower = power;
-  Serial.print(F("config new power: "));
+void setrf95power(uint32_t power) {
+  rf95power = power;
+  Serial.print(F("RF95 tx power: "));
   Serial.println(power);
-  driver.setTxPower(slpower, false); 
+  driver.setTxPower(rf95power, false); 
 }
 
 struct lorapkt {
@@ -351,7 +418,7 @@ struct lorapkt {
   char *pkt;
 };
 
-void CBslnode(char *nodedata, uint16_t len) {
+void sendmsgtonode(char *nodedata, uint16_t len) {
   char   *strtokIndx;
   struct lorapkt *pkt;
   int    plen;
@@ -361,14 +428,14 @@ void CBslnode(char *nodedata, uint16_t len) {
   Serial.print(" data: ");
   Serial.println(nodedata);
   
-  pkt = (lorapkt *)malloc(sizeof(struct lorapkt));
+  pkt = (lorapkt *)allocmem(sizeof(struct lorapkt));
   strtokIndx = strtok(nodedata,",");  
   pkt->toaddr = atoi(strtokIndx);
   strtokIndx = strtok(NULL, ",");
   plen = atoi(strtokIndx);
   pkt->len = MIN(len - 1, plen);
   strtokIndx = strtok(NULL, ",");
-  pkt->pkt = (char *)malloc(pkt->len+1);
+  pkt->pkt = (char *)allocmem(pkt->len+1);
   memcpy(pkt->pkt, strtokIndx, pkt->len);
   pkt->pkt[pkt->len] = '\0';
   loraQ.enqueue((char *)pkt);
@@ -386,6 +453,7 @@ void sendlora() {
 #endif    
   if (manager.sendtoWait((uint8_t *)pkt->pkt, pkt->len, pkt->toaddr) == RH_ROUTER_ERROR_NONE) {
     Serial.println("sent OK");
+    rf95sent += 1;
   }
   else {
     Serial.println("send failed");
@@ -398,3 +466,8 @@ void sendlora() {
 }
 
 
+void updatestate(char *unused, uint16_t len) {
+
+  UpdStatus();
+
+}
