@@ -251,7 +251,7 @@ void loop()
       rssi = driver.lastRssi();
 
       msg = (char *) allocmem(len+10);
-      snprintf(msg, len+9, "%3i,%4i|%s", from, rssi, buf);
+      snprintf(msg, len+9, "%3i,%4i,%s", from, rssi, buf);
       if (mqttQ.enqueue(msg) == 0) {
 		Serial.println("mqttQ FULL, pkt dropped");
 		hwm = MAX(hwm - 1, 2);		// decrease high water mark
@@ -424,10 +424,12 @@ void setrf95power(uint32_t power) {
 
 struct lorapkt {
   uint8_t toaddr;
-  uint16_t len;
   char *pkt;
 };
 
+
+// forward a mqtt msg to a Lora node
+// nodeata format is "addr,msg..."
 void sendmsgtonode(char *nodedata, uint16_t len) {
   char   *strtokIndx;
   struct lorapkt *pkt;
@@ -442,19 +444,21 @@ void sendmsgtonode(char *nodedata, uint16_t len) {
   strtokIndx = strtok(nodedata,",");
   pkt->toaddr = atoi(strtokIndx);
   strtokIndx = strtok(NULL, ",");
-  plen = atoi(strtokIndx);
-  pkt->len = MIN(len - 1, plen);
-  strtokIndx = strtok(NULL, ",");
-  pkt->pkt = (char *)allocmem(pkt->len+1);
-  memcpy(pkt->pkt, strtokIndx, pkt->len);
-  pkt->pkt[pkt->len] = '\0';
+  plen = len - ( strtokIndx - nodedata );
+  pkt->pkt = (char *)allocmem(plen+1);
+  memcpy(pkt->pkt, strtokIndx, plen);
+  pkt->pkt[plen] = '\0';
   loraQ.enqueue((char *)pkt);
 }
 
+
+//
+// retrieve a packet from the loraQ and send it 
 void sendlora() {
   struct lorapkt *pkt;
 
   if (millis() < nextSendTime) 
+    // don't send if we are in the TX wait gap
     return;
   pkt = (struct lorapkt *)loraQ.dequeue();
 
@@ -466,7 +470,7 @@ void sendlora() {
   digitalWrite(LORA_LED, LOW);
 #endif
   beforeTime = millis();
-  if (manager.sendtoWait((uint8_t *)pkt->pkt, pkt->len, pkt->toaddr) == RH_ROUTER_ERROR_NONE) {
+  if (manager.sendtoWait((uint8_t *)pkt->pkt, strlen(pkt->pkt)+1, pkt->toaddr) == RH_ROUTER_ERROR_NONE) {
     afterTime = millis() - beforeTime;
     Serial.print("sent OK, ");
 	Serial.println(afterTime);

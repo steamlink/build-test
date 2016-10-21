@@ -34,6 +34,12 @@
 #define CLIENT_ADDRESS 1
 #define BRIDGE_ADDRESS 4
 
+
+// test LED and button
+#define LED 5
+#define BUTTON 6
+
+
 #define  MIN(a,b) (((a)<(b))?(a):(b))
 #define  MAX(a,b) (((a)>(b))?(a):(b))
 
@@ -47,6 +53,9 @@ RHMesh manager(driver, CLIENT_ADDRESS);
 uint8_t data[100];
 int packet_num = 0;
 
+// button state
+int8_t bLast, bCurrent = 2;
+
 //
 // SETUP
 //
@@ -56,8 +65,13 @@ void setup()
   delay(1000);
   Serial.println(F("!ID SL_testclient" VER));
 
+  pinMode(LED, OUTPUT);
+  pinMode(BUTTON, INPUT_PULLUP);
+
   pinMode(RFM95_RST, OUTPUT);
   digitalWrite(RFM95_RST, HIGH);
+
+  digitalWrite(LED, HIGH);
 
   if (!manager.init())
     Serial.println("init failed");
@@ -69,7 +83,7 @@ void setup()
   }
   Serial.println("setpower");
   driver.setTxPower(23, false);
-
+  bLast = 2;
 }
 
 
@@ -86,13 +100,16 @@ void loop()
   uint8_t len = sizeof(buf);
   uint8_t from;
 
-  // Send a message to a rf22_mesh_server
-  // A route to the destination will be automatically discovered.
-
-  if (millis() > nextSendTime) {
+  bCurrent = digitalRead(BUTTON);
+  if ((millis() > nextSendTime) || (bCurrent != bLast)) {
     packet_num += 1;
-    snprintf((char*) data, 100, "Hello World! pkt: %02d", packet_num);
-
+    if (bCurrent != bLast) {
+      int8_t value = (bCurrent == LOW ? 1 : 0);
+      snprintf((char*) data, sizeof(data), "Button %i!  pkt: %d", value, packet_num);
+      bLast = bCurrent;
+    } else {
+      snprintf((char*) data, sizeof(data), "Hello World! pkt: %d", packet_num);
+    }
     beforeTime = millis();
     if (manager.sendtoWait(data, sizeof(data), BRIDGE_ADDRESS) == RH_ROUTER_ERROR_NONE)
     {
@@ -118,9 +135,16 @@ void loop()
       Serial.print(from);
       Serial.print(": ");
       Serial.println((char*)buf);
-      waitInterval = MAX(MINTXGAP, atoi((char *)buf));
-      Serial.print("waitInterval now ");
-      Serial.println(waitInterval);
+      int v = atoi((char *)buf);
+	  if (v == 0) {
+        digitalWrite(LED, LOW);
+	  } else if (v == 1) {
+        digitalWrite(LED, HIGH);
+	  } else { 
+        waitInterval = MAX(MINTXGAP, v);
+        Serial.print("waitInterval now ");
+        Serial.println(waitInterval);
+      }
     }
     else
     {
