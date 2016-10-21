@@ -4,7 +4,7 @@
 
 // Mesh has much greater memory requirements, and you may need to limit the
 // max message length to prevent wierd crashes
-// Since our ARM platform has nor immediate memory constraint, we'll go with 
+// Since our ARM platform has nor immediate memory constraint, we'll go with
 // a larger message size
 #define RH_MESH_MAX_MESSAGE_LEN 250
 
@@ -23,6 +23,8 @@
 #define USE_SSL 1
 
 #define  MIN(a,b) (((a)<(b))?(a):(b))
+#define  MAX(a,b) (((a)>(b))?(a):(b))
+
 
 #if 0
 // for Feather M0
@@ -43,8 +45,8 @@
 
 
 // sizes of queues
-#define LORAQSIZE 20	// probably more than available memory 
-#define MQTTQSIZE 10
+#define LORAQSIZE 50	// probably more than available memory
+#define MQTTQSIZE 150
 
 // Initial frequency for the bridge, can be changed via .../config/freq topic
 #define RF95_FREQ 915.0
@@ -75,12 +77,13 @@ long mqttsent, mqttreceived = 0;
 
 // retry times
 long nextretry = 0;
+int hwm = MQTTQSIZE - 2;
 
 // queues
 SL_RingBuff mqttQ(MQTTQSIZE);
 SL_RingBuff loraQ(LORAQSIZE);
 
-// MQTT client class 
+// MQTT client class
 Adafruit_MQTT_Client mqtt(&client, SL_SERVER, SL_SERVERPORT, SL_CONID,  SL_USERNAME, SL_KEY);
 
 // SHA1 fingerprint for mqtt.steamlink.net's SSL certificate
@@ -148,18 +151,18 @@ void *allocmem(size_t size) {
   }
   return ret;
 }
- 
+
 
 //
 // SETUP
 //
-void setup() 
+void setup()
 {
   int8_t cnt;
   Serial.begin(115200);
   delay(200);
   Serial.println(F("!ID SL_bridge" VER));
-  
+
   pinMode(RFM95_RST, OUTPUT);
   digitalWrite(RFM95_RST, HIGH);
 
@@ -184,7 +187,7 @@ void setup()
     }
   }
   Serial.println("");
-  
+
   Serial.print(F("WiFi connected, IP address: "));
   Serial.println(WiFi.localIP());
 
@@ -214,49 +217,48 @@ void setup()
 }
 
 
-struct {
-  char preamb[9];
-  uint8_t buf[RH_MESH_MAX_MESSAGE_LEN];
-} pkt;
+uint8_t buf[RH_MESH_MAX_MESSAGE_LEN];
 
 //
 // LOOP
 //
 void loop()
 {
-  uint8_t len = sizeof(pkt.buf);
+  uint8_t len = sizeof(buf);
   uint8_t from;
   int8_t rssi;
   boolean ret;
   char *msg;
 
-  
+
   SLConnect();
   // read and queue all waiting pkts
-  while (driver.available()) {
+  // don't accept any more if mqttQ is almost full
+  while (driver.available() && (mqttQ.queuelevel() < hwm)) {
+
 #ifdef LORA_LED
     digitalWrite(LORA_LED, LOW);
 #endif
-    ret = manager.recvfromAck(pkt.buf, &len, &from);
+    ret = manager.recvfromAck(buf, &len, &from);
     if (ret) {
       rf95received += 1;
       rssi = driver.lastRssi();
-      Serial.printf("node %i RSSI %i data: %s\n", from, rssi, (char*)pkt.buf);
 
-      // build mqtt preable:  fromaddr, rssi|
-      snprintf(pkt.preamb, sizeof(pkt.preamb), "%3i,%4i", from, rssi);
-      pkt.preamb[sizeof(pkt.preamb)-1]='|';
-      msg = (char *) allocmem(len+1);
-      memcpy(msg, &pkt, len+sizeof(pkt.preamb));
+      msg = (char *) allocmem(len+10);
+      snprintf(msg, len+9, "%3i,%4i|%s", from, rssi, buf);
       if (mqttQ.enqueue(msg) == 0) {
 		Serial.println("mqttQ FULL, pkt dropped");
+		hwm = MAX(hwm - 1, 2);		// decrease high water mark
+      }
+      else {
+        Serial.printf("from %i RSSI %i data: %s\n", from, rssi, (char*)buf);
       }
     }
 #ifdef LORA_LED
     digitalWrite(LORA_LED, HIGH);
-#endif    
+#endif
   }
-  
+
   if ((mqttQ.queuelevel())&& (mqtt.connected())) {
 #ifdef MQTT_LED
       digitalWrite(MQTT_LED, LOW);
@@ -274,18 +276,20 @@ void loop()
     digitalWrite(MQTT_LED, HIGH);
 #endif
   }
-  
+
   if (loraQ.queuelevel()) {
     sendlora();
   }
 }
 
 
-void UpdStatus()
+void UpdStatus(char *newstatus)
 {
   char buf[40];
 
-  snprintf(buf, sizeof(buf), "Online/%li/%li/%li/%li", rf95sent, rf95received, mqttsent, mqttreceived);
+  snprintf(buf, sizeof(buf), "%s/%li/%li/%li/%li/%i/%i", \
+		newstatus, rf95sent, rf95received, mqttsent, mqttreceived, \
+		mqttQ.queuelevel(), loraQ.queuelevel());
   while (!slstatus.publish(buf)) {
       mqtt.processPackets(250);
       Serial.println(F("status update failed: "));
@@ -328,7 +332,7 @@ void RH_connect()
 void MQTT_connect()
 {
   int8_t ret;
-  
+
   // done if already connected.
   if (slinitdone && mqtt.connected()) {
 	nextretry = 0;
@@ -351,7 +355,7 @@ void MQTT_connect()
   }
   else {
 	Serial.println(" OK");
-    UpdStatus();
+    UpdStatus("Online");
     nextretry = 0;
   }
 }
@@ -380,9 +384,9 @@ void CBsendmsgtonode(char *nodedata, uint16_t len) {
   sendmsgtonode(nodedata, len);
 }
 
-void CBupdatestate(char *unused, uint16_t len) {
+void CBupdatestate(char *cmd, uint16_t len) {
   mqttreceived += 1;
-  updatestate(unused, len);
+  updatestate(cmd, len);
 }
 
 
@@ -398,7 +402,7 @@ void setrf95addr(uint32_t addr) {
 void setrf95freq(double freq) {
   rf95freq = freq;
   Serial.print(F("RF95 freq: "));
-  Serial.println(freq); 
+  Serial.println(freq);
   if (!driver.setFrequency(rf95freq)) {
     Serial.println(F("setFrequency failed"));
     while (1);
@@ -409,7 +413,7 @@ void setrf95power(uint32_t power) {
   rf95power = power;
   Serial.print(F("RF95 tx power: "));
   Serial.println(power);
-  driver.setTxPower(rf95power, false); 
+  driver.setTxPower(rf95power, false);
 }
 
 struct lorapkt {
@@ -427,9 +431,9 @@ void sendmsgtonode(char *nodedata, uint16_t len) {
   Serial.print(len);
   Serial.print(" data: ");
   Serial.println(nodedata);
-  
+
   pkt = (lorapkt *)allocmem(sizeof(struct lorapkt));
-  strtokIndx = strtok(nodedata,",");  
+  strtokIndx = strtok(nodedata,",");
   pkt->toaddr = atoi(strtokIndx);
   strtokIndx = strtok(NULL, ",");
   plen = atoi(strtokIndx);
@@ -443,31 +447,36 @@ void sendmsgtonode(char *nodedata, uint16_t len) {
 
 void sendlora() {
   struct lorapkt *pkt = (struct lorapkt *)loraQ.dequeue();
-  
+
   Serial.print(F("send lora addr: "));
   Serial.print(pkt->toaddr);
   Serial.print(" data: ");
   Serial.println(pkt->pkt);
 #ifdef LORA_LED
   digitalWrite(LORA_LED, LOW);
-#endif    
+#endif
   if (manager.sendtoWait((uint8_t *)pkt->pkt, pkt->len, pkt->toaddr) == RH_ROUTER_ERROR_NONE) {
     Serial.println("sent OK");
     rf95sent += 1;
   }
   else {
     Serial.println("send failed");
-  } 
+  }
 #ifdef LORA_LED
   digitalWrite(LORA_LED, HIGH);
-#endif    
+#endif
   free(pkt->pkt);
   free(pkt);
 }
 
 
-void updatestate(char *unused, uint16_t len) {
+void updatestate(char *cmd, uint16_t len) {
 
-  UpdStatus();
-
+  if (cmd && (cmd[0] == 'r')) {
+    UpdStatus("Resetting");
+    slinitdone = false;
+    mqtt.disconnect();
+  } else  {
+    UpdStatus("Online");
+  }
 }
