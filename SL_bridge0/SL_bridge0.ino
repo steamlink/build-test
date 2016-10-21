@@ -8,7 +8,7 @@
 // a larger message size
 #define RH_MESH_MAX_MESSAGE_LEN 250
 
-#define VER "2"
+#define VER "3"
 
 #include <RHMesh.h>
 #include <RH_RF95.h>
@@ -43,6 +43,8 @@
 #define MQTT_LED 0
 #endif
 
+// minimum transmisison gap (ms)
+#define MINTXGAP 125
 
 // sizes of queues
 #define LORAQSIZE 50	// probably more than available memory
@@ -75,8 +77,10 @@ boolean slinitdone = false;
 long rf95sent, rf95received = 0;
 long mqttsent, mqttreceived = 0;
 
-// retry times
+// timers
+int beforeTime = 0, afterTime = 0, nextSendTime = 0;
 long nextretry = 0;
+
 int hwm = MQTTQSIZE - 2;
 
 // queues
@@ -239,7 +243,9 @@ void loop()
 #ifdef LORA_LED
     digitalWrite(LORA_LED, LOW);
 #endif
+    beforeTime = millis();
     ret = manager.recvfromAck(buf, &len, &from);
+    afterTime = millis() - beforeTime;
     if (ret) {
       rf95received += 1;
       rssi = driver.lastRssi();
@@ -251,7 +257,7 @@ void loop()
 		hwm = MAX(hwm - 1, 2);		// decrease high water mark
       }
       else {
-        Serial.printf("from %i RSSI %i data: %s\n", from, rssi, (char*)buf);
+        Serial.printf("from %i RSSI %i data: \"%s\" time: %li \n", from, rssi, (char*)buf, afterTime);
       }
     }
 #ifdef LORA_LED
@@ -446,7 +452,11 @@ void sendmsgtonode(char *nodedata, uint16_t len) {
 }
 
 void sendlora() {
-  struct lorapkt *pkt = (struct lorapkt *)loraQ.dequeue();
+  struct lorapkt *pkt;
+
+  if (millis() < nextSendTime) 
+    return;
+  pkt = (struct lorapkt *)loraQ.dequeue();
 
   Serial.print(F("send lora addr: "));
   Serial.print(pkt->toaddr);
@@ -455,13 +465,17 @@ void sendlora() {
 #ifdef LORA_LED
   digitalWrite(LORA_LED, LOW);
 #endif
+  beforeTime = millis();
   if (manager.sendtoWait((uint8_t *)pkt->pkt, pkt->len, pkt->toaddr) == RH_ROUTER_ERROR_NONE) {
-    Serial.println("sent OK");
+    afterTime = millis() - beforeTime;
+    Serial.print("sent OK, ");
+	Serial.println(afterTime);
     rf95sent += 1;
   }
   else {
     Serial.println("send failed");
   }
+  nextSendTime = millis() + MINTXGAP;
 #ifdef LORA_LED
   digitalWrite(LORA_LED, HIGH);
 #endif
