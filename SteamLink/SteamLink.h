@@ -8,7 +8,7 @@
 #include "SteamLink_types.h"
 #include <SPI.h>
 
-#define SL_TOKEN_LENGTH 23
+#define SL_TOKEN_LENGTH 19
 #define SL_DEFAULT_BRIDGE 1
 #define SL_DEFAULT_TXPWR 23
 
@@ -17,7 +17,7 @@ class SteamLink {
   public:
   // Automatic initialization
   // TODO: This needs to take in a token to modify configurations
-  bool init();
+  bool init(uint8_t* token);
 
   // send message
   bool send(uint8_t* buf, uint8_t len);

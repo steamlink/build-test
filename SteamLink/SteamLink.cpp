@@ -1,7 +1,10 @@
 #include "SteamLink.h"
 
-bool SteamLink::init() {
+bool SteamLink::init(uint8_t* token) {
   // Class to manage message delivery and receipt, using the driver declared above
+
+  extract_token_fields(token, SL_TOKEN_LENGTH);
+  
   driver = new RH_RF95(pins.cs, pins.interrupt);
   manager = new RHMesh(*driver, conf.node_address);
 

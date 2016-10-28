@@ -4,16 +4,18 @@
 
 #pragma pack(push,1)
 struct sl_config {
+  // private key
+  uint16_t key;
+  // mesh ID
+  uint8_t mesh_id;
   // freq: the SX1276 chips support multiple radio frequencies, we use
   // 915 MHz in North America (ISM Band), leave as default
   float freq = 915.0;
-  // set to default values
-  RH_RF95::ModemConfigChoice mod_conf = RH_RF95::Bw125Cr45Sf128; // ModemConfigChoice Bw125Cr45Sf128
+  RH_RF95::ModemConfigChoice mod_conf = RH_RF95::Bw125Cr45Sf128;
+  // node address
   uint8_t node_address;
-  // mesh ID
-  uint8_t mesh_id;
-  // private key
-  uint16_t key;
+
+
 };
 #pragma pack(pop)
 
