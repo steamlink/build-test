@@ -12,31 +12,28 @@ void setup() {
   sl.init();
 }
 
-uint8_t data[] = "Hello World!";
+uint8_t data[80];
 // Dont put this on the stack:
 uint8_t buf[RH_MESH_MAX_MESSAGE_LEN];
-
+int packet_num = 0;
+long beforeTime, afterTime;
 void loop()
 {
   Serial.println("Sending message out!");
-    
+  snprintf((char*) data,80, "Hello World %d", packet_num++);
+  beforeTime = millis();
   // Send a message to a rf95_mesh_server
   // A route to the destination will be automatically discovered.
-  if (sl.send(data, sizeof(data))){
-    // It has been reliably delivered to the next node.
-    // Now wait for a reply from the ultimate server
-    uint8_t len = sizeof(buf);
-
-    if (sl.receive(buf, &len, 3000))
-    {
-      Serial.print("got reply: ");
-      Serial.println((char*)buf);
-    }
-    else
-      Serial.println("No reply! Are intermediate nodes running?");
+  if (!sl.send(data, sizeof(data))){
+    Serial.print("Sent data at: ");
+    Serial.println(beforeTime);
   }
   else
      Serial.println("Send failed. Are the intermediate mesh servers running?");
-  delay(1000);
+  //delay(10);
+  afterTime = millis();
+
+  Serial.print("Total time taken to send was: ");
+  Serial.println(afterTime - beforeTime);
 }
 

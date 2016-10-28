@@ -8,6 +8,10 @@
 #include "SteamLink_types.h"
 #include <SPI.h>
 
+#define SL_TOKEN_LENGTH 23
+#define SL_DEFAULT_BRIDGE 1
+#define SL_DEFAULT_TXPWR 23
+
 class SteamLink {
 
   public:
@@ -18,32 +22,32 @@ class SteamLink {
   // send message
   bool send(uint8_t* buf, uint8_t len);
 
-  // receive message
+  // receive
   bool receive(uint8_t* buf, uint8_t* len, uint8_t timeout);
+  bool receive(uint8_t* buf, uint8_t* len);
 
+  // available
+  bool available();
+  
   //set pins
   void set_pins(uint8_t cs, uint8_t reset, uint8_t interrupt);
 
  private:
-  // TODO: Bridge and client address should be derived from sl_token
-  uint8_t bridge_address = 4;
-  uint8_t sl_client_address = 9;
-
+  uint8_t bridge_address = SL_DEFAULT_BRIDGE;
+  uint8_t tx_power = SL_DEFAULT_TXPWR;
   sl_config conf;
-
   sl_pins pins;
-
   RH_RF95* driver;
-
   RHMesh* manager;
 
-  // TODO: extract fields from token
-  /* Extracted fields:
-     node address - yes
-     SL_IID - maybe
-   */
+  // extract fields from token, take in string pointer and length and writes to sl_config conf
+  void extract_token_fields(uint8_t* str, uint8_t size);
 
-  // TODO: validate token (functional valididation)
+  // validate token (functional valididation), returns true if it's valid
+  bool validate_token(uint8_t* str, uint8_t size);
+
+  // take in a buffer and 
+  void shex(uint8_t* buf, uint8_t* str, unsigned int size);
 
   // TODO: Create packet
 
