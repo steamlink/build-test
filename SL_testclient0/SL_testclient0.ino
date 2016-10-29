@@ -2,11 +2,9 @@
 // send pkts to bridge at address 4
 // Mesh has much greater memory requirements, and you may need to limit the
 // max message length to prevent wierd crashes
-#define RH_MESH_MAX_MESSAGE_LEN 50
+#define MAX_MESSAGE_LEN 50
 
-#include <RHMesh.h>
-#include <RH_RF95.h>
-#include <SPI.h>
+#include <SteamLink.h>
 
 #define VER "1"
 
@@ -30,11 +28,6 @@
 // minimum transmisison gap (ms)
 #define MINTXGAP 125
 
-// LORA addresses used
-#define CLIENT_ADDRESS 1
-#define BRIDGE_ADDRESS 4
-
-
 // test LED and button
 #define LED 5
 #define BUTTON 6
@@ -43,11 +36,7 @@
 #define  MIN(a,b) (((a)<(b))?(a):(b))
 #define  MAX(a,b) (((a)>(b))?(a):(b))
 
-// Singleton instance of the radio driver
-RH_RF95 driver(RFM95_CS, RFM95_INT);
-
-// Class to manage message delivery and receipt, using the driver declared above
-RHMesh manager(driver, CLIENT_ADDRESS);
+SteamLink sl;
 
 /* Packet building */
 uint8_t data[100];
@@ -68,27 +57,20 @@ void setup()
   pinMode(LED, OUTPUT);
   pinMode(BUTTON, INPUT_PULLUP);
 
-  pinMode(RFM95_RST, OUTPUT);
-  digitalWrite(RFM95_RST, HIGH);
-
   digitalWrite(LED, HIGH);
 
-  if (!manager.init())
+  sl.set_pins(RFM95_CS, RFM95_RST, RFM95_INT);
+  if (!sl.init())
     Serial.println("init failed");
-  // Defaults after init are 434.0MHz, 0.05MHz AFC pull-in, modulation FSK_Rb2_4Fd36
-  Serial.println("Manager init done");
-  if (!driver.setFrequency(RF95_FREQ)) {
-    Serial.println("setFrequency failed");
-    while (1);
-  }
-  Serial.println("setpower");
-  driver.setTxPower(23, false);
+	while(1);
+
+  Serial.println("Steamlink init done");
   bLast = 2;
 }
 
 
 // Dont put this on the stack:
-uint8_t buf[RH_MESH_MAX_MESSAGE_LEN];
+uint8_t buf[MAX_MESSAGE_LEN];
 int beforeTime = 0, afterTime = 0, nextSendTime = 0;
 int waitInterval = 1000;
 
@@ -98,7 +80,6 @@ int waitInterval = 1000;
 void loop()
 {
   uint8_t len = sizeof(buf);
-  uint8_t from;
 
   bCurrent = digitalRead(BUTTON);
   if ((millis() > nextSendTime) || (bCurrent != bLast)) {
@@ -111,15 +92,13 @@ void loop()
       snprintf((char*) data, sizeof(data), "Hello World! pkt: %d", packet_num);
     }
     beforeTime = millis();
-    if (manager.sendtoWait(data, sizeof(data), BRIDGE_ADDRESS) == RH_ROUTER_ERROR_NONE)
+    if (sl.send(data, sizeof(data) == 0)) 
     {
       afterTime = millis() - beforeTime;
       // It has been reliably delivered to the next node.
       Serial.print("Sent \"");
       Serial.print((char *)data);
-      Serial.print("\" to ");
-      Serial.print( BRIDGE_ADDRESS);
-      Serial.print( ", time: ");
+      Serial.print( "\" time: ");
       Serial.println(afterTime);
     }
     else {
@@ -128,12 +107,10 @@ void loop()
     nextSendTime = millis() + waitInterval;
   }
 
-  if (manager.available()) {
-    if (manager.recvfromAckTimeout(buf, &len, 3000, &from))
+//  if (sl.available()) {
+    if (sl.receive(buf, &len, 3000))	// XX drop 3000
     {
-      Serial.print("got msg from : ");
-      Serial.print(from);
-      Serial.print(": ");
+      Serial.print("got msg: ");
       Serial.println((char*)buf);
       int v = atoi((char *)buf);
 	  if (v == 0) {
@@ -150,5 +127,5 @@ void loop()
     {
       Serial.println("available() and not pkt??");
     }
-  }
+//  }
 }

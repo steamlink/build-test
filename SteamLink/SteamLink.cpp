@@ -99,19 +99,30 @@ void SteamLink::extract_token_fields(uint8_t* str, uint8_t size){
     Serial.println("SL_FATAL: Token invalid!");
     while(1);
   }
+  Serial.print("sizeof(conf) ");
+  Serial.println(sizeof(conf));
 
   // scan in the values
   shex(buf, str, SL_TOKEN_LENGTH);
-
+  debug("after shex");
+  phex(buf, SL_TOKEN_LENGTH);
   // copy values in to struct
   memcpy(&conf, buf, SL_TOKEN_LENGTH);
+  debug("after memcpy");
 }
 
 // Takes in buf to write to, str with hex to convert from, and length of buf (i.e. num of hex bytes)
 void SteamLink::shex(uint8_t* buf, uint8_t* str, unsigned int size) {
   unsigned char i;
-  for (i = 0; i < size; i++)
-    sscanf((char*)(str+i*2),"%2hhx", &buf[i]);
+  uint8_t a,b;
+
+  for (i = 0; i < size; i++) {
+    a = str[i*2] - 0x30;
+    if (a > 9) a -= 39;
+    b = str[i*2+1] - 0x30;
+    if (b > 9) b -= 39;
+    buf[i] = (a << 4) + b;
+  }
 }
 
 bool SteamLink::validate_token(uint8_t* str, uint8_t size){

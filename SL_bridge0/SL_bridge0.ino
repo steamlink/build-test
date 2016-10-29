@@ -83,6 +83,8 @@ long nextretry = 0;
 
 int hwm = MQTTQSIZE - 2;
 
+#define MESHID "mesh1"
+
 // queues
 SL_RingBuff mqttQ(MQTTQSIZE);
 SL_RingBuff loraQ(LORAQSIZE);
@@ -97,22 +99,23 @@ const char* fingerprint = "E3 B9 24 8E 45 B1 D2 1B 4C EF 10 61 51 35 B2 DE 46 F1
 // Notice MQTT topics for SL follow the form: <username>/<conid>/<type>
 //   where type is one of data, status, config
 Adafruit_MQTT_Publish slpublish = Adafruit_MQTT_Publish(&mqtt, \
-      SL_USERNAME "/" SL_CONID "/data");
+      "SL/" MESHID "/data");
 Adafruit_MQTT_Publish slstatus = Adafruit_MQTT_Publish(&mqtt, \
-      SL_USERNAME "/" SL_CONID "/status");
+      "SL/" MESHID "/status");
 
 // Subscribe to 'config' topics
 
+// TODO:  change topic to 'SL/meshXX/data/
 Adafruit_MQTT_Subscribe slconf_addr = Adafruit_MQTT_Subscribe(&mqtt, \
-      SL_USERNAME "/" SL_CONID  "/config/addr");
+      "SL/" MESHID  "/config/addr");
 Adafruit_MQTT_Subscribe slconf_freq = Adafruit_MQTT_Subscribe(&mqtt, \
-      SL_USERNAME "/" SL_CONID  "/config/freq");
+      "SL/" MESHID  "/config/freq");
 Adafruit_MQTT_Subscribe slconf_power = Adafruit_MQTT_Subscribe(&mqtt, \
-      SL_USERNAME "/" SL_CONID  "/config/power");
+      "SL/" MESHID  "/config/power");
 Adafruit_MQTT_Subscribe slconf_node = Adafruit_MQTT_Subscribe(&mqtt, \
-      SL_USERNAME "/" SL_CONID  "/config/node");
+      "SL/" MESHID  "/config/node");
 Adafruit_MQTT_Subscribe slconf_state = Adafruit_MQTT_Subscribe(&mqtt, \
-      SL_USERNAME "/" SL_CONID  "/state");
+      "SL/" MESHID  "/state");
 
 
 // Singleton instance of the radio driver
@@ -166,6 +169,7 @@ void setup()
   Serial.begin(115200);
   delay(200);
   Serial.println(F("!ID SL_bridge" VER));
+  Serial.println(F("WiFi Network " WLAN_SSID));
 
   pinMode(RFM95_RST, OUTPUT);
   digitalWrite(RFM95_RST, HIGH);
