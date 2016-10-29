@@ -54,9 +54,12 @@ bool SteamLink::send(uint8_t* buf) {
    
   // TODO: change with actual determined error codes
   if (len >= SL_MAX_MESSAGE_LEN) return true;
-
+  Serial.println("Printing packet size");
+  
   packet = encrypt_alloc(&packet_size, buf, len, conf.key);
-
+  Serial.println(packet_size);
+  debug("printing packet in hex ");
+  phex(packet, packet_size);
   bool sent = manager->sendtoWait(packet, packet_size, bridge_address);
 
   free(packet);
@@ -136,14 +139,22 @@ void SteamLink::set_pins(uint8_t cs=8, uint8_t reset=4, uint8_t interrupt=3) {
 }
 
 uint8_t* SteamLink::encrypt_alloc(uint8_t* outlen, uint8_t* in, uint8_t inlen, uint8_t* key) {
+  debug("Entering encrypt alloc");
   uint8_t num_blocks = int((inlen+15)/16);
+  debug("printing numblocks:");
+  Serial.println(num_blocks);
   uint8_t* out = (uint8_t*) malloc(num_blocks*16);
+  debug("Allocated memory for out");
   *outlen = num_blocks*16;
+  Serial.println(*outlen);
+  //Serial.println(outlen);
   memset(out + inlen, 0, *outlen - inlen);
   for(int i = 0; i < num_blocks; ++i) {
-    AES128_ECB_encrypt(in+i*16, key, in + i*16);
+    Serial.println(i);
+    AES128_ECB_encrypt(in+i*16, key, out + i*16);
   }
-  return in;
+  debug("finishing encryption");
+  return out;
 };
 
 // decrypt
@@ -164,14 +175,16 @@ void SteamLink::debug(char* string) {
   return;
 };
 
-void SteamLink::phex(uint8_t* str, unsigned int size)
-{
-    unsigned char i;
-    for(i = 0; i < size; ++i)
-        printf("%.2x", str[i]);
-    printf("\n");
-};
 
+void SteamLink::phex(uint8_t *data, unsigned int length) // prints 8-bit data in hex with leading zeroes
+{
+       Serial.print("0x"); 
+       for (int i=0; i<length; i++) { 
+         if (data[i]<0x10) {Serial.print("0");} 
+         Serial.print(data[i],HEX); 
+         Serial.print(" "); 
+       }
+}
 
 
 
