@@ -3,6 +3,8 @@
 #ifndef STEAMLINK_H
 #define STEAMLINK_H
 
+#define DEBUG
+
 #include <RHMesh.h>
 #include <RH_RF95.h>
 #include "SteamLink_types.h"
@@ -41,9 +43,10 @@ class SteamLink {
   sl_pins pins;
   RH_RF95* driver;
   RHMesh* manager;
-  void debug(uint8_t* string);
+  void debug(char* string);
   uint8_t* encrypt_alloc(uint8_t* outlen, uint8_t* in, uint8_t inlen, uint8_t* key);
   void decrypt(uint8_t* in, uint8_t inlen, uint8_t* key);
+  void phex(uint8_t* str, unsigned int size);
 
   // extract fields from token, take in string pointer and length and writes to sl_config conf
   void extract_token_fields(uint8_t* str, uint8_t size);

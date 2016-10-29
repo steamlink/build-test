@@ -2,30 +2,44 @@
 
 bool SteamLink::init(uint8_t* token) {
   // Class to manage message delivery and receipt, using the driver declared above
+  debug("entering init()");
 
+  debug("extracting token fields");
   extract_token_fields(token, SL_TOKEN_LENGTH);
+  
+  debug("dumping token fields");
+  phex(conf.key, 16);
+  //debug(conf.mesh_id);
+  Serial.println(conf.mesh_id);
+  //debug(conf.freq);
+  Serial.println(conf.freq);
+  //debug(conf.mod_conf);
+  Serial.println(conf.mod_conf);
+  //debug(conf.node_address);
+  Serial.println(conf.node_address);
   
   driver = new RH_RF95(pins.cs, pins.interrupt);
   manager = new RHMesh(*driver, conf.node_address);
 
   // initialize manager
   if (!manager->init()) {
-    Serial.println("SL_FATAL: manager initialization failed");
+    debug("SL_FATAL: manager initialization failed");
     while (1);
-  }
+  } 
 
+  debug("manager init done!");
   // Set frequency
   if (!driver->setFrequency(conf.freq)) {
-    Serial.println("SL_FATAL: setFrequency failed");
+    debug("SL_FATAL: setFrequency failed");
     while (1);
   }
 
   // Set modem configuration
   if (!driver->setModemConfig(conf.mod_conf)) {
-    Serial.println("SL_FATAL: setModemConfig failed with invalid configuration");
+    debug("SL_FATAL: setModemConfig failed with invalid configuration");
     while (1);
   }
-
+  debug("Modem config done!");
   // set timeout for CAD to 10s
   driver->setCADTimeout(10000);
   // set antenna power
@@ -33,6 +47,7 @@ bool SteamLink::init(uint8_t* token) {
 }
 
 bool SteamLink::send(uint8_t* buf) {
+  debug("entering send()");
   uint8_t len = strlen((char*) buf);
   uint8_t* packet;
   uint8_t packet_size;
@@ -129,7 +144,7 @@ void SteamLink::decrypt(uint8_t* in, uint8_t inlen, uint8_t* key) {
   }
 };
 
-void SteamLink::debug(uint8_t* string) {
+void SteamLink::debug(char* string) {
 #ifdef DEBUG
   if(Serial) {
     Serial.println(string);
@@ -137,6 +152,15 @@ void SteamLink::debug(uint8_t* string) {
 #endif
   return;
 };
+
+void SteamLink::phex(uint8_t* str, unsigned int size)
+{
+    unsigned char i;
+    for(i = 0; i < size; ++i)
+        printf("%.2x", str[i]);
+    printf("\n");
+};
+
 
 
 
