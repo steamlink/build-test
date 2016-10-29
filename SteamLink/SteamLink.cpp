@@ -32,17 +32,44 @@ bool SteamLink::init(uint8_t* token) {
   driver->setTxPower(tx_power, false);
 }
 
-bool SteamLink::send(uint8_t* buf, uint8_t len) {
-  return manager->sendtoWait(buf, len, bridge_address);
+bool SteamLink::send(uint8_t* buf) {
+  uint8_t len = strlen((char*) buf);
+  uint8_t* packet;
+  uint8_t packet_size;
+   
+  // TODO: change with actual determined error codes
+  if (len >= SL_MAX_MESSAGE_LEN) return true;
+
+  packet = encrypt_alloc(&packet_size, buf, len, conf.key);
+
+  bool sent = manager->sendtoWait(packet, packet_size, bridge_address);
+
+  free(packet);
+
+  return sent;
 }
 
-bool SteamLink::receive(uint8_t* buf, uint8_t* len, uint8_t timeout) {
-  uint8_t from;
-  return manager->recvfromAckTimeout(buf, len, timeout, &from);
+bool SteamLink::receive(uint8_t* buf, uint8_t len, uint8_t timeout) {
+  // TODO: unfinished!
+  // uint8_t from;
+  // return manager->recvfromAckTimeout(buf, len, timeout, &from);
+  return false;
 }
 
-bool SteamLink::receive(uint8_t* buf, uint8_t* len) {
-  return manager->recvfromAck(buf, len);
+bool SteamLink::receive(uint8_t* buf, uint8_t len) {
+  // allocate max size
+  uint8_t* rcvbuf = (uint8_t*) malloc(SL_MAX_MESSAGE_LEN);
+  uint8_t rcvlen;
+  uint8_t from; // TODO: might need to "validate" sender!
+  //recv packet
+  bool received = manager->recvfromAck(rcvbuf, &rcvlen, &from);
+  if(received) {
+    decrypt(rcvbuf, rcvlen, conf.key);
+    if(strlen((char *) rcvbuf) < len) {
+      strncpy((char*) buf, (char*) rcvbuf, len);
+    } else received = false;
+  } 
+  return received;
 }
 
 bool SteamLink::available() {
@@ -62,7 +89,7 @@ void SteamLink::extract_token_fields(uint8_t* str, uint8_t size){
   shex(buf, str, SL_TOKEN_LENGTH);
 
   // copy values in to struct
-   memcpy(&conf, buf, SL_TOKEN_LENGTH);
+  memcpy(&conf, buf, SL_TOKEN_LENGTH);
 }
 
 // Takes in buf to write to, str with hex to convert from, and length of buf (i.e. num of hex bytes)
@@ -81,3 +108,35 @@ void SteamLink::set_pins(uint8_t cs=8, uint8_t reset=4, uint8_t interrupt=3) {
   pins.reset = reset;
   pins.interrupt = interrupt;
 }
+
+uint8_t* SteamLink::encrypt_alloc(uint8_t* outlen, uint8_t* in, uint8_t inlen, uint8_t* key) {
+  uint8_t num_blocks = int((inlen+15)/16);
+  uint8_t* out = (uint8_t*) malloc(num_blocks*16);
+  *outlen = num_blocks*16;
+  memset(out + inlen, 0, *outlen - inlen);
+  for(int i = 0; i < num_blocks; ++i) {
+    AES128_ECB_encrypt(in+i*16, key, in + i*16);
+  }
+  return in;
+};
+
+// decrypt
+void SteamLink::decrypt(uint8_t* in, uint8_t inlen, uint8_t* key) {
+  uint8_t num_blocks = inlen/16;
+  uint8_t* out = (uint8_t*) malloc(inlen);
+  for(int i = 0; i < num_blocks; i++) {
+    AES128_ECB_decrypt(in+i*16, key, in + i*16);
+  }
+};
+
+void SteamLink::debug(uint8_t* string) {
+#ifdef DEBUG
+  if(Serial) {
+    Serial.println(string);
+  }
+#endif
+  return;
+};
+
+
+

@@ -7,31 +7,33 @@
 #include <RH_RF95.h>
 #include "SteamLink_types.h"
 #include <SPI.h>
+#include "aes.h"
 
 #define SL_TOKEN_LENGTH 19
 #define SL_DEFAULT_BRIDGE 1
 #define SL_DEFAULT_TXPWR 23
+#define SL_MAX_MESSAGE_LEN 64
 
 class SteamLink {
 
+  // TODO: Document class functions!
   public:
   // Automatic initialization
-  // TODO: This needs to take in a token to modify configurations
   bool init(uint8_t* token);
 
   // send message
-  bool send(uint8_t* buf, uint8_t len);
+  bool send(uint8_t* buf);
 
   // receive
-  bool receive(uint8_t* buf, uint8_t* len, uint8_t timeout);
-  bool receive(uint8_t* buf, uint8_t* len);
+  bool receive(uint8_t* buf, uint8_t len, uint8_t timeout);
+  bool receive(uint8_t* buf, uint8_t len);
 
   // available
   bool available();
   
   //set pins
   void set_pins(uint8_t cs, uint8_t reset, uint8_t interrupt);
-
+  
  private:
   uint8_t bridge_address = SL_DEFAULT_BRIDGE;
   uint8_t tx_power = SL_DEFAULT_TXPWR;
@@ -39,6 +41,9 @@ class SteamLink {
   sl_pins pins;
   RH_RF95* driver;
   RHMesh* manager;
+  void debug(uint8_t* string);
+  uint8_t* encrypt_alloc(uint8_t* outlen, uint8_t* in, uint8_t inlen, uint8_t* key);
+  void decrypt(uint8_t* in, uint8_t inlen, uint8_t* key);
 
   // extract fields from token, take in string pointer and length and writes to sl_config conf
   void extract_token_fields(uint8_t* str, uint8_t size);

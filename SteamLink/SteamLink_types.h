@@ -5,7 +5,7 @@
 #pragma pack(push,1)
 struct sl_config {
   // private key
-  uint16_t key;
+  uint8_t key[16];
   // mesh ID
   uint8_t mesh_id;
   // freq: the SX1276 chips support multiple radio frequencies, we use
