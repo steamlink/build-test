@@ -1,5 +1,5 @@
 // SL_testclient0
-// send pkts to bridge at address 4
+// send pkts to bridge at address 1
 // Mesh has much greater memory requirements, and you may need to limit the
 // max message length to prevent wierd crashes
 #define MAX_MESSAGE_LEN 50

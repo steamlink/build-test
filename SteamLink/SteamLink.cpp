@@ -48,7 +48,7 @@ bool SteamLink::init(uint8_t* token) {
 
 bool SteamLink::send(uint8_t* buf) {
   debug("entering send()");
-  uint8_t len = strlen((char*) buf);
+  uint8_t len = strlen((char*) buf) + 1;	//N.B. Send terminating \0
   uint8_t* packet;
   uint8_t packet_size;
    
@@ -139,19 +139,19 @@ void SteamLink::set_pins(uint8_t cs=8, uint8_t reset=4, uint8_t interrupt=3) {
 }
 
 uint8_t* SteamLink::encrypt_alloc(uint8_t* outlen, uint8_t* in, uint8_t inlen, uint8_t* key) {
-  debug("Entering encrypt alloc");
+  Serial.print("Entering encrypt alloc, inlen: ");
+  Serial.println(inlen);
   uint8_t num_blocks = int((inlen+15)/16);
   debug("printing numblocks:");
   Serial.println(num_blocks);
   uint8_t* out = (uint8_t*) malloc(num_blocks*16);
   debug("Allocated memory for out");
   *outlen = num_blocks*16;
-  Serial.println(*outlen);
-  //Serial.println(outlen);
+  memcpy(out, in, inlen);
   memset(out + inlen, 0, *outlen - inlen);
   for(int i = 0; i < num_blocks; ++i) {
     Serial.println(i);
-    AES128_ECB_encrypt(in+i*16, key, out + i*16);
+    AES128_ECB_encrypt(out + i*16, key, out + i*16);
   }
   debug("finishing encryption");
   return out;

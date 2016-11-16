@@ -8,7 +8,7 @@
 // a larger message size
 #define RH_MESH_MAX_MESSAGE_LEN 250
 
-#define VER "3"
+#define VER "4"
 
 #include <RHMesh.h>
 #include <RH_RF95.h>
@@ -47,14 +47,14 @@
 #define MINTXGAP 125
 
 // sizes of queues
-#define LORAQSIZE 50	// probably more than available memory
-#define MQTTQSIZE 150
+#define LORAQSIZE 40	// probably more than available memory
+#define MQTTQSIZE 100
 
 // Initial frequency for the bridge, can be changed via .../config/freq topic
 #define RF95_FREQ 915.0
 
 // Inital Lora address of the bridge, can be changes via .../config/addr topic
-#define RF95_ADDRESS 4
+#define RF95_ADDRESS 1
 
 // Inital Lora tx power for the bridge, can be changes via .../config/power topic
 #define RF95_POWER 23
@@ -236,32 +236,35 @@ void loop()
   uint8_t from;
   int8_t rssi;
   boolean ret;
-  char *msg;
+  uint8_t *msg;
 
 
   SLConnect();
   // read and queue all waiting pkts
   // don't accept any more if mqttQ is almost full
   while (driver.available() && (mqttQ.queuelevel() < hwm)) {
-
 #ifdef LORA_LED
     digitalWrite(LORA_LED, LOW);
 #endif
     beforeTime = millis();
-    ret = manager.recvfromAck(buf, &len, &from);
+    ret = manager.recvfromAck((uint8_t *)buf, &len, &from);
+	Serial.printf("got %s from %s\n", len, from);
     afterTime = millis() - beforeTime;
     if (ret) {
       rf95received += 1;
       rssi = driver.lastRssi();
 
-      msg = (char *) allocmem(len+10);
-      snprintf(msg, len+9, "%3i,%4i,%s", from, rssi, buf);
-      if (mqttQ.enqueue(msg) == 0) {
+      msg = (uint8_t *) allocmem(len+3);
+      msg[0] = from;
+      msg[1] = (uint8_t) rssi;
+      memcpy(&msg[2], buf, len);
+      msg[len+2] = '\0';
+      if (mqttQ.enqueue(msg, len+3) == 0) {
 		Serial.println("mqttQ FULL, pkt dropped");
 		hwm = MAX(hwm - 1, 2);		// decrease high water mark
       }
       else {
-        Serial.printf("from %i RSSI %i data: \"%s\" time: %li \n", from, rssi, (char*)buf, afterTime);
+        Serial.printf("from %i RSSI %i len %i data: \"%s\" time: %li \n", from, rssi, len, (char*)buf, afterTime);
       }
     }
 #ifdef LORA_LED
@@ -269,12 +272,13 @@ void loop()
 #endif
   }
 
-  if ((mqttQ.queuelevel())&& (mqtt.connected())) {
+  if (mqttQ.queuelevel() && mqtt.connected()) {
 #ifdef MQTT_LED
       digitalWrite(MQTT_LED, LOW);
 #endif
-    msg = mqttQ.dequeue();
-    ret = slpublish.publish(msg);
+	uint8_t len;
+    msg = mqttQ.dequeue(&len);
+    ret = slpublish.publish(msg, len);
     if (!ret) {
       Serial.println(F("mqtt publish failed"));
     }
@@ -295,18 +299,23 @@ void loop()
 
 void UpdStatus(char *newstatus)
 {
-  char buf[40];
+  uint8_t buf[40];
+  uint8_t i, len;
 
-  snprintf(buf, sizeof(buf), "%s/%li/%li/%li/%li/%i/%i", \
+  len = snprintf((char *)buf, sizeof(buf), "%s/%li/%li/%li/%li/%i/%i", \
 		newstatus, rf95sent, rf95received, mqttsent, mqttreceived, \
 		mqttQ.queuelevel(), loraQ.queuelevel());
-  while (!slstatus.publish(buf)) {
+  len = MIN(len+1,sizeof(buf));
+  i = 5;
+  while (!slstatus.publish(buf, len) && i--) {
       mqtt.processPackets(250);
       Serial.println(F("status update failed: "));
       delay(500);
   }
+  if (i == 0) 
+	while(1);
   Serial.print(F("status update: "));
-  Serial.println(buf);
+  Serial.println((char *)buf);
 }
 
 //
@@ -329,8 +338,10 @@ void SLConnect()
 void RH_connect()
 {
 
-  if (!manager.init())
+  if (!manager.init()) {
     Serial.println(F("RHMesh init failed"));
+	while (1);
+  }
   setrf95addr(rf95addr);
   setrf95freq(rf95freq);
   setrf95power(rf95power);
@@ -351,11 +362,11 @@ void MQTT_connect()
   if (nextretry >= millis())
 	return;
 
-  Serial.print(F("MQTT connect to " SL_SERVER " at "));
-  Serial.print(millis());
-  Serial.print(" port ");
+  Serial.print(F("MQTT connect " SL_SERVER ":"));
   Serial.print(SL_SERVERPORT);
-  Serial.print(": ");
+  Serial.print(" at ");
+  Serial.print(millis());
+  Serial.print("millis: ");
 
   if ((ret = mqtt.connect()) != 0) { // connect will return 0 for connected
     Serial.print(mqtt.connectErrorString(ret));
@@ -391,10 +402,10 @@ void CBsetrf95power(uint32_t power) {
 
 void CBsendmsgtonode(char *nodedata, uint16_t len) {
   mqttreceived += 1;
-  sendmsgtonode(nodedata, len);
+  sendmsgtonode((uint8_t *)nodedata, len);
 }
 
-void CBupdatestate(char *cmd, uint16_t len) {
+void CBupdatestate(char  *cmd, uint16_t len) {
   mqttreceived += 1;
   updatestate(cmd, len);
 }
@@ -428,13 +439,13 @@ void setrf95power(uint32_t power) {
 
 struct lorapkt {
   uint8_t toaddr;
-  char *pkt;
+  uint8_t *pkt;
 };
 
 
 // forward a mqtt msg to a Lora node
 // nodeata format is "addr,msg..."
-void sendmsgtonode(char *nodedata, uint16_t len) {
+void sendmsgtonode(uint8_t *nodedata, uint16_t len) {
   char   *strtokIndx;
   struct lorapkt *pkt;
   int    plen;
@@ -442,17 +453,17 @@ void sendmsgtonode(char *nodedata, uint16_t len) {
   Serial.print(F("config node, len "));
   Serial.print(len);
   Serial.print(" data: ");
-  Serial.println(nodedata);
+  Serial.println((char *)nodedata);
 
   pkt = (lorapkt *)allocmem(sizeof(struct lorapkt));
-  strtokIndx = strtok(nodedata,",");
+  strtokIndx = strtok((char *)nodedata,",");
   pkt->toaddr = atoi(strtokIndx);
   strtokIndx = strtok(NULL, ",");
-  plen = len - ( strtokIndx - nodedata );
-  pkt->pkt = (char *)allocmem(plen+1);
+  plen = len - ( strtokIndx - (char *)nodedata );
+  pkt->pkt = (uint8_t *)allocmem(plen+1);
   memcpy(pkt->pkt, strtokIndx, plen);
   pkt->pkt[plen] = '\0';
-  loraQ.enqueue((char *)pkt);
+  loraQ.enqueue((uint8_t *)pkt, plen);
 }
 
 
@@ -460,21 +471,22 @@ void sendmsgtonode(char *nodedata, uint16_t len) {
 // retrieve a packet from the loraQ and send it 
 void sendlora() {
   struct lorapkt *pkt;
+  uint8_t len;
 
   if (millis() < nextSendTime) 
     // don't send if we are in the TX wait gap
     return;
-  pkt = (struct lorapkt *)loraQ.dequeue();
+  pkt = (struct lorapkt *)loraQ.dequeue(&len);
 
   Serial.print(F("send lora addr: "));
   Serial.print(pkt->toaddr);
   Serial.print(" data: ");
-  Serial.println(pkt->pkt);
+  Serial.println((char *)pkt->pkt);
 #ifdef LORA_LED
   digitalWrite(LORA_LED, LOW);
 #endif
   beforeTime = millis();
-  if (manager.sendtoWait((uint8_t *)pkt->pkt, strlen(pkt->pkt)+1, pkt->toaddr) == RH_ROUTER_ERROR_NONE) {
+  if (manager.sendtoWait((uint8_t *)pkt->pkt, len, pkt->toaddr) == RH_ROUTER_ERROR_NONE) {
     afterTime = millis() - beforeTime;
     Serial.print("sent OK, ");
 	Serial.println(afterTime);
@@ -492,7 +504,7 @@ void sendlora() {
 }
 
 
-void updatestate(char *cmd, uint16_t len) {
+void *updatestate(char *cmd, uint16_t len) {
 
   if (cmd && (cmd[0] == 'r')) {
     UpdStatus("Resetting");
