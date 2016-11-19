@@ -47,25 +47,34 @@ void SteamLink::init(uint8_t* token) {
   driver->setTxPower(tx_power, false);
 }
 
-bool SteamLink::send(uint8_t* buf) {
+SL_ERROR SteamLink::send(uint8_t* buf) {
+  send(buf, SL_DEFAULT_BRIDGE);
+}
+
+SL_ERROR SteamLink::send(uint8_t* buf, uint8_t to_addr) {
   debug("entering send()");
   uint8_t len = strlen((char*) buf) + 1;	//N.B. Send terminating \0
   uint8_t* packet;
   uint8_t packet_size;
    
   // TODO: change with actual determined error codes
-  if (len >= SL_MAX_MESSAGE_LEN) return true;
+  if (len >= SL_MAX_MESSAGE_LEN) return FAIL;
   Serial.println("Printing packet size");
   
   packet = encrypt_alloc(&packet_size, buf, len, conf.key);
   Serial.println(packet_size);
   debug("printing packet in hex ");
   phex(packet, packet_size);
-  bool sent = manager->sendtoWait(packet, packet_size, bridge_address);
+  bool sent = manager->sendtoWait(packet, packet_size, to_addr);
 
   free(packet);
-
-  return sent;
+  
+  // figure out error codes
+  if (sent == 0)  {
+    return SUCCESS;
+  }  else {
+    return FAIL;
+  }
 }
 
 void SteamLink::register_handler(on_receive_handler_function on_receive) {

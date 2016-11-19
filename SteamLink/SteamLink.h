@@ -28,23 +28,21 @@ class SteamLink {
   void init(uint8_t* token);
 
   // send message
-  bool send(uint8_t* buf);
- 
+  SL_ERROR send(uint8_t* buf);
+  SL_ERROR send(uint8_t* buf, uint8_t to_addr);
+
   // register_handler(on_receive)
   void register_handler(on_receive_handler_function on_receive);
 
   // update()
   void update();
   
-  // available does not need to exist
-  bool available();
-  
   //set pins
   void set_pins(uint8_t cs, uint8_t reset, uint8_t interrupt);
   
  private:
+
   uint8_t bridge_address = SL_DEFAULT_BRIDGE;
-  
   uint8_t tx_power = SL_DEFAULT_TXPWR;
   sl_config conf;
   sl_pins pins;
