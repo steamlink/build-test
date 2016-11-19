@@ -5,12 +5,16 @@
 #include "SteamLink.h"
 
 SteamLink sl;
+
+void on_receive(uint8_t* buffer, uint8_t size);
+
 void setup() {
   Serial.begin(9600);
   delay(1000);
   Serial.println("Starting LoRa");
   sl.set_pins(8,4,3);
   sl.init((uint8_t*)"2b7e151628aed2a6abf7158809cf4f3c0a00c064440003");
+  sl.register_handler(&on_receive);
 }
 
 // Dont put this on the stack:
@@ -34,5 +38,12 @@ void loop()
 
   Serial.print("Total time taken to send was: ");
   Serial.println(afterTime - beforeTime);
+
+  sl.update();
 }
+
+void on_receive(uint8_t* buffer, uint8_t size) {
+  Serial.println((char *) buffer);
+}
+
 

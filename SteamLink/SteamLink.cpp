@@ -1,6 +1,6 @@
 #include "SteamLink.h"
 
-bool SteamLink::init(uint8_t* token) {
+void SteamLink::init(uint8_t* token) {
   // Class to manage message delivery and receipt, using the driver declared above
   debug("entering init()");
 
@@ -41,6 +41,7 @@ bool SteamLink::init(uint8_t* token) {
   }
   debug("Modem config done!");
   // set timeout for CAD to 10s
+  // TODO: Make sure CAD actually does something!!!
   driver->setCADTimeout(10000);
   // set antenna power
   driver->setTxPower(tx_power, false);
@@ -67,31 +68,20 @@ bool SteamLink::send(uint8_t* buf) {
   return sent;
 }
 
-bool SteamLink::receive(uint8_t* buf, uint8_t len, uint8_t timeout) {
-  // TODO: unfinished!
-  // uint8_t from;
-  // return manager->recvfromAckTimeout(buf, len, timeout, &from);
-  return false;
+void SteamLink::register_handler(on_receive_handler_function on_receive) {
+  _on_receive = on_receive;
 }
 
-bool SteamLink::receive(uint8_t* buf, uint8_t len) {
+void SteamLink::update() {
   // allocate max size
-  uint8_t* rcvbuf = (uint8_t*) malloc(SL_MAX_MESSAGE_LEN);
   uint8_t rcvlen;
   uint8_t from; // TODO: might need to "validate" sender!
   //recv packet
-  bool received = manager->recvfromAck(rcvbuf, &rcvlen, &from);
-  if(received) {
-    decrypt(rcvbuf, rcvlen, conf.key);
-    if(strlen((char *) rcvbuf) < len) {
-      strncpy((char*) buf, (char*) rcvbuf, len);
-    } else received = false;
-  } 
-  return received;
-}
-
-bool SteamLink::available() {
-  return driver->available();
+  bool received = manager->recvfromAck(slrcvbuffer, &rcvlen, &from);
+  if (received) {
+    decrypt(slrcvbuffer, rcvlen, conf.key);
+    _on_receive(slrcvbuffer, rcvlen);
+  }
 }
 
 void SteamLink::extract_token_fields(uint8_t* str, uint8_t size){
@@ -102,6 +92,7 @@ void SteamLink::extract_token_fields(uint8_t* str, uint8_t size){
     Serial.println("SL_FATAL: Token invalid!");
     while(1);
   }
+
   Serial.print("sizeof(conf) ");
   Serial.println(sizeof(conf));
 

@@ -25,6 +25,9 @@ struct sl_pins {
   uint8_t interrupt = 3;
 };
 
-
+enum SL_ERROR {
+SUCCESS,
+FAIL
+};
 
 #endif

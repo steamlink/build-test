@@ -20,17 +20,23 @@ class SteamLink {
 
   // TODO: Document class functions!
   public:
+
+  // create a typedef for on receive functions
+  typedef void (*on_receive_handler_function)(uint8_t* buffer, uint8_t size);
+
   // Automatic initialization
-  bool init(uint8_t* token);
+  void init(uint8_t* token);
 
   // send message
   bool send(uint8_t* buf);
+ 
+  // register_handler(on_receive)
+  void register_handler(on_receive_handler_function on_receive);
 
-  // receive
-  bool receive(uint8_t* buf, uint8_t len, uint8_t timeout);
-  bool receive(uint8_t* buf, uint8_t len);
-
-  // available
+  // update()
+  void update();
+  
+  // available does not need to exist
   bool available();
   
   //set pins
@@ -38,15 +44,21 @@ class SteamLink {
   
  private:
   uint8_t bridge_address = SL_DEFAULT_BRIDGE;
+  
   uint8_t tx_power = SL_DEFAULT_TXPWR;
   sl_config conf;
   sl_pins pins;
   RH_RF95* driver;
   RHMesh* manager;
+  uint8_t slrcvbuffer[SL_MAX_MESSAGE_LEN];
+
+  on_receive_handler_function _on_receive;
+
   void debug(char* string);
   uint8_t* encrypt_alloc(uint8_t* outlen, uint8_t* in, uint8_t inlen, uint8_t* key);
   void decrypt(uint8_t* in, uint8_t inlen, uint8_t* key);
   void phex(uint8_t* str, unsigned int size);
+
 
   // extract fields from token, take in string pointer and length and writes to sl_config conf
   void extract_token_fields(uint8_t* str, uint8_t size);
