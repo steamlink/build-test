@@ -23,6 +23,7 @@ class SteamLink {
 
   // create a typedef for on receive functions
   typedef void (*on_receive_handler_function)(uint8_t* buffer, uint8_t size);
+  typedef void (*on_receive_from_handler_function)(uint8_t* buffer, uint8_t size, uint8_t from);
 
   // Automatic initialization
   void init(uint8_t* token);
@@ -33,6 +34,7 @@ class SteamLink {
 
   // register_handler(on_receive)
   void register_handler(on_receive_handler_function on_receive);
+  void register_handler(on_receive_from_handler_function on_receive_from);
 
   // update()
   void update();
@@ -50,7 +52,8 @@ class SteamLink {
   RHMesh* manager;
   uint8_t slrcvbuffer[SL_MAX_MESSAGE_LEN];
 
-  on_receive_handler_function _on_receive;
+  on_receive_handler_function _on_receive = NULL;
+  on_receive_from_handler_function _on_receive_from = NULL;
 
   void debug(char* string);
   uint8_t* encrypt_alloc(uint8_t* outlen, uint8_t* in, uint8_t inlen, uint8_t* key);

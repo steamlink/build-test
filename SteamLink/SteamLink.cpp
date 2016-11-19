@@ -81,6 +81,10 @@ void SteamLink::register_handler(on_receive_handler_function on_receive) {
   _on_receive = on_receive;
 }
 
+void SteamLink::register_handler(on_receive_from_handler_function on_receive_from) {
+  _on_receive_from = on_receive_from;
+}
+
 void SteamLink::update() {
   // allocate max size
   uint8_t rcvlen;
@@ -89,7 +93,11 @@ void SteamLink::update() {
   bool received = manager->recvfromAck(slrcvbuffer, &rcvlen, &from);
   if (received) {
     decrypt(slrcvbuffer, rcvlen, conf.key);
-    _on_receive(slrcvbuffer, rcvlen);
+    if (_on_receive != NULL) {
+      _on_receive(slrcvbuffer, rcvlen);
+    } else if (_on_receive_from != NULL) {
+      _on_receive_from(slrcvbuffer, rcvlen, from);
+    }
   }
 }
 
