@@ -58,14 +58,18 @@ n_typ 0 (encoded as flags 0000)
 +-----+---------------------+
 |sw_id|encrypted_payload....|
 +-----+---------------------+
+
 bridge to store on topic "SL/mesh_ID/data"
 b_typ 0
 +-----+-----+-------+----+-----+--------------------+
 |b_typ|n_typ|node_id|rssi|sw_id|encrypted_payload...|
 +-----+-----+-------+----+-----+--------------------+
 |<-----BRIDGE_WRAP------>|<----NODE_PKT----------->>|
+
 store to bridge like bridge to store, with rssi = 0
+
 bridge to node like node to bridge
+
 ------- ----------- ---------
 sw_id   swarm id    16bit
 b_typ   bridge typ  4 bit
@@ -74,4 +78,39 @@ node_id RH addr     8 bit
 rssi    signal      8 bit
 
 ```
+# Eve schema
+* swarms
+  + `swarm_id`
+  + `swarm_name`
+  + `field_names` optional
+  + `swarm_user_id`
+  + `node_id_array`
+  + `mesh_id`
+  + `radio_params`
+  + `swarm_aes_key`
+* bridges
+  + `mesh_id`
+  + `node_addr`
+  + `nodes_seen_array` TODO
+* users
+  + `user_id`
+  + `user_name` must be unique
+  + `password`
+  + `email`
+  + `swarm_id_array`
+  + `web_token`
+  + `mqtt_password` - same as above for now
+  + `topic_transformations_array`
+* topic_transformations
+  + `topic_in`
+  + `topic_out`
+
+# Alias tranformations
+## Simple alias
+`user_name/swarm_name/node_addr` --> `toronto/steamlabs/temperature`
+## Many to one alias
+`toronto/+/temperature` --> `toronto/temperature`
+
+
+
 
