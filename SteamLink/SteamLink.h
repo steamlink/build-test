@@ -26,7 +26,7 @@ class SteamLink {
   typedef void (*on_receive_from_handler_function)(uint8_t* buffer, uint8_t size, uint8_t from);
 
   // Automatic initialization
-  void init(uint8_t* token);
+  void init(uint8_t* token, bool encrypted=true);
 
   // send message
   SL_ERROR send(uint8_t* buf);
@@ -51,12 +51,15 @@ class SteamLink {
   RH_RF95* driver;
   RHMesh* manager;
   uint8_t slrcvbuffer[SL_MAX_MESSAGE_LEN];
+  bool encryption_mode = true;
 
   on_receive_handler_function _on_receive = NULL;
   on_receive_from_handler_function _on_receive_from = NULL;
 
   void debug(char* string);
+  // encrypt allocates memory, remember to free after processing
   uint8_t* encrypt_alloc(uint8_t* outlen, uint8_t* in, uint8_t inlen, uint8_t* key);
+  // decrypt happens in place
   void decrypt(uint8_t* in, uint8_t inlen, uint8_t* key);
   void phex(uint8_t* str, unsigned int size);
 
