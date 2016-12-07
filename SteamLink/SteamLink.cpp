@@ -1,6 +1,7 @@
 #include "SteamLink.h"
 
-void SteamLink::init(uint8_t* token) {
+// bool encrypted = true by default
+void SteamLink::init(uint8_t* token, bool encrypted) {
   // Class to manage message delivery and receipt, using the driver declared above
   debug("entering init()");
 
@@ -45,6 +46,9 @@ void SteamLink::init(uint8_t* token) {
   driver->setCADTimeout(10000);
   // set antenna power
   driver->setTxPower(tx_power, false);
+
+  // set encryption mode
+  encryption_mode = encrypted;
 }
 
 SL_ERROR SteamLink::send(uint8_t* buf) {
@@ -56,18 +60,22 @@ SL_ERROR SteamLink::send(uint8_t* buf, uint8_t to_addr) {
   uint8_t len = strlen((char*) buf) + 1;	//N.B. Send terminating \0
   uint8_t* packet;
   uint8_t packet_size;
+  bool sent;
    
   // TODO: change with actual determined error codes
   if (len >= SL_MAX_MESSAGE_LEN) return FAIL;
   Serial.println("Printing packet size");
   
-  packet = encrypt_alloc(&packet_size, buf, len, conf.key);
-  Serial.println(packet_size);
-  debug("printing packet in hex ");
-  phex(packet, packet_size);
-  bool sent = manager->sendtoWait(packet, packet_size, to_addr);
-
-  free(packet);
+  if (encryption_mode) {
+    packet = encrypt_alloc(&packet_size, buf, len, conf.key);
+    Serial.println(packet_size);
+    debug("printing packet in hex ");
+    phex(packet, packet_size);
+    sent = manager->sendtoWait(packet, packet_size, to_addr);
+    free(packet);
+  } else {
+    sent = manager->sendtoWait(buf, len, to_addr);
+  }
   
   // figure out error codes
   if (sent == 0)  {
@@ -92,7 +100,9 @@ void SteamLink::update() {
   //recv packet
   bool received = manager->recvfromAck(slrcvbuffer, &rcvlen, &from);
   if (received) {
-    decrypt(slrcvbuffer, rcvlen, conf.key);
+    // decrypt if we have encryption mode on
+    if(encryption_mode)
+      decrypt(slrcvbuffer, rcvlen, conf.key);
     if (_on_receive != NULL) {
       _on_receive(slrcvbuffer, rcvlen);
     } else if (_on_receive_from != NULL) {
