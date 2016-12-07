@@ -26,8 +26,8 @@ struct sl_pins {
 };
 
 enum SL_ERROR {
-SUCCESS,
-FAIL
+SL_SUCCESS,
+SL_FAIL
 };
 
 #endif

@@ -1,12 +1,12 @@
 #include "SteamLink.h"
 
 // bool encrypted = true by default
-void SteamLink::init(uint8_t* token, bool encrypted) {
+void SteamLink::init(char* token, bool encrypted) {
   // Class to manage message delivery and receipt, using the driver declared above
   debug("entering init()");
 
   debug("extracting token fields");
-  extract_token_fields(token, SL_TOKEN_LENGTH);
+  extract_token_fields((uint8_t*) token, SL_TOKEN_LENGTH);
   
   debug("dumping token fields");
   phex(conf.key, 16);
@@ -46,24 +46,23 @@ void SteamLink::init(uint8_t* token, bool encrypted) {
   driver->setCADTimeout(10000);
   // set antenna power
   driver->setTxPower(tx_power, false);
-
   // set encryption mode
   encryption_mode = encrypted;
 }
 
 SL_ERROR SteamLink::send(uint8_t* buf) {
-  send(buf, SL_DEFAULT_BRIDGE);
+  uint8_t len = strlen((char*) buf) + 1;	//N.B. Send terminating \0
+  send(buf, SL_DEFAULT_BRIDGE, len);
 }
 
-SL_ERROR SteamLink::send(uint8_t* buf, uint8_t to_addr) {
+SL_ERROR SteamLink::send(uint8_t* buf, uint8_t to_addr, uint8_t len) {
   debug("entering send()");
-  uint8_t len = strlen((char*) buf) + 1;	//N.B. Send terminating \0
   uint8_t* packet;
   uint8_t packet_size;
   bool sent;
    
   // TODO: change with actual determined error codes
-  if (len >= SL_MAX_MESSAGE_LEN) return FAIL;
+  if (len >= SL_MAX_MESSAGE_LEN) return SL_FAIL;
   Serial.println("Printing packet size");
   
   if (encryption_mode) {
@@ -79,9 +78,9 @@ SL_ERROR SteamLink::send(uint8_t* buf, uint8_t to_addr) {
   
   // figure out error codes
   if (sent == 0)  {
-    return SUCCESS;
+    return SL_SUCCESS;
   }  else {
-    return FAIL;
+    return SL_FAIL;
   }
 }
 
@@ -108,9 +107,13 @@ void SteamLink::update() {
     } else if (_on_receive_from != NULL) {
       _on_receive_from(slrcvbuffer, rcvlen, from);
     }
+    last_rssi = driver->lastRssi();
   }
 }
 
+uint8_t SteamLink::get_last_rssi() {
+  return last_rssi;
+}
 void SteamLink::extract_token_fields(uint8_t* str, uint8_t size){
   uint8_t buf[SL_TOKEN_LENGTH]; 
 
