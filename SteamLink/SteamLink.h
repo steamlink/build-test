@@ -26,11 +26,11 @@ class SteamLink {
   typedef void (*on_receive_from_handler_function)(uint8_t* buffer, uint8_t size, uint8_t from);
 
   // Automatic initialization
-  void init(uint8_t* token, bool encrypted=true);
+  void init(char* token, bool encrypted=true);
 
   // send message
   SL_ERROR send(uint8_t* buf);
-  SL_ERROR send(uint8_t* buf, uint8_t to_addr);
+  SL_ERROR send(uint8_t* buf, uint8_t to_addr, uint8_t len);
 
   // register_handler(on_receive)
   void register_handler(on_receive_handler_function on_receive);
@@ -42,8 +42,11 @@ class SteamLink {
   //set pins
   void set_pins(uint8_t cs, uint8_t reset, uint8_t interrupt);
   
- private:
+  // expose last rssi
+  uint8_t get_last_rssi();
 
+ private:
+  uint8_t last_rssi;
   uint8_t bridge_address = SL_DEFAULT_BRIDGE;
   uint8_t tx_power = SL_DEFAULT_TXPWR;
   sl_config conf;
