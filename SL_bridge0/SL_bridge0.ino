@@ -2,21 +2,14 @@
 // -*- mode: C++ -*-
 // first run a a bridge
 
-// Mesh has much greater memory requirements, and you may need to limit the
-// max message length to prevent wierd crashes
-// Since our ARM platform has nor immediate memory constraint, we'll go with
-// a larger message size
-#define RH_MESH_MAX_MESSAGE_LEN 250
+#define VER "5"
 
-#define VER "4"
-
-#include <RHMesh.h>
-#include <RH_RF95.h>
 #include <SPI.h>
 #include <ESP8266WiFi.h>
 #include <Adafruit_MQTT.h>
 #include <Adafruit_MQTT_Client.h>
 
+#include <SteamLink.h>
 #include "SL_Credentials.h"
 #include "SL_RingBuff.h"
 
@@ -31,33 +24,23 @@
 #define RFM95_CS 8
 #define RFM95_RST 4
 #define RFM95_INT 3
-
 #else
 // for Adafruit Huzzah breakout
 #define RFM95_CS 15
 #define RFM95_RST 4
 #define RFM95_INT 5
-// Blue LED to flash on lora traffic
+// Blue LED to flash on LoRa traffic
 #define LORA_LED 2
 // Red LED to flash on mqtt
 #define MQTT_LED 0
 #endif
 
 // minimum transmisison gap (ms)
-#define MINTXGAP 125
+#define MINTXGAP 0 /// was 125 TODO: remove it and related code once waitCAD is shown to work
 
 // sizes of queues
 #define LORAQSIZE 40	// probably more than available memory
 #define MQTTQSIZE 100
-
-// Initial frequency for the bridge, can be changed via .../config/freq topic
-#define RF95_FREQ 915.0
-
-// Inital Lora address of the bridge, can be changes via .../config/addr topic
-#define RF95_ADDRESS 1
-
-// Inital Lora tx power for the bridge, can be changes via .../config/power topic
-#define RF95_POWER 23
 
 // WiFi Creds are in SL_Credentials.h
 
@@ -67,23 +50,43 @@ WiFiClientSecure client;
 WiFiClient client;
 #endif
 
-// config variables, matched to config topics
-uint8_t rf95addr = RF95_ADDRESS;
-double  rf95freq = RF95_FREQ;
-uint8_t rf95power = RF95_POWER;
+
+// n_typ_0 pkt
+#define N_TYP_VER 0
+struct n_typ_0 {
+  uint8_t  sw_id;
+  uint8_t  npayload[];
+};
+
+// b_typ_0 pkt
+#define B_TYP_VER 0
+struct b_typ_0 {
+  unsigned  b_typ: 4;
+  unsigned  n_typ: 4;
+  uint8_t  node_id;
+  uint8_t  rssi;
+  struct n_typ_0  bpayload;
+};
+
+// loraQ entry
+struct lorapkt {
+  uint8_t toaddr;
+  struct n_typ_0 pkt;
+};
+
+
 boolean slinitdone = false;
 
 // stats counters
-long rf95sent, rf95received = 0;
+long slsent, slreceived = 0;
 long mqttsent, mqttreceived = 0;
 
 // timers
-int beforeTime = 0, afterTime = 0, nextSendTime = 0;
+int nextSendTime = 0;
 long nextretry = 0;
 
+// high water mark for MQTT queue
 int hwm = MQTTQSIZE - 2;
-
-#define MESHID "mesh1"
 
 // queues
 SL_RingBuff mqttQ(MQTTQSIZE);
@@ -92,37 +95,22 @@ SL_RingBuff loraQ(LORAQSIZE);
 // MQTT client class
 Adafruit_MQTT_Client mqtt(&client, SL_SERVER, SL_SERVERPORT, SL_CONID,  SL_USERNAME, SL_KEY);
 
-// SHA1 fingerprint for mqtt.steamlink.net's SSL certificate
-const char* fingerprint = "E3 B9 24 8E 45 B1 D2 1B 4C EF 10 61 51 35 B2 DE 46 F1 8A 3D";
-
-// Setup a feed called 'slpublish' for publishing.
-// Notice MQTT topics for SL follow the form: <username>/<conid>/<type>
-//   where type is one of data, status, config
+// Setup topic 'SL/xx/data' for publishing data from nodes.
 Adafruit_MQTT_Publish slpublish = Adafruit_MQTT_Publish(&mqtt, \
-      "SL/" MESHID "/data");
+      "SL/" SL_MESHID "/data");
+// Setup topic 'SL/xx/status' for publishing status info from this bridge.
 Adafruit_MQTT_Publish slstatus = Adafruit_MQTT_Publish(&mqtt, \
-      "SL/" MESHID "/status");
+      "SL/" SL_MESHID "/status");
 
-// Subscribe to 'config' topics
+// listen to topic SL/mesh_xx/control for pkts destined for nodes
+Adafruit_MQTT_Subscribe mqtt_subs_control = Adafruit_MQTT_Subscribe(&mqtt, \
+      "SL/" SL_MESHID  "/control");
+// listen to topic SL/mesh_xx/state for commands to the bridge itself
+Adafruit_MQTT_Subscribe mqtt_subs_state = Adafruit_MQTT_Subscribe(&mqtt, \
+      "SL/" SL_MESHID  "/state");
 
-// TODO:  change topic to 'SL/meshXX/data/
-Adafruit_MQTT_Subscribe slconf_addr = Adafruit_MQTT_Subscribe(&mqtt, \
-      "SL/" MESHID  "/config/addr");
-Adafruit_MQTT_Subscribe slconf_freq = Adafruit_MQTT_Subscribe(&mqtt, \
-      "SL/" MESHID  "/config/freq");
-Adafruit_MQTT_Subscribe slconf_power = Adafruit_MQTT_Subscribe(&mqtt, \
-      "SL/" MESHID  "/config/power");
-Adafruit_MQTT_Subscribe slconf_node = Adafruit_MQTT_Subscribe(&mqtt, \
-      "SL/" MESHID  "/config/node");
-Adafruit_MQTT_Subscribe slconf_state = Adafruit_MQTT_Subscribe(&mqtt, \
-      "SL/" MESHID  "/state");
-
-
-// Singleton instance of the radio driver
-RH_RF95 driver(RFM95_CS, RFM95_INT);
-
-// Class to manage message delivery and receipt, using the driver declared above
-RHMesh manager(driver, RF95_ADDRESS);
+// Inst Steamlink
+SteamLink sl;
 
 
 #if USE_SSL
@@ -138,7 +126,7 @@ void verifyFingerprint() {
     while(1);
   }
 
-  if (client.verify(fingerprint, host)) {
+  if (client.verify(sl_server_fingerprint, host)) {
     Serial.println(F("Connection secure."));
   } else {
     Serial.println(F("Connection insecure! Halting execution."));
@@ -171,9 +159,6 @@ void setup()
   Serial.println(F("!ID SL_bridge" VER));
   Serial.println(F("WiFi Network " WLAN_SSID));
 
-  pinMode(RFM95_RST, OUTPUT);
-  digitalWrite(RFM95_RST, HIGH);
-
 #ifdef LORA_LED
   pinMode(LORA_LED, OUTPUT);
   digitalWrite(LORA_LED, HIGH);
@@ -205,95 +190,124 @@ void setup()
 #endif
 
   // set callbacks and subscribe to the config topics
-  slconf_addr.setCallback(&CBsetrf95addr);
-  slconf_freq.setCallback(&CBsetrf95freq);
-  slconf_power.setCallback(&CBsetrf95power);
-  slconf_node.setCallback(&CBsendmsgtonode);
-  slconf_state.setCallback(&CBupdatestate);
+  mqtt_subs_state.setCallback(&CBupdatestate);
+  mqtt_subs_control.setCallback(&CBupdatecontrol);
 
-  mqtt.subscribe(&slconf_addr);
-  mqtt.subscribe(&slconf_freq);
-  mqtt.subscribe(&slconf_power);
-  mqtt.subscribe(&slconf_node);
-  mqtt.subscribe(&slconf_state);
+  mqtt.subscribe(&mqtt_subs_state);
+  mqtt.subscribe(&mqtt_subs_control);
 
   // set lwt
-  mqtt.will(SL_USERNAME "/" SL_CONID "/status", "OFFLINE", 0, 1);
+  mqtt.will("SL/" SL_MESHID "/status", "OFFLINE", 0, 1);
 
-  // we still must init RH
+  // we still must init SL
   slinitdone = false;
 }
 
 
-uint8_t buf[RH_MESH_MAX_MESSAGE_LEN];
+// 
+void sl_on_receive(uint8_t* buffer, uint8_t size, uint8_t from)
+{
+  struct b_typ_0 *msg;
+
+  if (mqttQ.queuelevel() < hwm) {
+#ifdef LORA_LED
+    digitalWrite(LORA_LED, LOW);
+#endif
+	Serial.printf("got %s from %s\n", size, from);
+    slreceived += 1;
+
+    msg = (struct b_typ_0 *) allocmem(size+sizeof(b_typ_0));
+	msg->b_typ = B_TYP_VER;
+	msg->n_typ = N_TYP_VER;
+    msg->node_id = from;
+	msg->rssi = sl.get_last_rssi();
+    memcpy(&msg->bpayload, buffer, size);
+    if (mqttQ.enqueue((uint8_t *)msg, size+sizeof(n_typ_0)) == 0) {
+      Serial.println("mqttQ FULL, pkt dropped");
+      hwm = MAX(hwm - 1, 2);		// decrease high water mark
+    }
+    else {
+      Serial.printf("from %i RSSI %i size %i data: \"%s\"\n", from, msg->rssi, size, (char*)buffer);
+    }
+#ifdef LORA_LED
+    digitalWrite(LORA_LED, HIGH);
+#endif
+  }
+}
 
 //
 // LOOP
 //
 void loop()
 {
-  uint8_t len = sizeof(buf);
-  uint8_t from;
-  int8_t rssi;
-  boolean ret;
-  uint8_t *msg;
-
-
-  SLConnect();
-  // read and queue all waiting pkts
-  // don't accept any more if mqttQ is almost full
-  while (driver.available() && (mqttQ.queuelevel() < hwm)) {
-#ifdef LORA_LED
-    digitalWrite(LORA_LED, LOW);
-#endif
-    beforeTime = millis();
-    ret = manager.recvfromAck((uint8_t *)buf, &len, &from);
-	Serial.printf("got %s from %s\n", len, from);
-    afterTime = millis() - beforeTime;
-    if (ret) {
-      rf95received += 1;
-      rssi = driver.lastRssi();
-
-      msg = (uint8_t *) allocmem(len+3);
-      msg[0] = from;
-      msg[1] = (uint8_t) rssi;
-      memcpy(&msg[2], buf, len);
-      msg[len+2] = '\0';
-      if (mqttQ.enqueue(msg, len+3) == 0) {
-		Serial.println("mqttQ FULL, pkt dropped");
-		hwm = MAX(hwm - 1, 2);		// decrease high water mark
-      }
-      else {
-        Serial.printf("from %i RSSI %i len %i data: \"%s\" time: %li \n", from, rssi, len, (char*)buf, afterTime);
-      }
-    }
-#ifdef LORA_LED
-    digitalWrite(LORA_LED, HIGH);
-#endif
-  }
+  BridgeConnect();
 
   if (mqttQ.queuelevel() && mqtt.connected()) {
-#ifdef MQTT_LED
-      digitalWrite(MQTT_LED, LOW);
-#endif
-	uint8_t len;
-    msg = mqttQ.dequeue(&len);
-    ret = slpublish.publish(msg, len);
-    if (!ret) {
-      Serial.println(F("mqtt publish failed"));
-    }
-	else {
-	  mqttsent += 1;
-	}
-    free(msg);
-#ifdef MQTT_LED
-    digitalWrite(MQTT_LED, HIGH);
-#endif
+	mqsend();
   }
 
   if (loraQ.queuelevel()) {
-    sendlora();
+    slsend();
   }
+}
+
+
+//
+// retrieve a packet from the loraQ and send it 
+void slsend() {
+  struct lorapkt *pkt;
+  uint8_t len;
+
+  if (millis() < nextSendTime) 
+    // don't send if we are in the TX wait gap
+    return;
+  pkt = (struct lorapkt *)loraQ.dequeue(&len);
+
+  Serial.print(F("send lora addr: "));
+  Serial.print(pkt->toaddr);
+  Serial.print(" len: ");
+  Serial.println(len - sizeof(struct lorapkt));
+#ifdef LORA_LED
+  digitalWrite(LORA_LED, LOW);
+#endif
+
+  if (sl.send((uint8_t *)&pkt->pkt, pkt->toaddr, len - sizeof(struct lorapkt))) {
+    Serial.println("sent OK");
+    slsent += 1;
+  }
+  else {
+    Serial.println("send failed");
+  }
+  nextSendTime = millis() + MINTXGAP;
+#ifdef LORA_LED
+  digitalWrite(LORA_LED, HIGH);
+#endif
+  free(pkt);
+}
+
+
+
+// retrieve msg and mqtt publish
+void mqsend() {
+  boolean ret;
+  uint8_t *msg;
+  uint8_t len;
+
+#ifdef MQTT_LED
+   digitalWrite(MQTT_LED, LOW);
+#endif
+  msg = mqttQ.dequeue(&len);
+  ret = slpublish.publish(msg, len);
+  if (!ret) {
+    Serial.println(F("mqtt publish failed"));
+  }
+  else {
+     mqttsent += 1;
+  }
+  free(msg);
+#ifdef MQTT_LED
+  digitalWrite(MQTT_LED, HIGH);
+#endif
 }
 
 
@@ -303,7 +317,7 @@ void UpdStatus(char *newstatus)
   uint8_t i, len;
 
   len = snprintf((char *)buf, sizeof(buf), "%s/%li/%li/%li/%li/%i/%i", \
-		newstatus, rf95sent, rf95received, mqttsent, mqttreceived, \
+		newstatus, slsent, slreceived, mqttsent, mqttreceived, \
 		mqttQ.queuelevel(), loraQ.queuelevel());
   len = MIN(len+1,sizeof(buf));
   i = 5;
@@ -319,37 +333,27 @@ void UpdStatus(char *newstatus)
 }
 
 //
-// SLConnect:   establish connection to MQTT server and setup RH Mesh
-void SLConnect()
+// BridgeConnect:   establish connection to MQTT server and setup RH Mesh
+void BridgeConnect()
 {
 
   MQTT_connect();
   // prevent lockout of mqtt
   mqtt.processPackets(10);
+
   if (slinitdone)
     return;
 
-  RH_connect();
+  sl.set_pins(RFM95_CS, RFM95_RST, RFM95_INT);
+  sl.init(SL_TOKEN, false);	// no cryto
+  sl.register_handler(sl_on_receive);
   slinitdone = true;
 }
 
 
-// initialize and connect RadioHead
-void RH_connect()
-{
-
-  if (!manager.init()) {
-    Serial.println(F("RHMesh init failed"));
-	while (1);
-  }
-  setrf95addr(rf95addr);
-  setrf95freq(rf95freq);
-  setrf95power(rf95power);
-}
-
 
 // Function to connect and reconnect as necessary to the MQTT server.
-// Should be called in the loop function and it will take care if connecting.
+// Should be called in the loop function and it will take care of (re-)connecting.
 void MQTT_connect()
 {
   int8_t ret;
@@ -385,122 +389,31 @@ void MQTT_connect()
 //
 // CallBacks
 //
-void CBsetrf95addr(uint32_t addr) {
-  mqttreceived += 1;
-  setrf95addr(addr);
-}
-
-void CBsetrf95freq(double freq) {
-  mqttreceived += 1;
-  setrf95freq(freq);
-}
-
-void CBsetrf95power(uint32_t power) {
-  mqttreceived += 1;
-  setrf95power(power);
-}
-
-void CBsendmsgtonode(char *nodedata, uint16_t len) {
-  mqttreceived += 1;
-  sendmsgtonode((uint8_t *)nodedata, len);
-}
 
 void CBupdatestate(char  *cmd, uint16_t len) {
-  mqttreceived += 1;
-  updatestate(cmd, len);
+	mqttreceived += 1;
+	updatestate(cmd, len);
+}
+
+void CBupdatecontrol(char *data, uint16_t len) {
+
+	struct b_typ_0 *cntl = (struct b_typ_0 *)data;
+
+	mqttreceived += 1;
+	if ((cntl->b_typ != 0) && (cntl->n_typ != 0)) {
+		return;
+	}
+	sendmsgtonode(&cntl->bpayload, len - sizeof(struct b_typ_0), cntl->node_id);
 }
 
 
-
-// Utility
-void setrf95addr(uint32_t addr) {
-  rf95addr = addr;
-  Serial.print(F("RF95 addr: "));
-  Serial.println(addr);
-  manager.setThisAddress(rf95addr);
-}
-
-void setrf95freq(double freq) {
-  rf95freq = freq;
-  Serial.print(F("RF95 freq: "));
-  Serial.println(freq);
-  if (!driver.setFrequency(rf95freq)) {
-    Serial.println(F("setFrequency failed"));
-    while (1);
-  }
-}
-
-void setrf95power(uint32_t power) {
-  rf95power = power;
-  Serial.print(F("RF95 tx power: "));
-  Serial.println(power);
-  driver.setTxPower(rf95power, false);
-}
-
-struct lorapkt {
-  uint8_t toaddr;
-  uint8_t *pkt;
-};
-
-
-// forward a mqtt msg to a Lora node
-// nodeata format is "addr,msg..."
-void sendmsgtonode(uint8_t *nodedata, uint16_t len) {
-  char   *strtokIndx;
+void sendmsgtonode(struct n_typ_0 *msg, uint8_t len, uint8_t toaddr) {
   struct lorapkt *pkt;
-  int    plen;
 
-  Serial.print(F("config node, len "));
-  Serial.print(len);
-  Serial.print(" data: ");
-  Serial.println((char *)nodedata);
-
-  pkt = (lorapkt *)allocmem(sizeof(struct lorapkt));
-  strtokIndx = strtok((char *)nodedata,",");
-  pkt->toaddr = atoi(strtokIndx);
-  strtokIndx = strtok(NULL, ",");
-  plen = len - ( strtokIndx - (char *)nodedata );
-  pkt->pkt = (uint8_t *)allocmem(plen+1);
-  memcpy(pkt->pkt, strtokIndx, plen);
-  pkt->pkt[plen] = '\0';
-  loraQ.enqueue((uint8_t *)pkt, plen);
-}
-
-
-//
-// retrieve a packet from the loraQ and send it 
-void sendlora() {
-  struct lorapkt *pkt;
-  uint8_t len;
-
-  if (millis() < nextSendTime) 
-    // don't send if we are in the TX wait gap
-    return;
-  pkt = (struct lorapkt *)loraQ.dequeue(&len);
-
-  Serial.print(F("send lora addr: "));
-  Serial.print(pkt->toaddr);
-  Serial.print(" data: ");
-  Serial.println((char *)pkt->pkt);
-#ifdef LORA_LED
-  digitalWrite(LORA_LED, LOW);
-#endif
-  beforeTime = millis();
-  if (manager.sendtoWait((uint8_t *)pkt->pkt, len, pkt->toaddr) == RH_ROUTER_ERROR_NONE) {
-    afterTime = millis() - beforeTime;
-    Serial.print("sent OK, ");
-	Serial.println(afterTime);
-    rf95sent += 1;
-  }
-  else {
-    Serial.println("send failed");
-  }
-  nextSendTime = millis() + MINTXGAP;
-#ifdef LORA_LED
-  digitalWrite(LORA_LED, HIGH);
-#endif
-  free(pkt->pkt);
-  free(pkt);
+  pkt = (struct lorapkt *)allocmem(len + sizeof(lorapkt));
+  pkt->toaddr = toaddr;
+  memcpy((char *)&pkt->pkt, msg, len-1);
+  loraQ.enqueue((uint8_t *)pkt, len + sizeof(lorapkt));
 }
 
 
