@@ -344,6 +344,9 @@ void BridgeConnect()
   if (slinitdone)
     return;
 
+  float f;
+  Serial.print("size of float: ");
+  Serial.println(sizeof(f));
   sl.set_pins(RFM95_CS, RFM95_RST, RFM95_INT);
   sl.init(SL_TOKEN, false);	// no cryto
   sl.register_handler(sl_on_receive);

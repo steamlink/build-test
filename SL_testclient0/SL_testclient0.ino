@@ -59,10 +59,10 @@ void setup()
 
   digitalWrite(LED, HIGH);
 
+#define SL_TOKEN "2b7e151628aed2a6abf7158809cf4f3c0a00c064440005"
   sl.set_pins(RFM95_CS, RFM95_RST, RFM95_INT);
-  if (!sl.init())
-    Serial.println("init failed");
-	while(1);
+  sl.init(SL_TOKEN);
+  sl.register_handler(sl_on_receive);
 
   Serial.println("Steamlink init done");
   bLast = 2;
@@ -92,7 +92,7 @@ void loop()
       snprintf((char*) data, sizeof(data), "Hello World! pkt: %d", packet_num);
     }
     beforeTime = millis();
-    if (sl.send(data, sizeof(data) == 0)) 
+    if (sl.send(data) == SL_SUCCESS)
     {
       afterTime = millis() - beforeTime;
       // It has been reliably delivered to the next node.
@@ -106,26 +106,19 @@ void loop()
     }
     nextSendTime = millis() + waitInterval;
   }
+}
 
-//  if (sl.available()) {
-    if (sl.receive(buf, &len, 3000))	// XX drop 3000
-    {
-      Serial.print("got msg: ");
-      Serial.println((char*)buf);
-      int v = atoi((char *)buf);
-	  if (v == 0) {
-        digitalWrite(LED, LOW);
-	  } else if (v == 1) {
-        digitalWrite(LED, HIGH);
-	  } else { 
-        waitInterval = MAX(MINTXGAP, v);
-        Serial.print("waitInterval now ");
-        Serial.println(waitInterval);
-      }
+void sl_on_receive(uint8_t *buf, uint8_t len) {
+    Serial.print("got msg: ");
+    Serial.println((char*)buf);
+    int v = atoi((char *)buf);
+	if (v == 0) {
+      digitalWrite(LED, LOW);
+	} else if (v == 1) {
+      digitalWrite(LED, HIGH);
+	} else { 
+      waitInterval = MAX(MINTXGAP, v);
+      Serial.print("waitInterval now ");
+      Serial.println(waitInterval);
     }
-    else
-    {
-      Serial.println("available() and not pkt??");
-    }
-//  }
 }
