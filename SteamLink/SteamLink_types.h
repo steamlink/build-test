@@ -11,7 +11,9 @@ struct sl_config {
   // freq: the SX1276 chips support multiple radio frequencies, we use
   // 915 MHz in North America (ISM Band), leave as default
   float freq = 915.0;
-  RH_RF95::ModemConfigChoice mod_conf = RH_RF95::Bw125Cr45Sf128;
+  // TODO: explicitly map between ModemConfigChoice and mod_conf
+  uint8_t mod_conf = 0; // 0 maps to RH_RF95::Bw125Cr45Sf128;
+  // RH_RF95::ModemConfigChoice mod_conf = RH_RF95::Bw125Cr45Sf128;
   // node address
   uint8_t node_address;
 

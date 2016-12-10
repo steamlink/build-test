@@ -36,7 +36,7 @@ void SteamLink::init(char* token, bool encrypted) {
   }
 
   // Set modem configuration
-  if (!driver->setModemConfig(conf.mod_conf)) {
+  if (!driver->setModemConfig((RH_RF95::ModemConfigChoice) conf.mod_conf)) {
     debug("SL_FATAL: setModemConfig failed with invalid configuration");
     while (1);
   }
