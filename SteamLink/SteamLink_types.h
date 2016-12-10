@@ -6,8 +6,8 @@
 struct sl_config {
   // private key
   uint8_t key[16];
-  // mesh ID
-  uint8_t mesh_id;
+  // swarm ID
+  uint8_t swarm_id;
   // freq: the SX1276 chips support multiple radio frequencies, we use
   // 915 MHz in North America (ISM Band), leave as default
   float freq = 915.0;
