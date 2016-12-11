@@ -20,9 +20,16 @@ def AES128_decrypt(pkt):
 		print "pkt len error: ", len(pkt)
 		hexprint(pkt)
 		return ""
-	decryptor = AES.new(bkey, AES.MODE_ECB);
+	decryptor = AES.new(bkey, AES.MODE_ECB)
 	return decryptor.decrypt(pkt)
 
+def AES128_encrypt(msg):
+	if len(msg) % 16 != 0:
+		pmsg = msg + "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"[len(msg) % 16:]
+	else:
+		pmsg = msg
+	encryptor = AES.new(bkey, AES.MODE_ECB)
+	return bytearray(encryptor.encrypt(pmsg))
 
 # The callback for when the client receives a CONNACK response from the server.
 def on_connect(client, userdata, flags, rc):
@@ -46,23 +53,34 @@ def on_connect(client, userdata, flags, rc):
 def on_message(client, userdata, msg):
 #	ts=time.strftime("%Y-%m-%d %H:%M:%S",time.localtime())
 	ts=time.strftime("%Y-%m-%d %H:%M:%S",time.localtime(msg.timestamp))
-	if msg.topic == "SL/mesh1/data":
-		try:
-			fromddr = ord(msg.payload[0])
-			rssi = ord(msg.payload[1]) - 256
-			pl = AES128_decrypt(msg.payload[2:]);
+	if msg.topic in ["SL/mesh_1/data", "SL/mesh_1/control"]:
+		try:		# rough decode B_TYP_VER 0
+			nodever = ord(msg.payload[0])
+			fromaddr = ord(msg.payload[1])
+			rssi = ord(msg.payload[2]) - 256
+			sw_id = ord(msg.payload[3])
+			pl = AES128_decrypt(msg.payload[4:]).rstrip('\0')
 		except Exception as e:
 			print "payload format or decrypt error: %s" % e
 			return
 		print("%s: %s from:%s rssi %s len %s data: %s" %(ts,msg.topic, \
-			fromddr, rssi, len(pl), pl))
-# like 2016-10-21 16:56:24: SL/mesh1/data   1, -33|Button 1!  pkt: 67	
+			fromaddr, rssi, len(pl), pl))
+		m = pl.split()
+		if m[0] == "Button":
+			state = int(m[1])
+			pkt = AES128_encrypt("%s" % state)
+			print "pkt len %s" % len(pkt)
+			spkt = bytearray("%c%c%c%c" % (0,fromaddr,0,0)) + pkt 
+			client.publish("SL/mesh_1/control", spkt)
+	else:
+		print("%s: %s payload %s" % (ts,msg.topic, msg.payload))
+# like 2016-10-21 16:56:24: SL/mesh_1/data   1, -33|Button 1!  pkt: 67	
 #		m = pl.split(',',2)
 #		if m[2][:6] == "Button":
 #			addr = int(m[0])
 #			r = m[2][7:].split('!',1)
 #			state = int(r[0])
-#			client.publish("SL/mesh1/config/node","%s,%s" % (addr, state))
+#			client.publish("SL/mesh_1/config/node","%s,%s" % (addr, state))
 #
 # Main
 #
