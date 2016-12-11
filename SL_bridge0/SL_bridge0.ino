@@ -2,7 +2,7 @@
 // -*- mode: C++ -*-
 // first run a a bridge
 
-#define VER "5"
+#define VER "6"
 
 #include <SPI.h>
 #include <ESP8266WiFi.h>
@@ -51,28 +51,26 @@ WiFiClient client;
 #endif
 
 
+void sl_on_receive(uint8_t* buffer, uint8_t size, uint8_t from);
+
 // n_typ_0 pkt
 #define N_TYP_VER 0
-struct n_typ_0 {
+typedef struct n_typ_0 {
   uint8_t  sw_id;
   uint8_t  npayload[];
-};
+} n_typ_0;
 
 // b_typ_0 pkt
 #define B_TYP_VER 0
-struct b_typ_0 {
+#pragma pack(push,1)
+typedef struct b_typ_0 {
   unsigned  b_typ: 4;
   unsigned  n_typ: 4;
   uint8_t  node_id;
   uint8_t  rssi;
-  struct n_typ_0  bpayload;
-};
-
-// loraQ entry
-struct lorapkt {
-  uint8_t toaddr;
-  struct n_typ_0 pkt;
-};
+  uint8_t  bpayload[];
+} b_type_0;
+#pragma pack(pop)
 
 
 boolean slinitdone = false;
@@ -207,27 +205,27 @@ void setup()
 // 
 void sl_on_receive(uint8_t* buffer, uint8_t size, uint8_t from)
 {
-  struct b_typ_0 *msg;
 
   if (mqttQ.queuelevel() < hwm) {
 #ifdef LORA_LED
     digitalWrite(LORA_LED, LOW);
 #endif
-	Serial.printf("got %s from %s\n", size, from);
     slreceived += 1;
 
-    msg = (struct b_typ_0 *) allocmem(size+sizeof(b_typ_0));
+	uint8_t msg_size = size+sizeof(b_typ_0);
+    b_typ_0 *msg = (b_typ_0 *) allocmem(msg_size);
+
 	msg->b_typ = B_TYP_VER;
 	msg->n_typ = N_TYP_VER;
     msg->node_id = from;
 	msg->rssi = sl.get_last_rssi();
-    memcpy(&msg->bpayload, buffer, size);
-    if (mqttQ.enqueue((uint8_t *)msg, size+sizeof(n_typ_0)) == 0) {
-      Serial.println("mqttQ FULL, pkt dropped");
+    memcpy(msg->bpayload, buffer, size);
+    if (mqttQ.enqueue((uint8_t *)msg, msg_size) == 0) {
+      Serial.println("sl_on_receive: WARN: mqttQ FULL, pkt dropped");
       hwm = MAX(hwm - 1, 2);		// decrease high water mark
     }
     else {
-      Serial.printf("from %i RSSI %i size %i data: \"%s\"\n", from, msg->rssi, size, (char*)buffer);
+      Serial.printf("sl_on_receive: queued from %i RSSI %i size %i\n", from, msg->rssi, size);
     }
 #ifdef LORA_LED
     digitalWrite(LORA_LED, HIGH);
@@ -241,7 +239,7 @@ void sl_on_receive(uint8_t* buffer, uint8_t size, uint8_t from)
 void loop()
 {
   BridgeConnect();
-
+  sl.update();
   if (mqttQ.queuelevel() && mqtt.connected()) {
 	mqsend();
   }
@@ -255,29 +253,31 @@ void loop()
 //
 // retrieve a packet from the loraQ and send it 
 void slsend() {
-  struct lorapkt *pkt;
   uint8_t len;
 
   if (millis() < nextSendTime) 
     // don't send if we are in the TX wait gap
     return;
-  pkt = (struct lorapkt *)loraQ.dequeue(&len);
 
-  Serial.print(F("send lora addr: "));
-  Serial.print(pkt->toaddr);
-  Serial.print(" len: ");
-  Serial.println(len - sizeof(struct lorapkt));
+  b_typ_0 *pkt = (b_typ_0 *)loraQ.dequeue(&len);
+
 #ifdef LORA_LED
   digitalWrite(LORA_LED, LOW);
 #endif
 
-  if (sl.send((uint8_t *)&pkt->pkt, pkt->toaddr, len - sizeof(struct lorapkt))) {
-    Serial.println("sent OK");
+  Serial.print(F("slsend: addr: "));
+  Serial.print(pkt->node_id);
+  Serial.print(" len: ");
+  Serial.print(len - sizeof(b_typ_0));
+  Serial.print(" pkt: ");
+  sl.phex((uint8_t *)pkt->bpayload, len - sizeof(b_typ_0));
+  Serial.println();
+  uint8_t scode = sl.send((uint8_t *)pkt->bpayload, pkt->node_id, len - sizeof(b_typ_0));
+  if (scode == 0) {
     slsent += 1;
   }
-  else {
-    Serial.println("send failed");
-  }
+  Serial.print("slsend code: ");
+  Serial.println(scode);
   nextSendTime = millis() + MINTXGAP;
 #ifdef LORA_LED
   digitalWrite(LORA_LED, HIGH);
@@ -344,9 +344,6 @@ void BridgeConnect()
   if (slinitdone)
     return;
 
-  float f;
-  Serial.print("size of float: ");
-  Serial.println(sizeof(f));
   sl.set_pins(RFM95_CS, RFM95_RST, RFM95_INT);
   sl.init(SL_TOKEN, false);	// no cryto
   sl.register_handler(sl_on_receive);
@@ -400,23 +397,24 @@ void CBupdatestate(char  *cmd, uint16_t len) {
 
 void CBupdatecontrol(char *data, uint16_t len) {
 
-	struct b_typ_0 *cntl = (struct b_typ_0 *)data;
+	b_typ_0 *cntl = (b_typ_0 *) data;
 
 	mqttreceived += 1;
-	if ((cntl->b_typ != 0) && (cntl->n_typ != 0)) {
-		return;
-	}
-	sendmsgtonode(&cntl->bpayload, len - sizeof(struct b_typ_0), cntl->node_id);
+	sendmsgtonode(cntl, len);
 }
 
 
-void sendmsgtonode(struct n_typ_0 *msg, uint8_t len, uint8_t toaddr) {
-  struct lorapkt *pkt;
+void sendmsgtonode(b_typ_0 *msg, uint8_t len) {
 
-  pkt = (struct lorapkt *)allocmem(len + sizeof(lorapkt));
-  pkt->toaddr = toaddr;
-  memcpy((char *)&pkt->pkt, msg, len-1);
-  loraQ.enqueue((uint8_t *)pkt, len + sizeof(lorapkt));
+  Serial.print("sendmsgtonode: ");
+  sl.phex((uint8_t *)msg, len);
+  Serial.println();
+  if ((msg->b_typ != B_TYP_VER) && (msg->n_typ != N_TYP_VER)) {
+    return;
+  }
+  b_typ_0 *pkt = (b_typ_0 *)allocmem(len);
+  memcpy((char *)pkt, msg, len);
+  loraQ.enqueue((uint8_t *)pkt, len);
 }
 
 
