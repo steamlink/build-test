@@ -3,21 +3,21 @@
 // bool encrypted = true by default
 void SteamLink::init(char* token, bool encrypted) {
   // Class to manage message delivery and receipt, using the driver declared above
-  debug("entering init()");
+  //DBG debug("entering init()");
 
-  debug("extracting token fields");
+  //DBG debug("extracting token fields");
   extract_token_fields((uint8_t*) token, SL_TOKEN_LENGTH);
   
-  debug("dumping token fields");
-  phex(conf.key, 16);
-  //debug(conf.swarm_id);
+  //DBG debug("dumping token fields");
+  //DBG phex(conf.key, 16);
+  Serial.print(conf.swarm_id);
   Serial.println(conf.swarm_id);
-  //debug(conf.freq);
-  Serial.println(conf.freq);
-  //debug(conf.mod_conf);
-  Serial.println(conf.mod_conf);
-  //debug(conf.node_address);
-  Serial.println(conf.node_address);
+  //DBG debug(conf.freq);
+  //DBG Serial.println(conf.freq);
+  //DBG debug(conf.mod_conf);
+  //DBG Serial.println(conf.mod_conf);
+  //DBG debug(conf.node_address);
+  //DBG Serial.println(conf.node_address);
   
   driver = new RH_RF95(pins.cs, pins.interrupt);
   manager = new RHMesh(*driver, conf.node_address);
@@ -56,36 +56,33 @@ SL_ERROR SteamLink::send(uint8_t* buf) {
 }
 
 SL_ERROR SteamLink::send(uint8_t* buf, uint8_t to_addr, uint8_t len) {
-  debug("entering send()");
+  //DBG debug("entering send()");
   // note: 1st byte is always the swarm_id
   uint8_t* encrypted_packet;
   uint8_t* packet;
   uint8_t encrypted_packet_size;
   uint8_t packet_size;
-  bool sent;
+  uint8_t sent;
    
   // TODO: change with actual determined error codes
   if (len >= SL_MAX_MESSAGE_LEN) return SL_FAIL;
-  Serial.println("Printing packet size");
+  //DBG Serial.println("Printing packet size");
   
   if (encryption_mode) {
     encrypted_packet = encrypt_alloc(&encrypted_packet_size, buf, len, conf.key);
-    Serial.println(encrypted_packet_size);
-    debug("printing packet in hex");
-    phex(encrypted_packet, encrypted_packet_size);
+    //DBG Serial.println(encrypted_packet_size);
+    //DBG debug("printing packet in hex");
+    //DBG phex(encrypted_packet, encrypted_packet_size);
     packet_size = encrypted_packet_size + 1;
     packet = (uint8_t*) malloc(packet_size);
     packet[0] = conf.swarm_id;
     memcpy(&packet[1], encrypted_packet, encrypted_packet_size);
     free(encrypted_packet);
-  } else {
-    packet_size = len + 1;
-    packet = (uint8_t*) malloc(len + 1);
-    packet[0] = conf.swarm_id;
-    memcpy(&packet[1], buf, len);
+    sent = manager->sendtoWait(packet, packet_size, to_addr);
+    free(packet);
+  } else {	// not encrypted -> send raw
+    sent = manager->sendtoWait(buf, len, to_addr);
   }
-  sent = manager->sendtoWait(packet, packet_size, to_addr);
-  free(packet);
 
   // figure out error codes
   if (sent == 0)  {
@@ -105,20 +102,32 @@ void SteamLink::register_handler(on_receive_from_handler_function on_receive_fro
 
 void SteamLink::update() {
   // allocate max size
-  uint8_t rcvlen;
+  uint8_t rcvlen = sizeof(slrcvbuffer);
+  uint8_t *packet;
+  uint8_t packet_len;
   uint8_t from; // TODO: might need to "validate" sender!
   //recv packet
   bool received = manager->recvfromAck(slrcvbuffer, &rcvlen, &from);
   if (received) {
-    // decrypt if we have encryption mode on
-    if(encryption_mode)
-      decrypt(slrcvbuffer, rcvlen, conf.key);
-    if (_on_receive != NULL) {
-      _on_receive(slrcvbuffer, rcvlen);
-    } else if (_on_receive_from != NULL) {
-      _on_receive_from(slrcvbuffer, rcvlen, from);
-    }
     last_rssi = driver->lastRssi();
+    // decrypt if we have encryption mode on
+    Serial.print("update: recvfromAck: ");
+    phex(slrcvbuffer, rcvlen);
+    Serial.println();
+    if(encryption_mode) {
+     // slrcvbuffer[0] has swarm_id
+      packet = &slrcvbuffer[1];
+      decrypt(packet, rcvlen-1, conf.key);
+      packet_len = strlen((char *)packet);
+	} else {
+      packet = slrcvbuffer;
+      packet_len = rcvlen;
+    }
+    if (_on_receive != NULL) {
+      _on_receive(packet, packet_len);
+    } else if (_on_receive_from != NULL) {
+      _on_receive_from(packet, packet_len, from);
+    }
   }
 }
 
@@ -134,16 +143,13 @@ void SteamLink::extract_token_fields(uint8_t* str, uint8_t size){
     while(1);
   }
 
-  Serial.print("sizeof(conf) ");
-  Serial.println(sizeof(conf));
-
   // scan in the values
   shex(buf, str, SL_TOKEN_LENGTH);
-  debug("after shex");
-  phex(buf, SL_TOKEN_LENGTH);
+  //DBG debug("after shex");
+  //DBG phex(buf, SL_TOKEN_LENGTH);
   // copy values in to struct
   memcpy(&conf, buf, SL_TOKEN_LENGTH);
-  debug("after memcpy");
+  //DBG debug("after memcpy");
 }
 
 // Takes in buf to write to, str with hex to convert from, and length of buf (i.e. num of hex bytes)
@@ -171,28 +177,27 @@ void SteamLink::set_pins(uint8_t cs=8, uint8_t reset=4, uint8_t interrupt=3) {
 }
 
 uint8_t* SteamLink::encrypt_alloc(uint8_t* outlen, uint8_t* in, uint8_t inlen, uint8_t* key) {
-  Serial.print("Entering encrypt alloc, inlen: ");
-  Serial.println(inlen);
+  //DBG Serial.print("Entering encrypt alloc, inlen: ");
+  //DBG Serial.println(inlen);
   uint8_t num_blocks = int((inlen+15)/16);
-  debug("printing numblocks:");
-  Serial.println(num_blocks);
+  //DBG debug("printing numblocks:");
+  //DBG Serial.println(num_blocks);
   uint8_t* out = (uint8_t*) malloc(num_blocks*16);
-  debug("Allocated memory for out");
+  //DBG debug("Allocated memory for out");
   *outlen = num_blocks*16;
   memcpy(out, in, inlen);
   memset(out + inlen, 0, *outlen - inlen);
   for(int i = 0; i < num_blocks; ++i) {
-    Serial.println(i);
+    //DBG Serial.println(i);
     AES128_ECB_encrypt(out + i*16, key, out + i*16);
   }
-  debug("finishing encryption");
+  //DBG debug("finishing encryption");
   return out;
 };
 
 // decrypt
 void SteamLink::decrypt(uint8_t* in, uint8_t inlen, uint8_t* key) {
   uint8_t num_blocks = inlen/16;
-  uint8_t* out = (uint8_t*) malloc(inlen);
   for(int i = 0; i < num_blocks; i++) {
     AES128_ECB_decrypt(in+i*16, key, in + i*16);
   }

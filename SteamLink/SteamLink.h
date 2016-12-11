@@ -45,6 +45,9 @@ class SteamLink {
   // expose last rssi
   uint8_t get_last_rssi();
 
+  // temporary publics
+  void phex(uint8_t* str, unsigned int size);
+
  private:
   uint8_t last_rssi;
   uint8_t bridge_address = SL_DEFAULT_BRIDGE;
@@ -64,7 +67,6 @@ class SteamLink {
   uint8_t* encrypt_alloc(uint8_t* outlen, uint8_t* in, uint8_t inlen, uint8_t* key);
   // decrypt happens in place
   void decrypt(uint8_t* in, uint8_t inlen, uint8_t* key);
-  void phex(uint8_t* str, unsigned int size);
 
 
   // extract fields from token, take in string pointer and length and writes to sl_config conf
