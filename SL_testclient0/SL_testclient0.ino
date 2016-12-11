@@ -6,7 +6,7 @@
 
 #include <SteamLink.h>
 
-#define VER "1"
+#define VER "2"
 
 // for Feather M0
 #if 1
@@ -45,6 +45,7 @@ int packet_num = 0;
 // button state
 int8_t bLast, bCurrent = 2;
 
+void sl_on_receive(uint8_t *buf, uint8_t len) ;
 //
 // SETUP
 //
@@ -72,7 +73,7 @@ void setup()
 // Dont put this on the stack:
 uint8_t buf[MAX_MESSAGE_LEN];
 int beforeTime = 0, afterTime = 0, nextSendTime = 0;
-int waitInterval = 1000;
+int waitInterval = 20000;
 
 //
 // LOOP
@@ -81,12 +82,13 @@ void loop()
 {
   uint8_t len = sizeof(buf);
 
+  sl.update();
   bCurrent = digitalRead(BUTTON);
   if ((millis() > nextSendTime) || (bCurrent != bLast)) {
     packet_num += 1;
     if (bCurrent != bLast) {
       int8_t value = (bCurrent == LOW ? 1 : 0);
-      snprintf((char*) data, sizeof(data), "Button %i!  pkt: %d", value, packet_num);
+      snprintf((char*) data, sizeof(data), "Button %i pkt: %d", value, packet_num);
       bLast = bCurrent;
     } else {
       snprintf((char*) data, sizeof(data), "Hello World! pkt: %d", packet_num);
@@ -109,7 +111,9 @@ void loop()
 }
 
 void sl_on_receive(uint8_t *buf, uint8_t len) {
-    Serial.print("got msg: ");
+    Serial.print("got len: ");
+    Serial.print(len);
+    Serial.print(" msg: ");
     Serial.println((char*)buf);
     int v = atoi((char *)buf);
 	if (v == 0) {
