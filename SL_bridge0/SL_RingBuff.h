@@ -2,10 +2,10 @@
 
 #include <stdint.h>
 
-struct relement {
+typedef struct relement {
   uint8_t len;
   uint8_t *pkt;
-};
+} relement;
 
 class SL_RingBuff {
   public:
@@ -22,5 +22,5 @@ class SL_RingBuff {
     int _ringsize = 0;
     int _head = 0;
     int _tail = 0;
-    struct relement **_ring;
+    relement* _ring;
 };

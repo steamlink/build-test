@@ -15,7 +15,7 @@
 
 SL_RingBuff::SL_RingBuff(int size) {
   _ringsize = size;
-  _ring = (struct relement **)calloc(size,  sizeof(relement));
+  _ring = (relement *) calloc(size,  sizeof(*_ring));
 }
 
 
@@ -30,8 +30,8 @@ int SL_RingBuff::enqueue (uint8_t *val, uint8_t len) {
     return 0;
   }
   else {
-    _ring[_tail]->len = len;
-    _ring[_tail]->pkt = val;
+    _ring[_tail].len = len;
+    _ring[_tail].pkt = val;
     _tail = newtail;
     return 1;
   }
@@ -49,8 +49,8 @@ uint8_t *SL_RingBuff::dequeue (uint8_t *len) {
     return 0;
   }
   else {
-    uint8_t *val = _ring[_head]->pkt;
-    *len = _ring[_head]->len;
+    uint8_t *val = _ring[_head].pkt;
+    *len = _ring[_head].len;
     _head  = (_head + 1) % _ringsize;
     return val;
   }
