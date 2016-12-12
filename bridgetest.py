@@ -1,3 +1,5 @@
+#!/usr/bin/python
+
 import paho.mqtt.client as mqtt
 import time
 import sys
@@ -20,7 +22,7 @@ B_TYP_VER = 0
 class SLException(BaseException):
 	pass
 
-class N_typ_0:
+class B_typ_0:
   def __init__(self, pkt=None):
 	
 	if not pkt:
@@ -61,9 +63,9 @@ class N_typ_0:
 	return  json.dumps(self.dict())
 
 
-class N_typ_0_new(N_typ_0):
+class B_typ_0_new(B_typ_0):
   def __init__(self, node_id, swarm_id, pkt):
-	N_typ_0.__init__(self)
+	B_typ_0.__init__(self)
 	self.node_id = node_id
 	self.swarm_id = swarm_id 	#??
 	self.payload = AES128_encrypt(pkt)
@@ -101,7 +103,7 @@ def process(from_mesh, pkt, timestamp):
 	m = pkt.payload.split()
 	if m[0] == "Button":
 		state = int(m[1])
-		opkt = N_typ_0_new(pkt.node_id, pkt.swarm_id, "%s" % state)
+		opkt = B_typ_0_new(pkt.node_id, pkt.swarm_id, "%s" % state)
 		otopic = "%s/%s/control" % (MQPREFIX, from_mesh)
 		client.publish(otopic, opkt.pack())
 					
@@ -126,17 +128,22 @@ def on_message(client, userdata, msg):
 	origin_topic = topic[2]
 	if origin_topic == "data":
 #		try:
-		pkt = N_typ_0(msg.payload)
+		pkt = B_typ_0(msg.payload)
 #		except Exception as e:
 #			print "payload format or decrypt error: %s" % e
 #			return
 
 		process(origin_mesh, pkt, msg.timestamp)
 	elif origin_topic == "status":
-		print "%s: %s" % (ts, msg.payload)
+		print "%s: status %s %s" % (ts, origin_mesh, msg.payload)
 	else:
-		print("%s: what? %s payload %s" % (ts,msg.topic, msg.payload))
+		print("%s: UNKNOWN %s payload %s" % (ts,msg.topic, msg.payload))
 
+
+def getstatus(mesh):
+	topic = "%s/%s/state" % (MQPREFIX, mesh)
+	client.publish(topic,"state" )
+	
 #
 # Main
 #
@@ -152,9 +159,14 @@ client.on_message = on_message
 client.tls_insecure_set(False)
 client.connect("mqtt.steamlink.net", 8883, 60)
 
+# starting mqtt processing thread
+client.loop_start()
 
-try:
-	client.loop_forever()
-except KeyboardInterrupt:
-	sys.exit(0)
+time.sleep(1)
+getstatus("mesh_1")
+while 1:
+	time.sleep(30)
+	getstatus("mesh_1")
 
+print("loop exit")
+client.loop_stop()
