@@ -1,12 +1,72 @@
 import paho.mqtt.client as mqtt
 import time
 import sys
+import json
 
 from Crypto.Cipher import AES
 import binascii
 
 key = b'2b7e151628aed2a6abf7158809cf4f3c'
+swarm_id = 3
 bkey = binascii.unhexlify(key)
+
+
+MQPREFIX = "SL"
+bridgetopics = [MQPREFIX+"/+/data", MQPREFIX+"/+/status"]
+
+N_TYP_VER = 0
+B_TYP_VER = 0
+
+class SLException(BaseException):
+	pass
+
+class N_typ_0:
+  def __init__(self, pkt=None):
+	
+	if not pkt:
+		pkt=bytearray("%c%c%c%c" % ((N_TYP_VER << 4) | B_TYP_VER,0,0,0))
+		bpkt = pkt
+	elif type(pkt) == type(""):
+		bpkt = bytearray(pkt)
+	self.n_ver = (bpkt[0] & 0xF0) >> 4
+	self.b_ver = bpkt[0] & 0x0F
+	if self.n_ver != N_TYP_VER or self.b_ver != B_TYP_VER:
+		raise SLException("B/N type version mismatch")
+	self.node_id = bpkt[1]
+	self.rssi = bpkt[2] - 256
+	self.swarm_id = bpkt[3]
+	if len(pkt) >= 20:
+		self.payload = AES128_decrypt(pkt[4:]).rstrip('\0')
+	else:
+		self.payload = ''
+
+  def new(self, node_id, swarm_id, pkt):
+	self.__init__()
+	self.node_id = node_id
+	self.swarm_id = swarm_id 	#??
+	self.payload = AES128_encrypt(pkt)
+
+
+  def pack(self):
+	header = bytearray("%c%c%c%c" % ((self.n_ver << 4) | self.b_ver, self.node_id, self.rssi + 256, self.swarm_id))
+	print header
+	return header + self.payload
+
+
+  def dict(self):
+	return {'node_id': self.node_id, 'rssi': self.rssi, \
+		  'swarm_id': self.swarm_id, 'payload': self.payload }
+
+  def json(self):
+	return  json.dumps(self.dict())
+
+
+class N_typ_0_new(N_typ_0):
+  def __init__(self, node_id, swarm_id, pkt):
+	N_typ_0.__init__(self)
+	self.node_id = node_id
+	self.swarm_id = swarm_id 	#??
+	self.payload = AES128_encrypt(pkt)
 
 
 def hexprint(pkt):
@@ -31,62 +91,58 @@ def AES128_encrypt(msg):
 	encryptor = AES.new(bkey, AES.MODE_ECB)
 	return bytearray(encryptor.encrypt(pmsg))
 
+def process(from_mesh, pkt, timestamp):
+	""" process a pkt received on the data topic """
+
+	# log the pkt
+	ts=time.strftime("%Y-%m-%d %H:%M:%S",time.localtime(timestamp))
+	print("%s: data %s %s" % (ts, from_mesh, pkt.json()))
+
+	m = pkt.payload.split()
+	if m[0] == "Button":
+		state = int(m[1])
+		opkt = N_typ_0_new(pkt.node_id, pkt.swarm_id, "%s" % state)
+		otopic = "%s/%s/control" % (MQPREFIX, from_mesh)
+		client.publish(otopic, opkt.pack())
+					
+
 # The callback for when the client receives a CONNACK response from the server.
 def on_connect(client, userdata, flags, rc):
+
 	print("Connected with result code "+str(rc))
-
-	# Subscribing in on_connect() means that if we lose the connection and
-	# reconnect then subscriptions will be renewed.
-
-	if len(sys.argv) > 1:
-		for topic in sys.argv[1:]:
-			client.subscribe(topic)
-			print "Subscribing %s" % topic
-	else:
-		topic = "#"
+	for topic in bridgetopics:
 		client.subscribe(topic)
 		print "Subscribing %s" % topic
 
 
-
 # The callback for when a PUBLISH message is received from the server.
 def on_message(client, userdata, msg):
-#	ts=time.strftime("%Y-%m-%d %H:%M:%S",time.localtime())
 	ts=time.strftime("%Y-%m-%d %H:%M:%S",time.localtime(msg.timestamp))
-	if msg.topic in ["SL/mesh_1/data", "SL/mesh_1/control"]:
-		try:		# rough decode B_TYP_VER 0
-			nodever = ord(msg.payload[0])
-			fromaddr = ord(msg.payload[1])
-			rssi = ord(msg.payload[2]) - 256
-			sw_id = ord(msg.payload[3])
-			pl = AES128_decrypt(msg.payload[4:]).rstrip('\0')
-		except Exception as e:
-			print "payload format or decrypt error: %s" % e
-			return
-		print("%s: %s from:%s rssi %s len %s data: %s" %(ts,msg.topic, \
-			fromaddr, rssi, len(pl), pl))
-		m = pl.split()
-		if m[0] == "Button":
-			state = int(m[1])
-			pkt = AES128_encrypt("%s" % state)
-			print "pkt len %s" % len(pkt)
-			spkt = bytearray("%c%c%c%c" % (0,fromaddr,0,0)) + pkt 
-			client.publish("SL/mesh_1/control", spkt)
+	topic = msg.topic.split('/')
+	if len(topic) != 3 or topic[0] != MQPREFIX:
+		print "bogus msg, %s: %s" % (msg.topic, msg.payload)
+		return
+	origin_mesh = topic[1]
+	origin_topic = topic[2]
+	if origin_topic == "data":
+#		try:
+		pkt = N_typ_0(msg.payload)
+#		except Exception as e:
+#			print "payload format or decrypt error: %s" % e
+#			return
+
+		process(origin_mesh, pkt, msg.timestamp)
+	elif origin_topic == "status":
+		print "%s: %s" % (ts, msg.payload)
 	else:
-		print("%s: %s payload %s" % (ts,msg.topic, msg.payload))
-# like 2016-10-21 16:56:24: SL/mesh_1/data   1, -33|Button 1!  pkt: 67	
-#		m = pl.split(',',2)
-#		if m[2][:6] == "Button":
-#			addr = int(m[0])
-#			r = m[2][7:].split('!',1)
-#			state = int(r[0])
-#			client.publish("SL/mesh_1/config/node","%s,%s" % (addr, state))
+		print("%s: what? %s payload %s" % (ts,msg.topic, msg.payload))
+
 #
 # Main
 #
 fullFlag = True
 
-client = mqtt.Client(client_id="py_look")
+client = mqtt.Client(client_id="sl_store1")
 # client.tls_set("/usr/local/etc/mosquitto/CA/ca.crt")
 client.tls_set("/home/steamlink/auth/mqtt/ca.crt")
 client.username_pw_set("andreas","1foot123")
