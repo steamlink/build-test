@@ -6,8 +6,8 @@
 struct sl_config {
   // private key
   uint8_t key[16];
-  // swarm ID
-  uint8_t swarm_id;
+  // SteamLink ID
+  uint8_t sl_id[4];
   // freq: the SX1276 chips support multiple radio frequencies, we use
   // 915 MHz in North America (ISM Band), leave as default
   float freq = 915.0;
@@ -16,8 +16,6 @@ struct sl_config {
   // RH_RF95::ModemConfigChoice mod_conf = RH_RF95::Bw125Cr45Sf128;
   // node address
   uint8_t node_address;
-
-
 };
 #pragma pack(pop)
 

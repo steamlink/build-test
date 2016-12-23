@@ -10,8 +10,9 @@ void SteamLink::init(char* token, bool encrypted) {
   
   //DBG debug("dumping token fields");
   //DBG phex(conf.key, 16);
-  Serial.print(conf.swarm_id);
-  Serial.println(conf.swarm_id);
+  Serial.print("sl_id: ");
+  DBG phex(conf.sl_id, 4);
+  Serial.println();
   //DBG debug(conf.freq);
   //DBG Serial.println(conf.freq);
   //DBG debug(conf.mod_conf);
@@ -57,7 +58,7 @@ SL_ERROR SteamLink::send(uint8_t* buf) {
 
 SL_ERROR SteamLink::send(uint8_t* buf, uint8_t to_addr, uint8_t len) {
   //DBG debug("entering send()");
-  // note: 1st byte is always the swarm_id
+  // note: 1st 4 bytes are always the sl_id
   uint8_t* encrypted_packet;
   uint8_t* packet;
   uint8_t encrypted_packet_size;
@@ -73,10 +74,10 @@ SL_ERROR SteamLink::send(uint8_t* buf, uint8_t to_addr, uint8_t len) {
     //DBG Serial.println(encrypted_packet_size);
     //DBG debug("printing packet in hex");
     //DBG phex(encrypted_packet, encrypted_packet_size);
-    packet_size = encrypted_packet_size + 1;
+    packet_size = encrypted_packet_size + 4;
     packet = (uint8_t*) malloc(packet_size);
-    packet[0] = conf.swarm_id;
-    memcpy(&packet[1], encrypted_packet, encrypted_packet_size);
+    memcpy(&packet[0], conf.sl_id, sizeof(conf.sl_id));
+    memcpy(&packet[4], encrypted_packet, encrypted_packet_size);
     free(encrypted_packet);
     sent = manager->sendtoWait(packet, packet_size, to_addr);
     free(packet);
@@ -115,9 +116,9 @@ void SteamLink::update() {
     phex(slrcvbuffer, rcvlen);
     Serial.println();
     if(encryption_mode) {
-     // slrcvbuffer[0] has swarm_id
-      packet = &slrcvbuffer[1];
-      decrypt(packet, rcvlen-1, conf.key);
+     // slrcvbuffer[0] has sl_id with 4 bytes
+      packet = &slrcvbuffer[4];
+      decrypt(packet, rcvlen-4, conf.key);
       packet_len = strlen((char *)packet);
 	} else {
       packet = slrcvbuffer;

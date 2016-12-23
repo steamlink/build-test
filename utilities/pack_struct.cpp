@@ -3,12 +3,12 @@
 
 #define CBC 0
 #define ECB 1
-#define SL_TOKEN_LENGTH 23
+#define SL_TOKEN_LENGTH 27
 
 #pragma pack(push, 1)
 struct  mystruct {
   uint8_t key[16];
-  uint8_t mesh_id; // = 10;
+  uint8_t sl_id[4]; 
   float freq;
   uint8_t modem_config; // = 1;
   uint8_t node_id;
@@ -51,6 +51,9 @@ int main() {
   // sl key
   uint8_t key[16] = { 0x2b, 0x7e, 0x15, 0x16, 0x28, 0xae, 0xd2, 0xa6, 0xab, 0xf7, 0x15, 0x88, 0x09, 0xcf, 0x4f, 0x3c };
 
+  // sl_id
+  uint8_t sl_id[4] = {0x0, 0x0, 0x0, 0x99 };
+
   // make sure AES loads fine
   std::cout<<"aes lib loads fine..."<<std::endl;
 
@@ -63,7 +66,7 @@ int main() {
   // create foo
   memcpy(foo.key, key, 16);
   foo.freq = 915.0;
-  foo.mesh_id = 10;
+  memcpy(foo.sl_id, sl_id, 4);
   foo.modem_config = 0;
   foo.node_id = 3;
   // sanity check the key
@@ -100,7 +103,7 @@ int main() {
 
   // Take pasted string and recreate struct
   // 2b7e151628aed2a6abf7158809cf4f3c000102030405060708090a0b0c0d0e0f0a01
-  uint8_t str[80] = "2b7e151628aed2a6abf7158809cf4f3c0a00c064440003";
+  uint8_t str[80] = "2b7e151628aed2a6abf7158809cf4f3c0000009900c06444000300";
   std::cout<<"Pasted string is: "<<str<<std::endl;
 
   // scan in to buf
@@ -119,7 +122,8 @@ int main() {
   // check
   std::cout<<"Key is: "<<std::endl;
   phex(bar.key, 16);
-  std::cout<<"Mesh id is "<<int(bar.mesh_id)<<std::endl;
+  std::cout<<"sl_id is: "<<std::endl;
+  phex(bar.sl_id, 4);
   std::cout<<"Modem config is "<<int(bar.modem_config)<<std::endl;
   std::cout<<"freq is:  "<<float(bar.freq)<<std::endl;
   std::cout<<"node address is:  "<<float(bar.node_id)<<std::endl;

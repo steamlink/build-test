@@ -60,7 +60,7 @@ void setup()
 
   digitalWrite(LED, HIGH);
 
-#define SL_TOKEN "2b7e151628aed2a6abf7158809cf4f3c0a00c064440005"
+#define SL_TOKEN "2b7e151628aed2a6abf7158809cf4f3c0000009900c06444000300"
   sl.set_pins(RFM95_CS, RFM95_RST, RFM95_INT);
   sl.init(SL_TOKEN);
   sl.register_handler(sl_on_receive);

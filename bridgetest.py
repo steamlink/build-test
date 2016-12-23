@@ -9,7 +9,7 @@ from Crypto.Cipher import AES
 import binascii
 
 key = b'2b7e151628aed2a6abf7158809cf4f3c'
-swarm_id = 3
+sl_id = binascii.unhexlify("00000099")
 bkey = binascii.unhexlify(key)
 
 
@@ -36,38 +36,38 @@ class B_typ_0:
 		raise SLException("B/N type version mismatch")
 	self.node_id = bpkt[1]
 	self.rssi = bpkt[2] - 256
-	self.swarm_id = bpkt[3]
-	if len(pkt) >= 20:
-		self.payload = AES128_decrypt(pkt[4:]).rstrip('\0')
+	self.sl_id = bpkt[3:7]
+	if len(pkt) >= 23:
+		self.payload = AES128_decrypt(pkt[7:]).rstrip('\0')
 	else:
 		self.payload = ''
 
-  def new(self, node_id, swarm_id, pkt):
+  def new(self, node_id, sl_id, pkt):
 	self.__init__()
 	self.node_id = node_id
-	self.swarm_id = swarm_id 	#??
+	self.sl_id = sl_id 
 	self.payload = AES128_encrypt(pkt)
 
 
   def pack(self):
-	header = bytearray("%c%c%c%c" % ((self.n_ver << 4) | self.b_ver, self.node_id, self.rssi + 256, self.swarm_id))
+	header = bytearray("%c%c%c%c%c%c%c" % ((self.n_ver << 4) | self.b_ver, self.node_id, self.rssi + 256, self.sl_id[0], self.sl_id[1], self.sl_id[2], self.sl_id[4]))
 	print header
 	return header + self.payload
 
 
   def dict(self):
 	return {'node_id': self.node_id, 'rssi': self.rssi, \
-		  'swarm_id': self.swarm_id, 'payload': self.payload }
+		  'sl_id': self.sl_id, 'payload': self.payload }
 
   def json(self):
 	return  json.dumps(self.dict())
 
 
 class B_typ_0_new(B_typ_0):
-  def __init__(self, node_id, swarm_id, pkt):
+  def __init__(self, node_id, sl_id, pkt):
 	B_typ_0.__init__(self)
 	self.node_id = node_id
-	self.swarm_id = swarm_id 	#??
+	self.sl_id = sl_id 	#??
 	self.payload = AES128_encrypt(pkt)
 
 
@@ -103,7 +103,7 @@ def process(from_mesh, pkt, timestamp):
 	m = pkt.payload.split()
 	if m[0] == "Button":
 		state = int(m[1])
-		opkt = B_typ_0_new(pkt.node_id, pkt.swarm_id, "%s" % state)
+		opkt = B_typ_0_new(pkt.node_id, pkt.sl_id, "%s" % state)
 		otopic = "%s/%s/control" % (MQPREFIX, from_mesh)
 		client.publish(otopic, opkt.pack())
 					

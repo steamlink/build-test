@@ -56,7 +56,7 @@ void sl_on_receive(uint8_t* buffer, uint8_t size, uint8_t from);
 // n_typ_0 pkt
 #define N_TYP_VER 0
 typedef struct n_typ_0 {
-  uint8_t  sw_id;
+  uint8_t  sl_id[[4];
   uint8_t  npayload[];
 } n_typ_0;
 
