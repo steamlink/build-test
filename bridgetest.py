@@ -4,6 +4,7 @@ import paho.mqtt.client as mqtt
 import time
 import sys
 import json
+import struct
 
 from Crypto.Cipher import AES
 import binascii
@@ -15,6 +16,7 @@ bridgetopics = [MQPREFIX+"/+/data", MQPREFIX+"/+/status"]
 N_TYP_VER = 0
 B_TYP_VER = 0
 
+DBG = 1
 
 class Mesh:
   def __init__(self, mid, mname):
@@ -26,7 +28,7 @@ class Mesh:
 class Swarm:
   def __init__(self, sid, sname, skey, sowner, smesh_id):
 	swarm_table[sid] = self
-	self.sl_id = binascii.unhexlify(sid)
+	self.sl_id = sid
 	self.swarm_name = sname
 	self.swarm_key = skey
 	self.swarm_mesh_id = smesh_id
@@ -39,7 +41,7 @@ mesh_table = {}
 swarm_table = {}
 
 Mesh(1, 'mesh_1')
-Swarm('00000099', 'testnode1', b'2b7e151628aed2a6abf7158809cf4f3c0000009900c06444000300', 'andreas', 1)
+Swarm(2566914048, 'testnode1', b'2b7e151628aed2a6abf7158809cf4f3c', 'andreas', 1)
 
 
 
@@ -49,28 +51,36 @@ class SLException(BaseException):
 
 class B_typ_0:
   """ store to bridge packet format """
+
+  sfmt = '=BBBL'
   def __init__(self, pkt=None):
-	
-	if not pkt:
-		pkt=bytearray("%c%c%c%c" % ((N_TYP_VER << 4) | B_TYP_VER,0,0,0))
-		bpkt = pkt
-	elif type(pkt) == type(""):
-		bpkt = bytearray(pkt)
+	if pkt:
+		dlen = len(pkt) - struct.calcsize(B_typ_0.sfmt)
+		sfmt = "%s%is" % (B_typ_0.sfmt, dlen)
+		nb_ver, self.node_id, self.rssi, self.sl_id, epayload =  struct.unpack(sfmt, pkt)
+		self.n_ver = (nb_ver & 0xF0) >> 4
+		self.b_ver = nb_ver & 0x0F
+		if self.n_ver != N_TYP_VER or self.b_ver != B_TYP_VER:
+			raise SLException("B/N type version mismatch")
+		self.rssi = self.rssi - 256
+		if DBG > 1:
+			print "pkt self.n_ver %s self.b_ver %s self.rssi %s self.node_id %s self.sl_id %s" % \
+				(self.n_ver, self.b_ver, self.rssi, self.node_id, self.sl_id )
+	else:
+		pkt = ''
+		self.n_ver = N_TYP_VER
+		self.b_ver = B_TYP_VER
+		self.rssi = -10
+		self.node_id = 0
+		self.sl_id = 1
+		epayload = ''
 
-	self.n_ver = (bpkt[0] & 0xF0) >> 4
-	self.b_ver = bpkt[0] & 0x0F
-	if self.n_ver != N_TYP_VER or self.b_ver != B_TYP_VER:
-		raise SLException("B/N type version mismatch")
-	self.node_id = bpkt[1]
-	self.rssi = bpkt[2] - 256
-
-	self.sl_id = bpkt[3:7]
-	if len(pkt) >= 20:	# N.B. 4 bytes header and minimum of 16 bytes encrypted data
+	if len(epayload) > 0:
 		if not self.sl_id in swarm_table:
 			raise SLException("init: swarm %s not in table" % self.sl_id)
 		bkey = swarm_table[self.sl_id].swarm_bkey
-		self.payload = AES128_decrypt(pkt[4:], bkey).rstrip('\0')
-	elif len(pkt) > 4:
+		self.payload = AES128_decrypt(epayload, bkey).rstrip('\0')
+	elif len(pkt) > 8:
 		raise SLException("init: impossible payload length")
 	else:
 		self.payload = ''
@@ -78,7 +88,8 @@ class B_typ_0:
 
   def pack(self):
 	""" return a binary on-wire packet """
-	header = bytearray("%c%c%c%c%c%c%c" % ((self.n_ver << 4) | self.b_ver, self.node_id, self.rssi + 256, self.sl_id[0], self.sl_id[1], self.sl_id[2], self.sl_id[4]))
+	print (self.n_ver << 4) | self.b_ver, self.node_id, self.rssi + 256, self.sl_id
+	header = struct.pack(B_typ_0.sfmt, (self.n_ver << 4) | self.b_ver, self.node_id, self.rssi + 256, self.sl_id)
 	
 	if not self.sl_id in swarm_table:
 		raise SLException("pack: swarm %s not in table" % binascii.hexlify(self.sl_id))
@@ -89,7 +100,7 @@ class B_typ_0:
 
   def dict(self):
 	return {'node_id': self.node_id, 'rssi': self.rssi, \
-		  'sl_id': binascii.hexlify(self.sl_id), 'payload': self.payload }
+		  'sl_id': self.sl_id, 'payload': self.payload }
 
 
   def json(self):
