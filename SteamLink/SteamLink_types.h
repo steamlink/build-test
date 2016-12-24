@@ -18,6 +18,7 @@ struct sl_config {
   uint8_t node_address;
 };
 #pragma pack(pop)
+#define SL_TOKEN_LENGTH sizeof(sl_config)
 
 struct sl_pins {
   uint8_t cs = 8;

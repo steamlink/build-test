@@ -11,7 +11,6 @@
 #include <SPI.h>
 #include "aes.h"
 
-#define SL_TOKEN_LENGTH 23
 #define SL_DEFAULT_BRIDGE 1
 #define SL_DEFAULT_TXPWR 23
 #define SL_MAX_MESSAGE_LEN 64

@@ -1,5 +1,7 @@
 #include "SteamLink.h"
 
+
+#undef DBG // no local debug
 // bool encrypted = true by default
 void SteamLink::init(char* token, bool encrypted) {
   // Class to manage message delivery and receipt, using the driver declared above
@@ -8,17 +10,20 @@ void SteamLink::init(char* token, bool encrypted) {
   //DBG debug("extracting token fields");
   extract_token_fields((uint8_t*) token, SL_TOKEN_LENGTH);
   
-  //DBG debug("dumping token fields");
-  //DBG phex(conf.key, 16);
-  Serial.print("sl_id: ");
-  DBG phex(conf.sl_id, 4);
+  debug("Node configuration");
+#ifdef DBG
+  phex(conf.key, 16);
   Serial.println();
-  //DBG debug(conf.freq);
-  //DBG Serial.println(conf.freq);
-  //DBG debug(conf.mod_conf);
-  //DBG Serial.println(conf.mod_conf);
-  //DBG debug(conf.node_address);
-  //DBG Serial.println(conf.node_address);
+#endif
+  Serial.print("sl_id: ");
+  phex(conf.sl_id, 4);
+  Serial.println();
+  Serial.print("freq: ");
+  Serial.println(conf.freq);
+  Serial.print("mod_conf: ");
+  Serial.println(conf.mod_conf);
+  Serial.print("node_address: ");
+  Serial.println(conf.node_address);
   
   driver = new RH_RF95(pins.cs, pins.interrupt);
   manager = new RHMesh(*driver, conf.node_address);
@@ -67,13 +72,20 @@ SL_ERROR SteamLink::send(uint8_t* buf, uint8_t to_addr, uint8_t len) {
    
   // TODO: change with actual determined error codes
   if (len >= SL_MAX_MESSAGE_LEN) return SL_FAIL;
-  //DBG Serial.println("Printing packet size");
   
   if (encryption_mode) {
     encrypted_packet = encrypt_alloc(&encrypted_packet_size, buf, len, conf.key);
-    //DBG Serial.println(encrypted_packet_size);
-    //DBG debug("printing packet in hex");
-    //DBG phex(encrypted_packet, encrypted_packet_size);
+#ifdef DBG
+	Serial.print("sl.send: size ");
+    Serial.print(encrypted_packet_size);
+	Serial.print(" to: ");
+	Serial.print(to_addr);
+    Serial.print(" packet: '");
+    Serial.print((char *)buf);
+    Serial.print("' encrypt: ");
+    phex(encrypted_packet, encrypted_packet_size);
+	Serial.println();
+#endif
     packet_size = encrypted_packet_size + 4;
     packet = (uint8_t*) malloc(packet_size);
     memcpy(&packet[0], conf.sl_id, sizeof(conf.sl_id));
@@ -112,9 +124,11 @@ void SteamLink::update() {
   if (received) {
     last_rssi = driver->lastRssi();
     // decrypt if we have encryption mode on
+#ifdef DBG
     Serial.print("update: recvfromAck: ");
     phex(slrcvbuffer, rcvlen);
     Serial.println();
+#endif
     if(encryption_mode) {
      // slrcvbuffer[0] has sl_id with 4 bytes
       packet = &slrcvbuffer[4];

@@ -6,7 +6,7 @@
 
 #include <SteamLink.h>
 
-#define VER "2"
+#define VER "3"
 
 // for Feather M0
 #if 1
@@ -60,7 +60,7 @@ void setup()
 
   digitalWrite(LED, HIGH);
 
-#define SL_TOKEN "2b7e151628aed2a6abf7158809cf4f3c0000009900c06444000300"
+#define SL_TOKEN "2b7e151628aed2a6abf7158809cf4f3c0000009900c064440004"
   sl.set_pins(RFM95_CS, RFM95_RST, RFM95_INT);
   sl.init(SL_TOKEN);
   sl.register_handler(sl_on_receive);
@@ -104,14 +104,14 @@ void loop()
       Serial.println(afterTime);
     }
     else {
-      Serial.println("sendtoWait failed. Bridge down?");
+      Serial.println("sl.send failed. Bridge down?");
     }
     nextSendTime = millis() + waitInterval;
   }
 }
 
 void sl_on_receive(uint8_t *buf, uint8_t len) {
-    Serial.print("got len: ");
+    Serial.print("sl_on_receive: len: ");
     Serial.print(len);
     Serial.print(" msg: ");
     Serial.println((char*)buf);

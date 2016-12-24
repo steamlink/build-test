@@ -13,7 +13,7 @@ void setup() {
   delay(1000);
   Serial.println("Starting LoRa");
   sl.set_pins(8,4,3);
-  sl.init("2b7e151628aed2a6abf7158809cf4f3c0a00c064440003");
+  sl.init("2b7e151628aed2a6abf7158809cf4f3c0000009900c064440004");
   sl.register_handler(&on_receive);
 }
 

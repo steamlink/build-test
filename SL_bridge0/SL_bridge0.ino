@@ -56,7 +56,7 @@ void sl_on_receive(uint8_t* buffer, uint8_t size, uint8_t from);
 // n_typ_0 pkt
 #define N_TYP_VER 0
 typedef struct n_typ_0 {
-  uint8_t  sl_id[[4];
+  uint8_t  sl_id[4];
   uint8_t  npayload[];
 } n_typ_0;
 
@@ -142,7 +142,21 @@ void *allocmem(size_t size) {
 	Serial.println("out of memory!!");
 	while(1);
   }
+#ifdef DBG
+  Serial.print("allocmem ");
+  Serial.print(size);
+  Serial.print(" at ");
+  Serial.println((unsigned long)ret, HEX);
+#endif
   return ret;
+}
+
+void freemem(void *ptr) {
+#ifdef DBG
+  Serial.print("freemem at ");
+  Serial.println((unsigned long)ptr, HEX);
+#endif
+  free(ptr);
 }
 
 
@@ -241,7 +255,7 @@ void loop()
   BridgeConnect();
   sl.update();
   if (mqttQ.queuelevel() && mqtt.connected()) {
-	mqsend();
+    mqsend();
   }
 
   if (loraQ.queuelevel()) {
@@ -282,7 +296,7 @@ void slsend() {
 #ifdef LORA_LED
   digitalWrite(LORA_LED, HIGH);
 #endif
-  free(pkt);
+  freemem(pkt);
 }
 
 
@@ -304,7 +318,7 @@ void mqsend() {
   else {
      mqttsent += 1;
   }
-  free(msg);
+  freemem(msg);
 #ifdef MQTT_LED
   digitalWrite(MQTT_LED, HIGH);
 #endif
@@ -333,7 +347,7 @@ void UpdStatus(char *newstatus)
 }
 
 //
-// BridgeConnect:   establish connection to MQTT server and setup RH Mesh
+// BridgeConnect:   establish connection to MQTT server and init SteamLink
 void BridgeConnect()
 {
 
