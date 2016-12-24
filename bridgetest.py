@@ -8,10 +8,6 @@ import json
 from Crypto.Cipher import AES
 import binascii
 
-key = b'2b7e151628aed2a6abf7158809cf4f3c'
-sl_id = binascii.unhexlify("00000099")
-bkey = binascii.unhexlify(key)
-
 
 MQPREFIX = "SL"
 bridgetopics = [MQPREFIX+"/+/data", MQPREFIX+"/+/status"]
@@ -19,10 +15,40 @@ bridgetopics = [MQPREFIX+"/+/data", MQPREFIX+"/+/status"]
 N_TYP_VER = 0
 B_TYP_VER = 0
 
+
+class Mesh:
+  def __init__(self, mid, mname):
+	mesh_table[mid] = self
+	self.mesh_id = mid
+	self.mesh_name = mname
+
+
+class Swarm:
+  def __init__(self, sid, sname, skey, sowner, smesh_id):
+	swarm_table[sid] = self
+	self.sl_id = binascii.unhexlify(sid)
+	self.swarm_name = sname
+	self.swarm_key = skey
+	self.swarm_mesh_id = smesh_id
+
+	self.swarm_bkey =  binascii.unhexlify(self.swarm_key)
+
+
+# Simulate mongo swarm and mesh collections
+mesh_table = {}
+swarm_table = {}
+
+Mesh(1, 'mesh_1')
+Swarm('00000099', 'testnode1', b'2b7e151628aed2a6abf7158809cf4f3c0000009900c06444000300', 'andreas', 1)
+
+
+
 class SLException(BaseException):
 	pass
 
+
 class B_typ_0:
+  """ store to bridge packet format """
   def __init__(self, pkt=None):
 	
 	if not pkt:
@@ -30,45 +56,53 @@ class B_typ_0:
 		bpkt = pkt
 	elif type(pkt) == type(""):
 		bpkt = bytearray(pkt)
+
 	self.n_ver = (bpkt[0] & 0xF0) >> 4
 	self.b_ver = bpkt[0] & 0x0F
 	if self.n_ver != N_TYP_VER or self.b_ver != B_TYP_VER:
 		raise SLException("B/N type version mismatch")
 	self.node_id = bpkt[1]
 	self.rssi = bpkt[2] - 256
+
 	self.sl_id = bpkt[3:7]
-	if len(pkt) >= 23:
-		self.payload = AES128_decrypt(pkt[7:]).rstrip('\0')
+	if len(pkt) >= 20:	# N.B. 4 bytes header and minimum of 16 bytes encrypted data
+		if not self.sl_id in swarm_table:
+			raise SLException("init: swarm %s not in table" % self.sl_id)
+		bkey = swarm_table[self.sl_id].swarm_bkey
+		self.payload = AES128_decrypt(pkt[4:], bkey).rstrip('\0')
+	elif len(pkt) > 4:
+		raise SLException("init: impossible payload length")
 	else:
 		self.payload = ''
 
-  def new(self, node_id, sl_id, pkt):
-	self.__init__()
-	self.node_id = node_id
-	self.sl_id = sl_id 
-	self.payload = AES128_encrypt(pkt)
-
 
   def pack(self):
+	""" return a binary on-wire packet """
 	header = bytearray("%c%c%c%c%c%c%c" % ((self.n_ver << 4) | self.b_ver, self.node_id, self.rssi + 256, self.sl_id[0], self.sl_id[1], self.sl_id[2], self.sl_id[4]))
-	print header
-	return header + self.payload
+	
+	if not self.sl_id in swarm_table:
+		raise SLException("pack: swarm %s not in table" % binascii.hexlify(self.sl_id))
+	bkey = swarm_table[self.sl_id].swarm_bkey
+	payload = AES128_encrypt(self.payload, bkey)
+	return header + payload
 
 
   def dict(self):
 	return {'node_id': self.node_id, 'rssi': self.rssi, \
-		  'sl_id': self.sl_id, 'payload': self.payload }
+		  'sl_id': binascii.hexlify(self.sl_id), 'payload': self.payload }
+
 
   def json(self):
 	return  json.dumps(self.dict())
 
 
+# alternate initializer for B_typ
 class B_typ_0_new(B_typ_0):
   def __init__(self, node_id, sl_id, pkt):
 	B_typ_0.__init__(self)
 	self.node_id = node_id
-	self.sl_id = sl_id 	#??
-	self.payload = AES128_encrypt(pkt)
+	self.sl_id = sl_id
+	self.payload = pkt
 
 
 def hexprint(pkt):
@@ -76,8 +110,8 @@ def hexprint(pkt):
 		print "%02x" % ord(c),
 	print
 
-def AES128_decrypt(pkt):
 
+def AES128_decrypt(pkt, bkey):
 	if len(pkt) % 16 != 0:
 		print "pkt len error: ", len(pkt)
 		hexprint(pkt)
@@ -85,13 +119,15 @@ def AES128_decrypt(pkt):
 	decryptor = AES.new(bkey, AES.MODE_ECB)
 	return decryptor.decrypt(pkt)
 
-def AES128_encrypt(msg):
+
+def AES128_encrypt(msg, bkey):
 	if len(msg) % 16 != 0:
 		pmsg = msg + "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"[len(msg) % 16:]
 	else:
 		pmsg = msg
 	encryptor = AES.new(bkey, AES.MODE_ECB)
 	return bytearray(encryptor.encrypt(pmsg))
+
 
 def process(from_mesh, pkt, timestamp):
 	""" process a pkt received on the data topic """
