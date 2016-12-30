@@ -7,7 +7,7 @@
 #pragma pack(push, 1)
 struct  mystruct {
   uint8_t key[16];
-  uint8_t sl_id[4]; 
+  uint32_t sl_id;
   float freq;
   uint8_t modem_config; // = 1;
   uint8_t node_id;
@@ -28,7 +28,7 @@ int main() {
   uint8_t key[16] = { 0x2b, 0x7e, 0x15, 0x16, 0x28, 0xae, 0xd2, 0xa6, 0xab, 0xf7, 0x15, 0x88, 0x09, 0xcf, 0x4f, 0x3c };
 
   // sl_id
-  uint8_t sl_id[4] = {0x0, 0x0, 0x0, 0x99 };
+  uint32_t sl_id = 0x99;
 
   // make sure AES loads fine
   std::cout<<"aes lib loads fine..."<<std::endl;
@@ -42,7 +42,7 @@ int main() {
   // create foo
   memcpy(foo.key, key, 16);
   foo.freq = 915.0;
-  memcpy(foo.sl_id, sl_id, 4);
+  foo.sl_id = sl_id;
   foo.modem_config = 0;
   foo.node_id = 4;
   // sanity check the key
@@ -58,7 +58,7 @@ int main() {
   phex(buf, SL_TOKEN_LENGTH);
 
   // Take pasted string and recreate struct
-  uint8_t str[80] = "2b7e151628aed2a6abf7158809cf4f3c0000009900c064440004";
+  uint8_t str[80] = "2b7e151628aed2a6abf7158809cf4f3c9900000000c064440004";
   std::cout<<"Pasted string is: "<<str<<std::endl;
 
   // scan in to buf
@@ -77,8 +77,7 @@ int main() {
   // check
   std::cout<<"Key is: "<<std::endl;
   phex(bar.key, 16);
-  std::cout<<"sl_id is: "<<std::endl;
-  phex(bar.sl_id, 4);
+  std::cout<<"sl_id is: "<<uint(bar.sl_id)<<std::endl;
   std::cout<<"Modem config is "<<int(bar.modem_config)<<std::endl;
   std::cout<<"freq is:  "<<float(bar.freq)<<std::endl;
   std::cout<<"node address is:  "<<float(bar.node_id)<<std::endl;
