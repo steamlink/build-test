@@ -1,0 +1,3 @@
+# steam.py needs:
+repubmqtt
+paho_mqtt
