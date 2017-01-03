@@ -1,0 +1,48 @@
+    
+DBG = 1 
+
+POLLINTERVAL = 30
+
+# broker connection data
+MQTT_CLIENTID="sl_store2"
+MQTT_USERNAME="UUUUUUUU"
+MQTT_PASSWORD="PPPPPPPP"
+MQTT_SERVER="mqtt.steamlink.net"
+MQTT_PORT=8883
+
+
+# mqtt subscription topcis
+MQPREFIX = "SL"
+TOPICS = [MQPREFIX+"/+/data", MQPREFIX+"/+/status"]
+
+
+# simulted database
+Mesh(1, 'mesh_1')
+Mesh(2, 'mesh_2')
+Swarm(153, 'testnode1', '2b7e151628aed2a6abf7158809cf4f3c', 'andreas', 1)
+
+
+# 
+# translation tables
+xlate = {
+  'motion': { 'off':  False,    'on': True },
+  'door':   { 'off':  'Closed', 'on': 'Open' },
+}
+
+
+# rules
+hello_msg = {
+  'name': 'hello_msg',
+  'rules': [['filter','', 'publish']],
+  'filter': {'_sl_id': '153' }, 
+  'publish': {'protocol': 'log', 'data': "%(ts)s: %(payload)s node %(_node_id)s" }
+}
+
+button_msg = {
+  'name': 'button_msg',
+  'rules': [['filter', 'selector', 'publish']],
+  'filter': {'_sl_id': '153', 'payload': 'Button.*' }, 
+  'selector': {'button:payload': 'Button (.*) pkt.*' },
+  'publish': {'protocol': 'log', 'data': "%(ts)s: button %(button)s" }
+}
+RULES = [hello_msg, button_msg]
