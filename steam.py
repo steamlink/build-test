@@ -255,11 +255,15 @@ def main():
 	time.sleep(1)
 	interval = conf['POLLINTERVAL']
 	now = time.time() - interval	# force a get status
+	rc = 0
 	while 1:
 		waitt = now + interval - time.time()
 		if waitt < 0:
 			waitt = 0
-		client.loop(timeout=waitt)
+		rc = client.loop(timeout=waitt)
+		if rc == mqtt.MQTT_ERR_UNKNOWN:		# like: KeyboardInterrupt
+			rc = 1
+			break
 		if waitt == 0:
 			now = time.time()
 			for mid in mesh_table:
@@ -267,7 +271,7 @@ def main():
 
 	print("loop exit")
 #	client.loop_stop()
-	return 0;
+	return rc;
 
 
 rc = main()
