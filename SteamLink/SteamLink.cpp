@@ -46,6 +46,9 @@ void SteamLink::init(char* token, bool encrypted) {
     debug("SL_FATAL: setModemConfig failed with invalid configuration");
     while (1);
   }
+  // activate CAD by setting a timeout
+  driver->setCADTimeout(100);
+
   debug("Modem config done!");
   // set timeout for CAD to 10s
   // TODO: Make sure CAD actually does something!!!
