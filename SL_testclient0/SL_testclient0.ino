@@ -13,6 +13,7 @@
 #define RFM95_CS 8
 #define RFM95_RST 4
 #define RFM95_INT 3
+#define LORALED 13
 #endif
 
 // for Adafruit Huzzah breakout
@@ -20,6 +21,7 @@
 #define RFM95_CS 15
 #define RFM95_RST 4
 #define RFM95_INT 5
+#undef LORALED
 #endif
 
 // Change to 434.0 or other frequency, must match RX's freq!
@@ -60,7 +62,11 @@ void setup()
 
   digitalWrite(LED, HIGH);
 
-#define SL_TOKEN "2b7e151628aed2a6abf7158809cf4f3c0000009900c064440004"
+#ifdef LORALED
+  pinMode(LORALED, OUTPUT);
+#endif
+
+#define SL_TOKEN "2b7e151628aed2a6abf7158809cf4f3c9900000000c064440004"
   sl.set_pins(RFM95_CS, RFM95_RST, RFM95_INT);
   sl.init(SL_TOKEN);
   sl.register_handler(sl_on_receive);
@@ -94,7 +100,14 @@ void loop()
       snprintf((char*) data, sizeof(data), "Hello World! pkt: %d", packet_num);
     }
     beforeTime = millis();
-    if (sl.send(data) == SL_SUCCESS)
+#ifdef LORALED
+    digitalWrite(LORALED, HIGH);
+#endif
+    bool rc = sl.send(data);
+#ifdef LORALED
+    digitalWrite(LORALED, LOW);
+#endif
+    if (rc == SL_SUCCESS)
     {
       afterTime = millis() - beforeTime;
       // It has been reliably delivered to the next node.
