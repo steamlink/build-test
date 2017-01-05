@@ -15,7 +15,7 @@ import binascii
 N_TYP_VER = 0
 B_TYP_VER = 0
 
-DBG = 1
+DBG = 0
 
 class Mesh:
 	def __init__(self, mid, mname):
@@ -90,7 +90,7 @@ class B_typ_0:
 		header = struct.pack(B_typ_0.sfmt, (self.n_ver << 4) | self.b_ver, self.node_id, self.rssi + 256, self.sl_id)
 
 		if not self.sl_id in swarm_table:
-			raise SLException("pack: swarm %s not in table" % binascii.hexlify(self.sl_id))
+			raise SLException("pack: swarm %s not in table" % self.sl_id)
 		bkey = swarm_table[self.sl_id].swarm_bkey
 		payload = AES128_encrypt(self.payload, bkey)
 		return header + payload
@@ -144,14 +144,9 @@ def process(client, pkt, timestamp):
 	# log the pkt
 	ts=time.strftime("%Y-%m-%d %H:%M:%S",time.localtime(timestamp))
 	if DBG > 0: print("%s: %s" % (ts, pkt.json()))
-
-	m = pkt.payload.split()
-	if m[0] == "Button":
-		state = int(m[1])
-		opkt = B_typ_0_new(pkt.node_id, pkt.sl_id, "%s" % state)
-		otopic = "%s/%s/control" % (conf['MQPREFIX'], pkt.mesh)
-		pac = opkt.pack()
-		client.publish(otopic, bytearray(pac))
+	# "native" publish
+	otopic = "%s/%s/data" % (conf['SL_NATIVE_PREFIX'], pkt.sl_id)
+	client.publish(otopic,  pkt.json())
 
 
 # The callback for when the client receives a CONNACK response from the server.
@@ -167,31 +162,58 @@ def on_connect(client, userdata, flags, rc):
 def on_message(client, userdata, msg):
 	ts=time.strftime("%Y-%m-%d %H:%M:%S",time.localtime(msg.timestamp))
 	topic = msg.topic.split('/')
-	if len(topic) != 3 or topic[0] != conf['MQPREFIX']:
-		print("bogus msg, %s: %s" % (msg.topic, msg.payload))
+	if len(topic) != 3 or not topic[0] in [conf['SL_TRANSPORT_PREFIX'], conf['SL_NATIVE_PREFIX']]:
+		print("erro: bogus msg, %s: %s" % (msg.topic, msg.payload))
 		return
 	origin_mesh = topic[1]
 	origin_topic = topic[2]
-	if origin_topic == "data":
-#		try:
-		pkt = B_typ_0(msg.payload)
-#		except Exception as e:
-#			print("payload format or decrypt error: %s" % e)
-#			return
 
-		pkt.setmesh(origin_mesh)
-		process(client, pkt, msg.timestamp)
-		client.repub.process_message(pkt.dict())
-	elif origin_topic == "status":
-		status = jsonstatus(origin_mesh, msg.payload)
-		print("%s: %s" % (ts, status))
-	else:
-		print("%s: UNKNOWN %s payload %s" % (ts, msg.topic, msg.payload))
+	if topic[0] == conf['SL_NATIVE_PREFIX']:
+		if origin_topic != "control":
+			print("erro: bogus msg, %s: %s" % (msg.topic, msg.payload))
+			return
+		try:
+			pkt = json.loads(msg.payload.decode('utf-8'))
+		except:
+			print("error: control msg to '%s' not json: '%s'" % (msg.topic, msg.payload))
+			return
+
+		try:
+			opkt = B_typ_0_new(pkt['_node_id'], int(topic[1]), pkt['payload'])
+		except Exception as e:
+			print("error: could not build binary pkt from '%s' '%s', cause '%s'" % (msg.topic, msg.payload, e))
+			return
+		try:
+			otopic = "%s/mesh_%s/control" % (conf['SL_TRANSPORT_PREFIX'], pkt['_mesh'])
+			pac = opkt.pack()
+		except Exception as e:
+			print("error: could not build packet, cause %s" % e)
+			return
+		client.publish(otopic, bytearray(pac))
+
+	elif topic[0] == conf['SL_TRANSPORT_PREFIX']:
+		if origin_topic == "data":
+#			try:
+			pkt = B_typ_0(msg.payload)
+#			except Exception as e:
+#				print("payload format or decrypt error: %s" % e)
+#				return
+	
+			pkt.setmesh(origin_mesh)
+			process(client, pkt, msg.timestamp)
+			if DBG > 1: print("on_message: pkg is %s" % str(pkt.dict()))
+			client.repub.process_message(pkt.dict())
+		elif origin_topic == "status":
+			status = jsonstatus(origin_mesh, msg.payload)
+			print("%s: %s" % (ts, status))
+		else:
+			print("%s: UNKNOWN %s payload %s" % (ts, msg.topic, msg.payload))
 
 
 def getstatus(client, mesh):
-	topic = "%s/%s/state" % (conf['MQPREFIX'], mesh)
+	topic = "%s/%s/state" % (conf['SL_TRANSPORT_PREFIX'], mesh)
 	client.publish(topic,"state" )
+
 
 def jsonstatus(mesh, payload):
 	sfields = ['status', 'slsent', 'slreceived', 'mqttsent', 'mqttreceived', 'mqttqcount', 'loraqcount']
@@ -209,10 +231,10 @@ def jsonstatus(mesh, payload):
 # Main
 #
 conf = {}
-DBG = 0
+
 REQUIRED_NAMES = ['MQTT_SERVER', 'MQTT_PORT', 'MQTT_USERNAME', \
-	'MQTT_PASSWORD', 'MQTT_CLIENTID', 'TOPICS', 'RULES', 'xlate', \
-    'MQPREFIX', 'POLLINTERVAL']
+	'MQTT_PASSWORD', 'MQTT_CLIENTID', 'RULES', 'XLATE', \
+    'SL_TRANSPORT_PREFIX', 'SL_NATIVE_PREFIX', 'POLLINTERVAL']
 
 def main():
 	if len(sys.argv) != 2:
@@ -221,6 +243,7 @@ def main():
 
 	conffile = sys.argv[1]
 	conf['DBG'] = 0
+	# Temportary
 	conf['Mesh'] = Mesh
 	conf['Swarm'] = Swarm
 	try:
@@ -234,6 +257,11 @@ def main():
 		if not name in conf:
 			print("required entry '%s' missing in config file '%s'" % (name, conffile))
 			err = True
+
+	conf['TOPICS'] = [conf['SL_TRANSPORT_PREFIX']+"/+/data", \
+					  conf['SL_TRANSPORT_PREFIX']+"/+/status", \
+			          conf['SL_NATIVE_PREFIX']+"/+/control"]
+
 	if err:
 		sys.exit(1)
 	DBG = conf['DBG']
@@ -245,7 +273,7 @@ def main():
 	client.on_connect = on_connect
 	client.on_message = on_message
 
-	repub = repubmqtt.Republish(conf['RULES'], client, conf['xlate'], conf['DBG'])
+	repub = repubmqtt.Republish(conf['RULES'], client, conf['XLATE'], conf['DBG'])
 	client.repub = repub
 	client.connect(conf['MQTT_SERVER'], conf['MQTT_PORT'], 60)
 
