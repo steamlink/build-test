@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
 import paho.mqtt.client as mqtt
+from pymongo import MongoClient
 import repubmqtt
 import time
 import sys
@@ -38,6 +39,10 @@ class Swarm:
 # Simulate mongo swarm and mesh collections
 mesh_table = {}
 swarm_table = {}
+
+
+
+log = repubmqtt.log
 
 
 class SLException(BaseException):
@@ -114,6 +119,54 @@ class B_typ_0_new(B_typ_0):
 		self.payload = pkt
 
 
+class MongoDB:
+	mongoclient = None
+	def __init__(self, mongourl, db):
+		self.mongourl = mongourl
+		self.startmongo()
+		self.mongo = MongoDB.mongoclient[db]
+		self.collections = {}
+
+
+	def startmongo(self):
+		if not MongoDB.mongoclient:
+			MongoDB.mongoclient = MongoClient(self.mongourl)
+
+
+	def collection(self, name):
+		if not self.mongo:
+			self.startmongo()
+		self.collections[name] = self.mongo[name]
+
+
+	def insert(self, collection, item):
+		if not collection in self.collections:
+			self.collection(collection)
+		tb = self.collections[collection] 
+		_id = tb.insert_one(item).inserted_id
+		return _id
+
+
+	def find_one(self, collection, what):
+		if not collection in self.collections:
+			self.collection(collection)
+		tb = self.collections[collection] 
+		res = tb.find_one(what)
+		return res
+
+mongop = None
+def publish_mongo(publish, output_data, record):
+	global mongop
+
+	if publish['_testmode']:
+		log('test', "publish_mongo %s %s" % (url, output_data))
+	if not mongop:
+		mongop = MongoDB(publish['url'], publish['db'])
+	#N.B. we want to pass a dict to ..insert(..)
+	_id = mongop.insert(publish['collection'], json.loads(output_data))
+	return _id
+	
+
 def hexprint(pkt):
 	for c in pkt:
 		print("%02x" % ord(c),)
@@ -169,7 +222,11 @@ def on_message(client, userdata, msg):
 	origin_topic = topic[2]
 
 	if topic[0] == conf['SL_NATIVE_PREFIX']:
-		if origin_topic != "control":
+		if origin_topic == "data":
+			pkt = json.loads(msg.payload.decode('utf-8'))
+			pkt['topic'] = msg.topic
+			client.repub.process_message(pkt)
+		elif origin_topic != "control":
 			print("erro: bogus msg, %s: %s" % (msg.topic, msg.payload))
 			return
 		try:
@@ -202,7 +259,7 @@ def on_message(client, userdata, msg):
 			pkt.setmesh(origin_mesh)
 			process(client, pkt, msg.timestamp)
 			if DBG > 1: print("on_message: pkg is %s" % str(pkt.dict()))
-			client.repub.process_message(pkt.dict())
+#			client.repub.process_message(pkt.dict())
 		elif origin_topic == "status":
 			status = jsonstatus(origin_mesh, msg.payload)
 			print("%s: %s" % (ts, status))
@@ -236,12 +293,9 @@ REQUIRED_NAMES = ['MQTT_SERVER', 'MQTT_PORT', 'MQTT_USERNAME', \
 	'MQTT_PASSWORD', 'MQTT_CLIENTID', 'RULES', 'XLATE', \
     'SL_TRANSPORT_PREFIX', 'SL_NATIVE_PREFIX', 'POLLINTERVAL']
 
-def main():
-	if len(sys.argv) != 2:
-		print("usage: %s <conffile>")
-		return 1
 
-	conffile = sys.argv[1]
+def loadconf(conffile):
+	conf = {}
 	conf['DBG'] = 0
 	# Temportary
 	conf['Mesh'] = Mesh
@@ -250,7 +304,7 @@ def main():
 		exec(open(conffile).read(), conf )
 	except Exception as e:
 		print("Load of config failed: %s" % e)
-		return(1)
+		return None
 
 	err = False
 	for name in REQUIRED_NAMES:
@@ -258,11 +312,26 @@ def main():
 			print("required entry '%s' missing in config file '%s'" % (name, conffile))
 			err = True
 
+	if err:
+		return None
+
 	conf['TOPICS'] = [conf['SL_TRANSPORT_PREFIX']+"/+/data", \
 					  conf['SL_TRANSPORT_PREFIX']+"/+/status", \
-			          conf['SL_NATIVE_PREFIX']+"/+/control"]
+			          conf['SL_NATIVE_PREFIX']+"/+/control",\
+			          conf['SL_NATIVE_PREFIX']+"/+/data"]
+	return conf
 
-	if err:
+
+
+def main():
+	global conf
+	if len(sys.argv) != 2:
+		print("usage: %s <conffile>")
+		return 1
+
+	conf = loadconf( sys.argv[1])
+
+	if not conf:
 		sys.exit(1)
 	DBG = conf['DBG']
 
@@ -275,6 +344,8 @@ def main():
 
 	repub = repubmqtt.Republish(conf['RULES'], client, conf['XLATE'], conf['DBG'])
 	client.repub = repub
+	repub.register_publish_protocol('mongo', publish_mongo)
+
 	client.connect(conf['MQTT_SERVER'], conf['MQTT_PORT'], 60)
 
 	# starting mqtt processing thread
