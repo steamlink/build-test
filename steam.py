@@ -7,9 +7,9 @@ import time
 import sys
 import json
 import struct
+import signal
 
 from Crypto.Cipher import AES
-import binascii
 
 
 
@@ -19,10 +19,39 @@ B_TYP_VER = 0
 DBG = 0
 
 class Mesh:
+	sfields = ['status', 'slsent', 'slreceived', \
+			'mqttsent', 'mqttreceived', 'mqttqcount', 'loraqcount']
 	def __init__(self, mid, mname):
-		mesh_table[mid] = self
+		mesh_table[mname] = self
 		self.mesh_id = mid
 		self.mesh_name = mname
+		self.lastcontact = None
+		self.status = {}
+		self.status["loraqcount"] = 0
+		self.status["slreceived"] = 0
+		self.status["_sl_id"] = 1
+		self.status["status"] = "Offline"
+		self.status["slsent"] = 0
+		self.status["mqttreceived"] = 0
+		self.status["mqttsent"] = 0
+		self.status["mqttqcount"] = 0
+
+	def reportstatus(self):
+		v = {}
+		v['mesh'] = self.mesh_name
+		for i in self.status:
+			v[i] = self.status[i]
+		return json.dumps(v)
+
+
+	def updatestatus(self, payload):
+		self.lastcontact = time.time()
+		status =  payload.decode("utf-8").strip('\x00').split('/')
+		if len(status) != len(Mesh.sfields):
+			return json.dumps({'status': payload, 'from_mesh': mesh})
+		else:
+			for i in range(len(status)):
+				self.status[Mesh.sfields[i]] = status[i]
 
 
 class Swarm:
@@ -41,8 +70,11 @@ mesh_table = {}
 swarm_table = {}
 
 
-
+# use the libray's log function
 log = repubmqtt.log
+
+def dbgprint(lvl, *args, **kwargs):
+	if DBG >= lvl: log('dbg'+str(lvl), *args, **kwargs)
 
 
 class SLException(BaseException):
@@ -64,9 +96,8 @@ class B_typ_0:
 			if self.n_ver != N_TYP_VER or self.b_ver != B_TYP_VER:
 				raise SLException("B/N type version mismatch")
 			self.rssi = self.rssi - 256
-			if DBG > 2:
-				print("pkt self.n_ver %s self.b_ver %s self.rssi %s self.node_id %s self.sl_id %s" % \
-					(self.n_ver, self.b_ver, self.rssi, self.node_id, self.sl_id ))
+			dbgprint(3, "pkt self.n_ver %s self.b_ver %s self.rssi %s self.node_id %s self.sl_id %s" % \
+				(self.n_ver, self.b_ver, self.rssi, self.node_id, self.sl_id ))
 		else:
 			pkt = ''
 			self.n_ver = N_TYP_VER
@@ -167,16 +198,10 @@ def publish_mongo(publish, output_data, record):
 	return _id
 	
 
-def hexprint(pkt):
-	for c in pkt:
-		print("%02x" % ord(c),)
-	print()
-
-
 def AES128_decrypt(pkt, bkey):
 	if len(pkt) % 16 != 0:
-		print("pkt len error: ", len(pkt))
-		hexprint(pkt)
+		log('error', "decrypt pkt len (%s)error: %s" % \
+			(len(pkt)), " ".join("{:02x}".format(ord(c)) for c in pkt))
 		return ""
 	decryptor = AES.new(bkey, AES.MODE_ECB)
 	return decryptor.decrypt(pkt)
@@ -196,7 +221,7 @@ def process(client, pkt, timestamp):
 
 	# log the pkt
 	ts=time.strftime("%Y-%m-%d %H:%M:%S",time.localtime(timestamp))
-	if DBG > 0: print("%s: %s" % (ts, pkt.json()))
+	dbgprint(1, "%s: %s" % (ts, pkt.json()))
 	# "native" publish
 	otopic = "%s/%s/data" % (conf['SL_NATIVE_PREFIX'], pkt.sl_id)
 	client.publish(otopic,  pkt.json())
@@ -205,10 +230,10 @@ def process(client, pkt, timestamp):
 # The callback for when the client receives a CONNACK response from the server.
 def on_connect(client, userdata, flags, rc):
 
-	print("Connected with result code "+str(rc))
+	log('notice',"connected to MQTT boker,code "+str(rc))
 	for topic in conf['TOPICS']:
 		client.subscribe(topic)
-		print("Subscribing %s" % topic)
+		log('notice', "subscribe %s" % topic)
 
 
 # The callback for when a PUBLISH message is received from the server.
@@ -216,7 +241,7 @@ def on_message(client, userdata, msg):
 	ts=time.strftime("%Y-%m-%d %H:%M:%S",time.localtime(msg.timestamp))
 	topic = msg.topic.split('/')
 	if len(topic) != 3 or not topic[0] in [conf['SL_TRANSPORT_PREFIX'], conf['SL_NATIVE_PREFIX']]:
-		print("erro: bogus msg, %s: %s" % (msg.topic, msg.payload))
+		log('error', "bogus msg, %s: %s" % (msg.topic, msg.payload))
 		return
 	origin_mesh = topic[1]
 	origin_topic = topic[2]
@@ -227,44 +252,47 @@ def on_message(client, userdata, msg):
 			pkt['topic'] = msg.topic
 			client.repub.process_message(pkt)
 		elif origin_topic != "control":
-			print("erro: bogus msg, %s: %s" % (msg.topic, msg.payload))
+			log('error', "bogus msg, %s: %s" % (msg.topic, msg.payload))
 			return
 		try:
 			pkt = json.loads(msg.payload.decode('utf-8'))
 		except:
-			print("error: control msg to '%s' not json: '%s'" % (msg.topic, msg.payload))
+			log('error', "control msg to '%s' not json: '%s'" % (msg.topic, msg.payload))
 			return
 
 		try:
 			opkt = B_typ_0_new(pkt['_node_id'], int(topic[1]), pkt['payload'])
 		except Exception as e:
-			print("error: could not build binary pkt from '%s' '%s', cause '%s'" % (msg.topic, msg.payload, e))
+			log('error', "could not build binary pkt from '%s' '%s', cause '%s'" % (msg.topic, msg.payload, e))
 			return
 		try:
 			otopic = "%s/mesh_%s/control" % (conf['SL_TRANSPORT_PREFIX'], pkt['_mesh'])
 			pac = opkt.pack()
 		except Exception as e:
-			print("error: could not build packet, cause %s" % e)
+			log('error', "could not build packet, cause %s" % e)
 			return
 		client.publish(otopic, bytearray(pac))
 
 	elif topic[0] == conf['SL_TRANSPORT_PREFIX']:
 		if origin_topic == "data":
-#			try:
-			pkt = B_typ_0(msg.payload)
-#			except Exception as e:
-#				print("payload format or decrypt error: %s" % e)
-#				return
+			try:
+				pkt = B_typ_0(msg.payload)
+			except SLException as e:
+				log('error', "packet format error: %s" % e)
+				return
+			except Exception as e:
+				log('error', "payload format or decrypt error: %s" % e)
+				return
+
 	
 			pkt.setmesh(origin_mesh)
 			process(client, pkt, msg.timestamp)
-			if DBG > 1: print("on_message: pkg is %s" % str(pkt.dict()))
-#			client.repub.process_message(pkt.dict())
+			dbgprint(1, "on_message: pkg is %s" % str(pkt.dict()))
 		elif origin_topic == "status":
-			status = jsonstatus(origin_mesh, msg.payload)
-			print("%s: %s" % (ts, status))
+			status = mesh_table[origin_mesh].updatestatus(msg.payload)
+			log('notice', "%s" % (mesh_table[origin_mesh].reportstatus()))
 		else:
-			print("%s: UNKNOWN %s payload %s" % (ts, msg.topic, msg.payload))
+			log('error', "UNKNOWN %s payload %s" % (msg.topic, msg.payload))
 
 
 def getstatus(client, mesh):
@@ -272,17 +300,11 @@ def getstatus(client, mesh):
 	client.publish(topic,"state" )
 
 
-def jsonstatus(mesh, payload):
-	sfields = ['status', 'slsent', 'slreceived', 'mqttsent', 'mqttreceived', 'mqttqcount', 'loraqcount']
-	status =  payload.decode("utf-8").strip('\x00').split('/')
-	if len(status) != len(sfields):
-		return json.dumps({'status': payload, 'from_mesh': mesh})
-	else:
-		res = {}
-		for i in range(len(status)):
-			res[sfields[i]] = status[i]
-		res['_sl_id'] = 1
-		return json.dumps(res)
+sigseen = None
+def handler(signum, frame):
+	global sigseen 
+	log('notice', 'Signal handler called with signal %s' % signum)
+	sigseen = signum
 
 #
 # Main
@@ -291,7 +313,7 @@ conf = {}
 
 REQUIRED_NAMES = ['MQTT_SERVER', 'MQTT_PORT', 'MQTT_USERNAME', \
 	'MQTT_PASSWORD', 'MQTT_CLIENTID', 'RULES', 'XLATE', \
-    'SL_TRANSPORT_PREFIX', 'SL_NATIVE_PREFIX', 'POLLINTERVAL']
+	'SL_TRANSPORT_PREFIX', 'SL_NATIVE_PREFIX', 'POLLINTERVAL']
 
 
 def loadconf(conffile):
@@ -317,59 +339,72 @@ def loadconf(conffile):
 
 	conf['TOPICS'] = [conf['SL_TRANSPORT_PREFIX']+"/+/data", \
 					  conf['SL_TRANSPORT_PREFIX']+"/+/status", \
-			          conf['SL_NATIVE_PREFIX']+"/+/control",\
-			          conf['SL_NATIVE_PREFIX']+"/+/data"]
+					  conf['SL_NATIVE_PREFIX']+"/+/control",\
+					  conf['SL_NATIVE_PREFIX']+"/+/data"]
 	return conf
 
 
 
 def main():
-	global conf
+	global conf, sigseen
 	if len(sys.argv) != 2:
 		print("usage: %s <conffile>")
 		return 1
 
-	conf = loadconf( sys.argv[1])
+	signal.signal(signal.SIGHUP, handler)
+	signal.signal(signal.SIGTERM, handler)
 
-	if not conf:
-		sys.exit(1)
-	DBG = conf['DBG']
+	running = True
+	while running:
+		conf = loadconf( sys.argv[1])
+	
+		if not conf:
+			sys.exit(1)
+		DBG = conf['DBG']
+	
+		client = mqtt.Client(client_id=conf['MQTT_CLIENTID'])
+		client.tls_set("/home/steamlink/auth/mqtt/ca.crt")
+		client.username_pw_set(conf['MQTT_USERNAME'], conf['MQTT_PASSWORD'])
+		client.tls_insecure_set(False)
+		client.on_connect = on_connect
+		client.on_message = on_message
+		repub = repubmqtt.Republish(conf['RULES'], client, conf['XLATE'], conf['DBG'])
+		repub.register_publish_protocol('mongo', publish_mongo)
 
-	client = mqtt.Client(client_id=conf['MQTT_CLIENTID'])
-	client.tls_set("/home/steamlink/auth/mqtt/ca.crt")
-	client.username_pw_set(conf['MQTT_USERNAME'], conf['MQTT_PASSWORD'])
-	client.tls_insecure_set(False)
-	client.on_connect = on_connect
-	client.on_message = on_message
-
-	repub = repubmqtt.Republish(conf['RULES'], client, conf['XLATE'], conf['DBG'])
-	client.repub = repub
-	repub.register_publish_protocol('mongo', publish_mongo)
-
-	client.connect(conf['MQTT_SERVER'], conf['MQTT_PORT'], 60)
-
-	# starting mqtt processing thread
-#	client.loop_start()
-
-	time.sleep(1)
-	interval = conf['POLLINTERVAL']
-	now = time.time() - interval	# force a get status
-	rc = 0
-	while 1:
-		waitt = now + interval - time.time()
-		if waitt < 0:
-			waitt = 0
-		rc = client.loop(timeout=waitt)
-		if rc == mqtt.MQTT_ERR_UNKNOWN:		# like: KeyboardInterrupt
-			rc = 1
-			break
-		if waitt == 0:
-			now = time.time()
-			for mid in mesh_table:
-				getstatus(client, mesh_table[mid].mesh_name)
-
+		client.repub = repub
+		
+		client.connect(conf['MQTT_SERVER'], conf['MQTT_PORT'], 60)
+	
+	
+		time.sleep(1)
+		interval = conf['POLLINTERVAL']
+		now = time.time() - interval	# force a get status
+		rc = 0
+		while running:
+			if sigseen:
+				if sigseen == signal.SIGHUP:
+					log('notice', 'restart on SIGHUP')
+					sigseen = None
+					break
+				if sigseen == signal.SIGTERM:
+					log('notice', 'restart on SIGTERM')
+					sigseen = None
+					running = False
+					break
+			waitt = now + interval - time.time()
+			if waitt < 0:
+				waitt = 0
+			rc = client.loop(timeout=waitt)
+			if rc == mqtt.MQTT_ERR_UNKNOWN:		# like: KeyboardInterrupt
+				rc = 1
+				break
+			if waitt == 0:
+				now = time.time()
+				for mid in mesh_table:
+					getstatus(client, mesh_table[mid].mesh_name)
+		client.disconnect()
+	
 	print("loop exit")
-#	client.loop_stop()
 	return rc;
 
 
