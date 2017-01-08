@@ -30,6 +30,16 @@ XLATE = {
 
 
 # rules
+native_record = {
+  'name': 'native_record',
+  'rules': [['filter', '', 'publish']],
+  'filter': {'topic': 'SteamLink/.*/data' }, 
+  'publish': {'protocol': 'mongo', 
+              'url': 'mongodb://localhost:27017/',
+              'db': 'aew_db', 
+              'collection': 'native' }
+}
+
 hello_msg = {
   'name': 'hello_msg',
   'rules': [['filter','', 'publish'],
@@ -51,13 +61,13 @@ hello_msg = {
 button_msg = {
   'name': 'button_msg',
   'rules': [['filter', 'selector', 'publish']],
-  'filter': {'_sl_id': '153', 'payload': 'Button.*' }, 
+  'filter': {'_sl_id': [['==',153], ['==', 123], ['==', 77]], 'payload': 'Button.*' }, 
   'selector': {'button:payload': 'Button (.*) pkt.*',
                '_sl_id': '(.*)',
                '_node_id': '(.*)',
                '_mesh': 'mesh_(.*)' },
 #  'publish': [{'protocol': 'log', 'data': "%(ts)s: button %(button)s" },
-  'publish': [{'protocol': 'log'},
+  'publish': [{'protocol': 'log', 'logfile': '/home/andreas/log/buttondata.log'},
               {'protocol': 'mqtt', 
                'topic': SL_NATIVE_PREFIX+'/%(_sl_id)s/control',
                'data': {'_sl_id': 0, '_node_id': 0, 'payload': "1" },
@@ -67,4 +77,5 @@ button_msg = {
                                ['payload', 'button', '']]
               }]
 }
-RULES = [hello_msg, button_msg]
+#RULES = [native_record]
+RULES = [native_record, hello_msg, button_msg]
