@@ -5,7 +5,8 @@
 
 #define DEBUG
 
-#include <RHMesh.h>
+// #include <RHMesh.h>
+#include <RHDatagram.h>
 #include <RH_RF95.h>
 #include "SteamLink_types.h"
 #include <SPI.h>
@@ -54,7 +55,8 @@ class SteamLink {
   sl_config conf;
   sl_pins pins;
   RH_RF95* driver;
-  RHMesh* manager;
+//  RHMesh* manager;
+  RHDatagram* manager;
   uint8_t slrcvbuffer[SL_MAX_MESSAGE_LEN];
   bool encryption_mode = true;
 
