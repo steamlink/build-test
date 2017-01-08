@@ -26,7 +26,9 @@ void SteamLink::init(char* token, bool encrypted) {
   Serial.println(conf.node_address);
   
   driver = new RH_RF95(pins.cs, pins.interrupt);
-  manager = new RHMesh(*driver, conf.node_address);
+//  manager = new RHMesh(*driver, conf.node_address);
+  manager = new RHDatagram(*driver, conf.node_address);
+  debug("Running in Datagram mode");
 
   // initialize manager
   if (!manager->init()) {
