@@ -1,0 +1,56 @@
+<html>
+  <head>
+    <title>steamlink</title>
+    <script
+       src="https://code.jquery.com/jquery-3.1.1.min.js"
+       integrity="sha256-hVVnYaiADRTO2PzUGmuLJr8BLUSjGIZsDYGmIJLv2b8="
+       crossorigin="anonymous"></script>
+    <script type="text/javascript" src="/static/app.js"></script>
+    <link rel="stylesheet" type="text/css" href="/static/bulma.css">
+  </head>
+  <body>
+
+    <section class="hero">
+      <div class="hero-body">
+        <div class="container">
+          <h1 class="title">
+            steamlink dashboard
+          </h1>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="container">
+        <div class="columns">
+          <div class="column">
+
+            <h2 class="subtitle">Meshes</h2>
+            <table class="mesh_list table">
+              <thead>
+                <th>Mesh Name</th>
+                <th>Radio Type</th>
+                <th>Radio Parameters</th>
+                <th>Location</th>
+              </thead>
+            </table>
+            <a class="button is-dark" href="/add-mesh">Add new mesh</a>
+
+            <h2 class="subtitle">Swarms</h2>
+            <table class="swarm_list table"></table>
+            <a class="button is-dark" href="/add-swarm">Add new swarm</a>
+
+            <h2 class="subtitle">Nodes</h2>
+            <table class="swarm_list table"></table>
+            <a class="button is-dark" href="/add-nodes">Add new node</a>
+
+            <h2 class="subtitle">Transforms</h2>
+            <table class="transforms_list table"></table>
+            <a class="button is-dark" href="/add-transform">Add new transform</a>
+
+          </div>
+        </div>
+      </div>
+    </section>
+
+</html>

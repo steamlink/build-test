@@ -1,0 +1,64 @@
+<html>
+  <head>
+    <title>steamlink</title>
+    <script
+       src="https://code.jquery.com/jquery-3.1.1.min.js"
+       integrity="sha256-hVVnYaiADRTO2PzUGmuLJr8BLUSjGIZsDYGmIJLv2b8="
+       crossorigin="anonymous">
+    </script>
+
+    <script
+       src="https://cdnjs.cloudflare.com/ajax/libs/jquery-serialize-object/2.5.0/jquery.serialize-object.min.js"
+       crossorigin="anonymous">
+    </script>
+
+    <script type="text/javascript" src="/static/app.js"></script>
+
+    <link rel="stylesheet" type="text/css" href="/static/bulma.css">
+  </head>
+  <body>
+
+    <section class="hero">
+      <div class="hero-body">
+        <div class="container">
+          <h1 class="title">
+            steamlink dashboard
+          </h1>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="container">
+        <div class="column is-half">
+        <h2 class="subtitle">Add a new mesh</h2>
+        <form id="new_mesh">
+          <label class="label">Mesh name</label>
+          <p class="control">
+            <input class="input" type="text" name="mesh_name">
+          </p>
+          <label class="label">Radio type</label>
+          <p class="control">
+            <input class="input" type="text" name="radio[radio_type]">
+          </p>
+          <label class="label">Radio configuration</label>
+          <p class="control">
+            <input class="input" type="text" name="radio[radio_params]">
+          </p>
+          <label class="label">Location</label>
+          <p class="control">
+            <input class="input" type="text" name="physical_location[location_params]">
+          </p>
+          <p class="control">
+            <button class="button is-primary" type="button" onclick="submitForm('new_mesh','/meshes')">Submit</button>
+            <button class="button is-link">Cancel</button>
+          </p>
+        </form>
+      </div>
+      </div>
+    </section>
+
+
+
+  </body>
+</html>
