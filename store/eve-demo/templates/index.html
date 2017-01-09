@@ -143,7 +143,7 @@
                 </td>
                 <td>
                   <select v-model="new_node.selected_mesh">
-                    <option v-for="(mesh_item, mesh_index) in meshes">
+                    <option v-for="(mesh_item, mesh_index) in meshes" v-bind:value="mesh_index">
                       {% raw %}
                       {{ mesh_item.mesh_name }}
                       {% endraw %}
@@ -152,7 +152,7 @@
                 </td>
                 <td>
                   <select v-model="new_node.selected_swarm">
-                    <option v-for="(swarm_item, swarm_index) in swarms">
+                    <option v-for="(swarm_item, swarm_index) in swarms" v-bind:value="swarm_index">
                       {% raw %}
                       {{ swarm_item.swarm_name }}
                       {% endraw %}
