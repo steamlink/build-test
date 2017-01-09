@@ -5,6 +5,7 @@
        src="https://code.jquery.com/jquery-3.1.1.min.js"
        integrity="sha256-hVVnYaiADRTO2PzUGmuLJr8BLUSjGIZsDYGmIJLv2b8="
        crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/2.1.8/vue.js"></script>
     <script type="text/javascript" src="/static/app.js"></script>
     <link rel="stylesheet" type="text/css" href="/static/bulma.css">
   </head>
@@ -21,7 +22,7 @@
     </section>
 
     <section class="section">
-      <div class="container">
+      <div class="container" id="app_transforms">
         <div class="columns">
           <div class="column">
 
@@ -45,7 +46,45 @@
             <a class="button is-dark" href="/add-nodes">Add new node</a>
 
             <h2 class="subtitle">Transforms</h2>
-            <table class="transforms_list table"></table>
+            <table class="transforms_list table">
+              <thead>
+                <th>Transform name</th>
+                <th>Filter</th>
+                <th>Selector</th>
+                <th>Publisher</th>
+                <th>Active</th>
+              </thead>
+              <tr v-for="(item,index) in transforms">
+                <td>
+                  {% raw %}
+                  {{ item.transform_name }}
+                  {% endraw %}
+                </td>
+                <td>
+                  {% raw %}
+                  {{ item.filter.filter_name }}
+                  {% endraw %}
+                </td>
+                <td>
+                  {% raw %}
+                  {{ item.selector.selector_name }}
+                  {% endraw %}
+                </td>
+                <td>
+                  {% raw %}
+                  {{ item.publisher.publisher_name }}
+                  {% endraw %}
+                </td>
+
+                <td>
+                  <button class="button is-small" type="button" v-on:click="activateTransform">
+                    {% raw %}
+                    {{ item.active }}
+                    {% endraw %}
+                  </button>
+                </td>
+              </tr>
+            </table>
             <a class="button is-dark" href="/add-transform">Add new transform</a>
 
           </div>

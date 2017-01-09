@@ -112,6 +112,7 @@ window.onload = function () {
             filters : [],
             selectors : [],
             publishers : [],
+            transforms : [],
             form_transform : {
                 name : "",
                 filter : {
@@ -128,17 +129,17 @@ window.onload = function () {
                 }
             },
             new_transform : {
-                name : "",
+                transform_name : "",
                 active : "",
                 filter : "",
                 selector : "",
                 publisher : ""
             },
-            filter_picked : "",
+            filter_picked : -1,
             custom_filter : "",
-            selector_picked : "",
+            selector_picked : -1,
             custom_selector : "",
-            publisher_picked : "",
+            publisher_picked : -1,
             custom_publisher : ""
         },
         mounted : function () {
@@ -177,7 +178,28 @@ window.onload = function () {
             },
             submitTransform : function () {
                 console.log("submitting transform");
+                this.new_transform.transform_name = this.form_transform.name;
+                this.new_transform.active = "off";
+                if (this.filter_picked != -1){
+                    this.new_transform.filter = this.filters[this.filter_picked]._id;
+                }
+                if (this.selector_picked != -1){
+                    this.new_transform.selector = this.selectors[this.selector_picked]._id;
+                }
+                if (this.publisher_picked != -1){
+                    this.new_transform.publisher = this.publishers[this.publisher_picked]._id;
+                }
+                if((this.filter_picked != -1) && (this.publisher_picked != -1)) {
+                    var self = this;
+                    postToServer("/transforms", this.new_transform, function (result) {
+                        console.log(result);
+                        console.log("transform added");
+                    })
+                }
                 console.log(this.new_transform);
+            },
+            activateTransform : function () {
+                console.log("activating transform");
 
 
             },
@@ -187,11 +209,14 @@ window.onload = function () {
                     self.filters = result._items;
                 });
                 getFromServer('/selectors', function(result) {
-                    self.selector = result._items;
+                    self.selectors = result._items;
                 });
                 getFromServer('/publishers', function(result) {
                     self.publishers = result._items;
                 });
+                getFromServer('/transforms?embedded={"filter":1,"selector":1,"publisher":1}', function(result) {
+                    self.transforms = result._items;
+                })
                 console.log("fetching transforms");
             }
         }
