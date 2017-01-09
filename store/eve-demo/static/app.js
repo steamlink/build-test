@@ -136,6 +136,7 @@ window.onload = function () {
             transforms : [],
             meshes : [],
             swarms : [],
+            nodes : [],
             form_transform : {
                 name : "",
                 filter : {
@@ -157,6 +158,12 @@ window.onload = function () {
                 filter : "",
                 selector : "",
                 publisher : ""
+            },
+            new_node : {
+                selected_swarm : "",
+                selected_mesh : "",
+                node_name : "",
+                token : "",
             },
             new_mesh : {
                 mesh_name : "",
@@ -273,6 +280,9 @@ window.onload = function () {
                     console.log(self.new_swarm);
                 });
             },
+            addNode : function () {
+                console.log("Adding Node");
+            },
             fetchAll : function () {
                 var self = this;
                 getFromServer('/filters', function(result) {
@@ -292,6 +302,9 @@ window.onload = function () {
                 });
                 getFromServer('/swarms', function(result) {
                     self.swarms = result._items;
+                });
+                getFromServer('/nodes', function(result) {
+                    self.nodes = result._items;
                 });
                 console.log("fetching all from servers");
             }

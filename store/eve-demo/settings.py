@@ -185,6 +185,29 @@ nodes = {
         'node_name' : {
             'type' : 'string',
             'required' : True
+        },
+        'swarm' : {
+            'type' : 'objectid',
+            'data_relation' : {
+                'resource' : 'swarms',
+                'embeddable' : True
+            }
+        },
+        'mesh' : {
+            'type' : 'objectid',
+            'data_relation' : {
+                'resource' : 'meshes',
+                'embeddable' : True
+            }
+        },
+        'token' : {
+            'type' : 'string'
+        },
+        'sl_id' : {
+            'type' : 'string'
+        },
+        'node_id' : {
+            'type' : 'string'
         }
     }
 }
@@ -195,6 +218,7 @@ DOMAIN = {
     'transforms' : transforms,
     'filters' : filters,
     'selectors' : selectors,
-    'publishers' : publishers
+    'publishers' : publishers,
+    'nodes' : nodes
 }
 

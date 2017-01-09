@@ -78,7 +78,7 @@
 
 
             <h2 class="subtitle">Swarms</h2>
-              <table class="swarms_list table">
+            <table class="swarms_list table">
               <thead>
                 <th>Swarm Name</th>
                 <th>Swarm Key</th>
@@ -112,8 +112,58 @@
 
 
             <h2 class="subtitle">Nodes</h2>
-            <table class="swarm_list table"></table>
-            <a class="button is-dark" href="/add-nodes">Add new node</a>
+                        <table class="nodes_list table">
+              <thead>
+                <th>Node Name</th>
+                <th>Mesh</th>
+                <th>Swarm</th>
+                <th>Token</th>
+              </thead>
+
+              <tr v-for="(item,index) in nodes">
+                <td>
+                  {% raw %}
+                  {{ item.node_name }}
+                  {% endraw %}
+                </td>
+                <td>
+                  {% raw %}
+                  {{ item.mesh.mesh_name }}
+                  {% endraw %}
+                </td>
+                <td>
+                  {% raw %}
+                  {{ item.swarm.swarm_name }}
+                  {% endraw %}
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <input class="input" type="text" name="new_node_name" placeholder="New node name" v-model="new_node.node_name">
+                </td>
+                <td>
+                  <select v-model="new_node.selected_mesh">
+                    <option v-for="(mesh_item, mesh_index) in meshes">
+                      {% raw %}
+                      {{ mesh_item.mesh_name }}
+                      {% endraw %}
+                    </option>
+                  </select>
+                </td>
+                <td>
+                  <select v-model="new_node.selected_swarm">
+                    <option v-for="(swarm_item, swarm_index) in swarms">
+                      {% raw %}
+                      {{ swarm_item.swarm_name }}
+                      {% endraw %}
+                    </option>
+                  </select>
+                </td>
+                <td>
+                  <button class="button is-dark" type="button" v-on:click="addNode">Add Node</button>
+                </td>
+              </tr>
+            </table>
 
             <h2 class="subtitle">Transforms</h2>
             <table class="transforms_list table">
