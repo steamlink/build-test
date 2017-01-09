@@ -24,6 +24,25 @@ getFromServer = function(resource, callback) {
     });
 }
 
+updateField = function(resource, value, etag, callback) {
+    $.ajax({
+        type: "PATCH",
+        url: apiPrefixUrl.concat(resource),
+        data: JSON.stringify(value),
+        contentType: "application/json; charset=utf-8",
+        dataType: "json",
+
+        headers: {
+            "If-Match" : etag
+        },
+        success: function(result) {
+            callback(result);
+        },
+        failure: function(errMsg) {
+            alert(errMsg);
+        }
+    });
+}
 postToServer = function(resource, value, callback) {
     $.ajax({
         type: "POST",
@@ -53,6 +72,8 @@ insertResourceInListClass = function(arr, className) {
     }
 }
 
+
+/*
 printMessage = function(msg) {
     console.log(msg);
 }
@@ -77,7 +98,7 @@ getFromServer("/meshes", insertInMeshList);
 getFromServer("/swarms", insertInSwarmList);
 //getFromServer("/nodes", insertInNodeList);
 //getFromServer("/transforms", insertInTransformsList);
-
+*/
 
 
 
@@ -113,6 +134,8 @@ window.onload = function () {
             selectors : [],
             publishers : [],
             transforms : [],
+            meshes : [],
+            swarms : [],
             form_transform : {
                 name : "",
                 filter : {
@@ -134,6 +157,23 @@ window.onload = function () {
                 filter : "",
                 selector : "",
                 publisher : ""
+            },
+            new_mesh : {
+                mesh_name : "",
+                radio : {
+                    radio_type : "",
+                    radio_params : ""
+                },
+                physical_location : {
+                    location_params : ""
+                }
+            },
+            new_swarm : {
+                swarm_name : "",
+                swarm_crypto : {
+                    crypto_type : "aes",
+                    crypto_key : ""
+                }
             },
             filter_picked : -1,
             custom_filter : "",
@@ -198,10 +238,40 @@ window.onload = function () {
                 }
                 console.log(this.new_transform);
             },
-            activateTransform : function () {
-                console.log("activating transform");
+            activateTransform : function (index) {
+                var new_state = "";
+                console.log("activating transform" + index);
+                if (this.transforms[index].active === "off") {
+                    new_state = "on"
+                } else {
+                    new_state = "off";
+                }
+                var resource = "/" + this.transforms[index]._links.self.href;
+                console.log(resource);
+                var update = {
+                    "active" : this.transforms[index].active
+                };
+                var self = this;
+                updateField(resource, update, this.transforms[index]._etag, function(result) {
+                    self.transforms[index].active = new_state;
+                    self.transforms[index]._etag = result._etag;
+                    console.log(result);
+                });
 
-
+            },
+            addMesh : function () {
+                var self = this;
+                postToServer("/meshes", this.new_mesh, function() {
+                    self.meshes.push(self.new_mesh);
+                    console.log(self.new_mesh);
+                });
+            },
+            addSwarm : function () {
+                var self = this;
+                postToServer("/swarms", this.new_swarm, function() {
+                    self.swarms.push(self.new_swarm);
+                    console.log(self.new_swarm);
+                });
             },
             fetchAll : function () {
                 var self = this;
@@ -216,8 +286,14 @@ window.onload = function () {
                 });
                 getFromServer('/transforms?embedded={"filter":1,"selector":1,"publisher":1}', function(result) {
                     self.transforms = result._items;
-                })
-                console.log("fetching transforms");
+                });
+                getFromServer('/meshes', function(result) {
+                    self.meshes = result._items;
+                });
+                getFromServer('/swarms', function(result) {
+                    self.swarms = result._items;
+                });
+                console.log("fetching all from servers");
             }
         }
     })

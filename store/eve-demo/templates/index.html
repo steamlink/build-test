@@ -34,12 +34,82 @@
                 <th>Radio Parameters</th>
                 <th>Location</th>
               </thead>
+
+              <tr v-for="(item,index) in meshes">
+                <td>
+                  {% raw %}
+                  {{ item.mesh_name }}
+                  {% endraw %}
+                </td>
+                <td>
+                  {% raw %}
+                  {{ item.radio.radio_type }}
+                  {% endraw %}
+                </td>
+                <td>
+                  {% raw %}
+                  {{ item.radio.radio_params }}
+                  {% endraw %}
+                </td>
+                <td>
+                  {% raw %}
+                  {{ item.physical_location.location_params }}
+                  {% endraw %}
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <input class="input" type="text" name="new_mesh_name" placeholder="New mesh name" v-model="new_mesh.mesh_name">
+                </td>
+                <td>
+                  <input class="input" type="text" name="new_radio_type" placeholder="LoRa" v-model="new_mesh.radio.radio_type">
+                </td>
+                <td>
+                  <input class="input" type="text" name="new_radio_params" placeholder="normal" v-model="new_mesh.radio.radio_params">
+                </td>
+                <td>
+                  <input class="input" type="text" name="new_physical_location" placeholder="Toronto" v-model="new_mesh.physical_location.location_params">
+                </td>
+              </tr>
+              <td>
+                <button class="button is-dark" type="button" v-on:click="addMesh">Add Mesh</button>
+              </td>
             </table>
-            <a class="button is-dark" href="/add-mesh">Add new mesh</a>
+
 
             <h2 class="subtitle">Swarms</h2>
-            <table class="swarm_list table"></table>
-            <a class="button is-dark" href="/add-swarm">Add new swarm</a>
+              <table class="swarms_list table">
+              <thead>
+                <th>Swarm Name</th>
+                <th>Swarm Key</th>
+              </thead>
+
+              <tr v-for="(item,index) in swarms">
+                <td>
+                  {% raw %}
+                  {{ item.swarm_name }}
+                  {% endraw %}
+                </td>
+                <td>
+                  {% raw %}
+                  {{ item.swarm_crypto.crypto_key }}
+                  {% endraw %}
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <input class="input" type="text" name="new_swarm_name" placeholder="New swarm name" v-model="new_swarm.swarm_name">
+                </td>
+                <td>
+                  <input class="input" type="text" name="new_swarm_key" placeholder="supersecretpassword" v-model="new_swarm.swarm_crypto.crypto_key">
+                </td>
+              </tr>
+              <td>
+                <button class="button is-dark" type="button" v-on:click="addSwarm">Add Swarm</button>
+              </td>
+            </table>
+
+
 
             <h2 class="subtitle">Nodes</h2>
             <table class="swarm_list table"></table>
@@ -77,7 +147,7 @@
                 </td>
 
                 <td>
-                  <button class="button is-small" type="button" v-on:click="activateTransform">
+                  <button class="button is-small" type="button" v-on:click="activateTransform(index)">
                     {% raw %}
                     {{ item.active }}
                     {% endraw %}

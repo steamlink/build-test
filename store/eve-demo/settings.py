@@ -53,30 +53,10 @@ swarms = {
     # 'title' tag in item links
     'item_title' : 'swarm',
     'schema' : {
-        'swarm_id' : {
-            'type' : 'integer',
-            'required' : True,
-            'unique' : True
-        },
         'swarm_name' : {
             'type' : 'string',
-            'min_length' : 1,
-            'max_length' : 15,
             'required'   : True,
             'unique'     : True
-        },
-        'field_names' : {
-            'type' : 'array'
-            # TODO: validate strings,
-        },
-
-        'mesh' : {
-            'type' : 'objectid',
-            'required' : True,
-            'data_relation' : {
-                'resource' : 'meshes',
-                'embeddable' : True
-            }
         },
         'swarm_crypto' : {
             'type' : 'dict',
