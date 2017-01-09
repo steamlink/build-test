@@ -11,10 +11,9 @@ MQTT_SERVER="mqtt.steamlink.net"
 MQTT_PORT=8883
 
 
-# mqtt subscription topcis
-MQPREFIX = "SL"
-TOPICS = [MQPREFIX+"/+/data", MQPREFIX+"/+/status"]
-
+# mqtt subscription topci prefixes 
+SL_TRANSPORT_PREFIX = "SL"
+SL_NATIVE_PREFIX = "SteamLink"
 
 # simulted database
 Mesh(1, 'mesh_1')
@@ -24,25 +23,59 @@ Swarm(153, 'testnode1', '2b7e151628aed2a6abf7158809cf4f3c', 'andreas', 1)
 
 # 
 # translation tables
-xlate = {
+XLATE = {
   'motion': { 'off':  False,    'on': True },
   'door':   { 'off':  'Closed', 'on': 'Open' },
 }
 
 
 # rules
+native_record = {
+  'name': 'native_record',
+  'rules': [['filter', '', 'publish']],
+  'filter': {'topic': 'SteamLink/.*/data' }, 
+  'publish': {'protocol': 'mongo', 
+              'url': 'mongodb://localhost:27017/',
+              'db': 'aew_db', 
+              'collection': 'native' }
+}
+
 hello_msg = {
   'name': 'hello_msg',
-  'rules': [['filter','', 'publish']],
+  'rules': [['filter','', 'publish'],
+            ['mfilter','mselector', 'mpublish']],
   'filter': {'_sl_id': '153' }, 
-  'publish': {'protocol': 'log', 'data': "%(ts)s: %(payload)s node %(_node_id)s" }
+  'mfilter': {'_sl_id': '153', 'payload': 'Hello World! pkt: (.*) vBat.*' }, 
+  'publish': {'protocol': 'log', 'data': "%(ts)s: %(payload)s node %(_node_id)s" },
+  'mselector': {'pkt:payload': 'Hello World! pkt: (.*) vBat.*', 
+                 'vbat:payload': 'Hello World! pkt: .* vBat: (.*)mV*',
+                 'slid:_sl_id': '(.*)',
+                 'node:_node_id': '(.*)',
+                 'rssi:_rssi': '(.*)'},
+  'mpublish': {'protocol': 'mqtt',
+               'topic': 'test/sl%(slid)s/node%(node)s',
+# no 'data' field, so publish everything from 'mselector'
+              }
 }
 
 button_msg = {
   'name': 'button_msg',
   'rules': [['filter', 'selector', 'publish']],
-  'filter': {'_sl_id': '153', 'payload': 'Button.*' }, 
-  'selector': {'button:payload': 'Button (.*) pkt.*' },
-  'publish': {'protocol': 'log', 'data': "%(ts)s: button %(button)s" }
+  'filter': {'_sl_id': [['==',153], ['==', 123], ['==', 77]], 'payload': 'Button.*' }, 
+  'selector': {'button:payload': 'Button (.*) pkt.*',
+               '_sl_id': '(.*)',
+               '_node_id': '(.*)',
+               '_mesh': 'mesh_(.*)' },
+#  'publish': [{'protocol': 'log', 'data': "%(ts)s: button %(button)s" },
+  'publish': [{'protocol': 'log', 'logfile': '/home/andreas/log/buttondata.log'},
+              {'protocol': 'mqtt', 
+               'topic': SL_NATIVE_PREFIX+'/%(_sl_id)s/control',
+               'data': {'_sl_id': 0, '_node_id': 0, 'payload': "1" },
+               'copy_fields': [['_sl_id', '_sl_id', 'int'],
+                               ['_node_id', '_node_id', 'int'],
+                               ['_mesh', '_mesh', 'int'],
+                               ['payload', 'button', '']]
+              }]
 }
-RULES = [hello_msg, button_msg]
+#RULES = [native_record]
+RULES = [native_record, hello_msg, button_msg]

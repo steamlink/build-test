@@ -14,6 +14,8 @@
 #define RFM95_RST 4
 #define RFM95_INT 3
 #define LORALED 13
+#define VBATPIN A7
+   
 #endif
 
 // for Adafruit Huzzah breakout
@@ -81,6 +83,13 @@ uint8_t buf[MAX_MESSAGE_LEN];
 int beforeTime = 0, afterTime = 0, nextSendTime = 0;
 int waitInterval = 20000;
 
+int getBatInfo() {
+#ifdef VBATPIN
+    return int(analogRead(VBATPIN) * 6.45); // = *2*3.3/1024*1000
+#else
+    return 0.0;
+#endif
+}
 //
 // LOOP
 //
@@ -97,7 +106,7 @@ void loop()
       snprintf((char*) data, sizeof(data), "Button %i pkt: %d", value, packet_num);
       bLast = bCurrent;
     } else {
-      snprintf((char*) data, sizeof(data), "Hello World! pkt: %d", packet_num);
+      snprintf((char*) data, sizeof(data), "Hello World! pkt: %d vBat: %dmV", packet_num, getBatInfo());
     }
     beforeTime = millis();
 #ifdef LORALED
@@ -107,6 +116,7 @@ void loop()
 #ifdef LORALED
     digitalWrite(LORALED, LOW);
 #endif
+	rc = SL_SUCCESS;
     if (rc == SL_SUCCESS)
     {
       afterTime = millis() - beforeTime;

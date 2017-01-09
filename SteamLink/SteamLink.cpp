@@ -26,7 +26,10 @@ void SteamLink::init(char* token, bool encrypted) {
   Serial.println(conf.node_address);
   
   driver = new RH_RF95(pins.cs, pins.interrupt);
-  manager = new RHMesh(*driver, conf.node_address);
+//  manager = new RHMesh(*driver, conf.node_address);
+  manager = new RHDatagram(*driver, conf.node_address);
+  debug("Running in Datagram mode");
+
 
   // initialize manager
   if (!manager->init()) {
@@ -46,12 +49,11 @@ void SteamLink::init(char* token, bool encrypted) {
     debug("SL_FATAL: setModemConfig failed with invalid configuration");
     while (1);
   }
-  // activate CAD by setting a timeout
-  driver->setCADTimeout(100);
 
   debug("Modem config done!");
   // set timeout for CAD to 10s
   // TODO: Make sure CAD actually does something!!!
+  randomSeed(analogRead(A0));
   driver->setCADTimeout(10000);
   // set antenna power
   driver->setTxPower(tx_power, false);
@@ -94,10 +96,12 @@ SL_ERROR SteamLink::send(uint8_t* buf, uint8_t to_addr, uint8_t len) {
     memcpy(&packet[0], conf.sl_id, sizeof(conf.sl_id));
     memcpy(&packet[4], encrypted_packet, encrypted_packet_size);
     free(encrypted_packet);
-    sent = manager->sendtoWait(packet, packet_size, to_addr);
+//    sent = manager->sendtoWait(packet, packet_size, to_addr);
+    sent = manager->sendto(packet, packet_size, to_addr);
     free(packet);
   } else {	// not encrypted -> send raw
-    sent = manager->sendtoWait(buf, len, to_addr);
+//    sent = manager->sendtoWait(buf, len, to_addr);
+    sent = manager->sendto(buf, len, to_addr);
   }
 
   // figure out error codes
@@ -123,7 +127,8 @@ void SteamLink::update() {
   uint8_t packet_len;
   uint8_t from; // TODO: might need to "validate" sender!
   //recv packet
-  bool received = manager->recvfromAck(slrcvbuffer, &rcvlen, &from);
+//  bool received = manager->recvfromAck(slrcvbuffer, &rcvlen, &from);
+  bool received = manager->recvfrom(slrcvbuffer, &rcvlen, &from);
   if (received) {
     last_rssi = driver->lastRssi();
     // decrypt if we have encryption mode on
