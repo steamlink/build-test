@@ -4,10 +4,13 @@ import paho.mqtt.client as mqtt
 from pymongo import MongoClient
 import repubmqtt
 import time
+import os
 import sys
 import json
 import struct
 import signal
+import traceback
+import pprint
 
 from Crypto.Cipher import AES
 
@@ -16,7 +19,7 @@ from Crypto.Cipher import AES
 N_TYP_VER = 0
 B_TYP_VER = 0
 
-DBG = 0
+DBG = 1
 
 class Mesh:
 	sfields = ['status', 'slsent', 'slreceived', \
@@ -155,7 +158,7 @@ class MongoDB:
 	def __init__(self, mongourl, db):
 		self.mongourl = mongourl
 		self.startmongo()
-		self.mongo = MongoDB.mongoclient[db]
+		self.mongodb = MongoDB.mongoclient[db]
 		self.collections = {}
 
 
@@ -164,11 +167,12 @@ class MongoDB:
 			MongoDB.mongoclient = MongoClient(self.mongourl)
 
 
-	def collection(self, name):
-		if not self.mongo:
+	def collection(self, collname):
+		if not self.mongodb:
 			self.startmongo()
-		self.collections[name] = self.mongo[name]
-
+		self.collections[collname] = self.mongodb[collname]
+		return self.collections[collname]
+		
 
 	def insert(self, collection, item):
 		if not collection in self.collections:
@@ -178,12 +182,21 @@ class MongoDB:
 		return _id
 
 
+	def find(self, collection, what=None):
+		if not collection in self.collections:
+			self.collection(collection)
+		tb = self.collections[collection] 
+		res = tb.find(what)
+		return res
+
+
 	def find_one(self, collection, what):
 		if not collection in self.collections:
 			self.collection(collection)
 		tb = self.collections[collection] 
 		res = tb.find_one(what)
 		return res
+
 
 mongop = None
 def publish_mongo(publish, output_data, record):
@@ -197,6 +210,15 @@ def publish_mongo(publish, output_data, record):
 	_id = mongop.insert(publish['collection'], json.loads(output_data))
 	return _id
 	
+
+def publish_mqtt(publish, output_data, data):
+	topic = publish['topic'] % data
+	retain = publish.get('retain',False)
+	if publish['_testmode']:
+		log('test', "publish_mqtt %s %s" % (topic, output_data))
+		return
+	client.publish(topic, output_data, retain=retain)
+
 
 def AES128_decrypt(pkt, bkey):
 	if len(pkt) % 16 != 0:
@@ -250,7 +272,7 @@ def on_message(client, userdata, msg):
 		if origin_topic == "data":
 			pkt = json.loads(msg.payload.decode('utf-8'))
 			pkt['topic'] = msg.topic
-			client.repub.process_message(pkt)
+			userdata.process_message(pkt)
 		elif origin_topic != "control":
 			log('error', "bogus msg, %s: %s" % (msg.topic, msg.payload))
 			return
@@ -313,7 +335,36 @@ conf = {}
 
 REQUIRED_NAMES = ['MQTT_SERVER', 'MQTT_PORT', 'MQTT_USERNAME', \
 	'MQTT_PASSWORD', 'MQTT_CLIENTID', 'RULES', 'XLATE', \
-	'SL_TRANSPORT_PREFIX', 'SL_NATIVE_PREFIX', 'POLLINTERVAL']
+	'SL_TRANSPORT_PREFIX', 'SL_NATIVE_PREFIX', 'POLLINTERVAL', \
+	'MONGO_URL', 'MONGO_DB', 'PIDFILE']
+
+
+def loadmongoconfig(mongourl, mongodb):
+	dbgprint(1, "loadmongoconfig(%s, %s)" % (mongourl, mongodb))
+
+	mdb = MongoDB(mongourl, mongodb)
+	mdb_transforms =  mdb.collection('transforms')
+	mdb_filters =  mdb.collection('filters')
+	mdb_selectors =  mdb.collection('selectors')
+	mdb_publishers =  mdb.collection('publishers')
+
+	rules = []
+	for tr in mdb_transforms.find():
+		dbgprint(2, "tranform: ", tr)
+		te = {'name': tr['transform_name']}
+		fil = mdb_filters.find_one({'_id': tr['filter']})
+		te[fil['filter_name']] = fil['filter_string']
+		sel = mdb_selectors.find_one({'_id': tr['selector']})
+		te[sel['selector_name']] = sel['selector_string']
+		pub = mdb_publishers.find_one({'_id': tr['publisher']})
+		te[pub['publisher_name']] = pub['publisher_string']
+		te['rules'] = [[fil['filter_string'],sel['selector_string'], pub['publisher_string']]]
+		pprint.pprint(te)
+		rules.append(te)
+
+iXXXX	mdb_nodes = mdb.collection(':
+
+	return rules
 
 
 def loadconf(conffile):
@@ -341,12 +392,17 @@ def loadconf(conffile):
 					  conf['SL_TRANSPORT_PREFIX']+"/+/status", \
 					  conf['SL_NATIVE_PREFIX']+"/+/control",\
 					  conf['SL_NATIVE_PREFIX']+"/+/data"]
+	mongo_rules = loadmongoconfig(conf['MONGO_URL'], conf['MONGO_DB'])
+
+	if mongo_rules:
+		conf['RULES'] += mongo_rules
+	print("rules: ", end="")
+	pprint.pprint(conf['RULES'])
 	return conf
 
 
-
 def main():
-	global conf, sigseen
+	global client, conf, sigseen
 	if len(sys.argv) != 2:
 		print("usage: %s <conffile>")
 		return 1
@@ -362,21 +418,23 @@ def main():
 			sys.exit(1)
 		DBG = conf['DBG']
 	
-		client = mqtt.Client(client_id=conf['MQTT_CLIENTID'])
+		pid = os.getpid()
+		os.open(conf['PIDFILE'],"w").write("%s" % pid)
+
+		repub = repubmqtt.Republish(conf['RULES'], conf['XLATE'])
+		repub.setdebuglevel(conf['DBG'])
+		repub.register_publish_protocol('mongo', publish_mongo)
+		repub.register_publish_protocol('mqtt', publish_mqtt)
+
+		# pass republish instance to mqtt Client as userdata
+		client = mqtt.Client(client_id=conf['MQTT_CLIENTID'], userdata=repub)
 		client.tls_set("/home/steamlink/auth/mqtt/ca.crt")
 		client.username_pw_set(conf['MQTT_USERNAME'], conf['MQTT_PASSWORD'])
 		client.tls_insecure_set(False)
 		client.on_connect = on_connect
 		client.on_message = on_message
-		repub = repubmqtt.Republish(conf['RULES'], client, conf['XLATE'], conf['DBG'])
-		repub.register_publish_protocol('mongo', publish_mongo)
 
-		client.repub = repub
-		
 		client.connect(conf['MQTT_SERVER'], conf['MQTT_PORT'], 60)
-	
-	
-		time.sleep(1)
 		interval = conf['POLLINTERVAL']
 		now = time.time() - interval	# force a get status
 		rc = 0
@@ -408,5 +466,26 @@ def main():
 	return rc;
 
 
-rc = main()
+#
+# main
+#
+
+startts = time.time()
+while True:
+	try:
+		rc = main()
+		break
+	except KeyboardInterrupt:
+		rc = 1
+		break
+	except Exception as e:
+		log('error', 'main exit with error %s' % e)
+		traceback.print_exc(file=sys.stderr)
+		if DBG > 0 or time.time() > (startts + 1):
+			log('error', 'exit')
+			rc = 4
+			break
+		log('notice', 'restarting in 5 seconds')
+		time.sleep(5)
+
 sys.exit(rc)
