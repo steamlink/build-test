@@ -33,6 +33,7 @@
                 <th>Radio Type</th>
                 <th>Radio Parameters</th>
                 <th>Location</th>
+                <th>Bridge Token</th>
               </thead>
 
               <tr v-for="(item,index) in meshes">
@@ -56,6 +57,11 @@
                   {{ item.physical_location.location_params }}
                   {% endraw %}
                 </td>
+                <td>
+                  {% raw %}
+                  {{ item.token }}
+                  {% endraw %}
+                </td>
               </tr>
               <tr>
                 <td>
@@ -70,10 +76,10 @@
                 <td>
                   <input class="input" type="text" name="new_physical_location" placeholder="Toronto" v-model="new_mesh.physical_location.location_params">
                 </td>
+                <td>
+                  <button class="button is-dark" type="button" v-on:click="addMesh">Add Mesh</button>
+                </td>
               </tr>
-              <td>
-                <button class="button is-dark" type="button" v-on:click="addMesh">Add Mesh</button>
-              </td>
             </table>
 
 
@@ -134,6 +140,11 @@
                 <td>
                   {% raw %}
                   {{ item.swarm.swarm_name }}
+                  {% endraw %}
+                </td>
+                <td>
+                  {% raw %}
+                  {{ item.token }}
                   {% endraw %}
                 </td>
               </tr>

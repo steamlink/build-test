@@ -16,6 +16,9 @@
 """
 
 import os
+import struct
+import hashlib
+import pprint
 from eve import Eve
 from flask import render_template, request, redirect
 tmpl_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
@@ -39,13 +42,46 @@ app.static_folder = static_dir
 def index():
     return render_template('index.html')
 
-@app.route('/add-mesh')
-def add_mesh():
-    return render_template('add_mesh.html')
-
 @app.route('/add-transform')
 def add_transform():
     return render_template('add_transform.html')
+
+def add_token_to_node(items):
+    for item in items:
+        mesh = app.data.driver.db['meshes'].find_one({"_id" : item["mesh"]})
+        swarm = app.data.driver.db['swarms'].find_one({"_id" : item["swarm"]})
+        item['sl_id'] = app.data.driver.db['sl_ids'].find_and_modify(
+            query={ },
+            update={'$inc': {'id': 1}},
+            upsert=True
+        ).get('id')
+        item['node_id'] = app.data.driver.db['meshes'].find_and_modify(
+            query={'_id' : mesh["_id"]},
+            update={'$inc': {'last_allocated': 1}},
+            upsert=False
+        ).get('last_allocated')
+        item["token"] = create_token(mesh['radio']['radio_params'], swarm['swarm_crypto']['crypto_key'], item['sl_id'], item['node_id'])
+
+def create_token(radio_params, swarm_key, sl_id, node_id ):
+    # TODO: update with an if for normal
+    modem_config = "00"
+    freq = struct.pack('<f',915.00).hex()
+    key = hashlib.sha224(swarm_key.encode("utf-8")).hexdigest()[:16]
+    hexed_sl_id = struct.pack('<I',sl_id).hex()
+    hexed_node_id = struct.pack('<B', node_id).hex()
+    return key + hexed_sl_id + freq + modem_config + hexed_node_id
+
+def send_bridge_token(response):
+    for item in response["_items"]:
+        item["token"] = create_token(item["radio"]["radio_params"],"secret", 99, 1)
+
+def init_last_allocated(items):
+    for item in items:
+        item['last_allocated'] = 5
+
+app.on_insert_nodes += add_token_to_node
+app.on_insert_meshes += init_last_allocated
+app.on_fetched_resource_meshes += send_bridge_token
 
 if __name__ == '__main__':
     app.run(host=host, port=port)
