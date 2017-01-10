@@ -362,7 +362,7 @@ def loadmongoconfig(mongourl, mongodb):
 		pprint.pprint(te)
 		rules.append(te)
 
-iXXXX	mdb_nodes = mdb.collection(':
+#	mdb_nodes = mdb.collection(':
 
 	return rules
 
@@ -419,7 +419,7 @@ def main():
 		DBG = conf['DBG']
 	
 		pid = os.getpid()
-		os.open(conf['PIDFILE'],"w").write("%s" % pid)
+		open(conf['PIDFILE'],"w").write("%s" % pid)
 
 		repub = repubmqtt.Republish(conf['RULES'], conf['XLATE'])
 		repub.setdebuglevel(conf['DBG'])
