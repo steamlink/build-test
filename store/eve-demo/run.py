@@ -19,6 +19,7 @@ import os
 import struct
 import hashlib
 import pprint
+import time
 from eve import Eve
 from flask import render_template, request, redirect
 tmpl_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
@@ -45,6 +46,28 @@ def index():
 @app.route('/add-transform')
 def add_transform():
     return render_template('add_transform.html')
+
+@app.route('/evelog')
+def evelog():
+    def generate():
+        with open('/home/steamlink/log/steamlink_eve.log') as f:
+#            while True:
+                yield f.read()
+#		time.sleep(1)
+
+    return app.response_class(generate(), mimetype='text/plain')
+
+
+@app.route('/republog')
+def republog():
+    def generate():
+        with open('/home/steamlink/log/su-steamlink-repub.log') as f:
+#            while True:
+                yield f.read()
+#		time.sleep(1)
+
+    return app.response_class(generate(), mimetype='text/plain')
+
 
 def add_token_to_node(items):
     for item in items:
