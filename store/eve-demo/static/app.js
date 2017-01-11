@@ -2,6 +2,7 @@ apiPrefixUrl = "/api/v0";
 idSelector = "#";
 
 getFromServer = function(resource, callback) {
+    console.log('second');
     $.ajax({
         url: apiPrefixUrl.concat(resource),
         type: "GET",
@@ -24,7 +25,6 @@ updateField = function(resource, value, etag, callback) {
         data: JSON.stringify(value),
         contentType: "application/json; charset=utf-8",
         dataType: "json",
-
         headers: {
             "If-Match" : etag
         },
@@ -38,6 +38,7 @@ updateField = function(resource, value, etag, callback) {
 }
 
 postToServer = function(resource, value, callback) {
+    console.log('first');
     $.ajax({
         type: "POST",
         url: apiPrefixUrl.concat(resource),
@@ -204,7 +205,7 @@ window.onload = function () {
                 var resource = "/" + this.transforms[index]._links.self.href;
                 console.log(resource);
                 var update = {
-                    "active" : this.transforms[index].active
+                    'active' : new_state
                 };
                 var self = this;
                 updateField(resource, update, this.transforms[index]._etag, function(result) {
@@ -235,11 +236,18 @@ window.onload = function () {
                     swarm : self.swarms[self.new_node.selected_swarm]._id,
                     mesh : self.meshes[self.new_node.selected_mesh]._id
                 };
-                postToServer("/nodes", nodeToSend, function(result) {
-                    console.log(result);
-                    console.log("Adding Node");
-                })
+                postToServer("/nodes", nodeToSend, self.fetchNodes);
 
+            },
+            fetchNodes : function () {
+                var self = this;
+                setTimeout(function() {
+                    console.log("fetching new nodes");
+                    getFromServer('/nodes?embedded={"swarm":1,"mesh":1}', function(result) {
+                        console.log(self);
+                        self.nodes = result._items;
+                    });
+                }, 1000)
             },
             fetchAll : function () {
                 var self = this;
