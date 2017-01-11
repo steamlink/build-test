@@ -21,6 +21,10 @@ from threading import Thread, Event
 """
 
 import os
+import struct
+import hashlib
+import pprint
+import time
 from eve import Eve
 from flask import render_template, request, redirect
 from flask_socketio import SocketIO
