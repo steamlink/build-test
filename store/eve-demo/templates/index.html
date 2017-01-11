@@ -11,6 +11,25 @@
   </head>
   <body>
 
+    <nav class="nav">
+      <div class="nav-left">
+        <a href = "/" class="nav-item">
+          Home
+        </a>
+      </div>
+
+      <!-- This "nav-menu" is hidden on mobile -->
+      <!-- Add the modifier "is-active" to display it on mobile -->
+      <div class="nav-right nav-menu">
+        <a href="/static/evelog.html" class="nav-item">
+          Eve Log
+        </a>
+        <a href="/static/republog.html" class="nav-item">
+          Repub Log
+        </a>
+      </div>
+    </nav>
+
     <section class="hero">
       <div class="hero-body">
         <div class="container">
@@ -33,6 +52,7 @@
                 <th>Radio Type</th>
                 <th>Radio Parameters</th>
                 <th>Location</th>
+                <th>Bridge Token</th>
               </thead>
 
               <tr v-for="(item,index) in meshes">
@@ -56,6 +76,11 @@
                   {{ item.physical_location.location_params }}
                   {% endraw %}
                 </td>
+                <td>
+                  {% raw %}
+                  {{ item.token }}
+                  {% endraw %}
+                </td>
               </tr>
               <tr>
                 <td>
@@ -70,10 +95,10 @@
                 <td>
                   <input class="input" type="text" name="new_physical_location" placeholder="Toronto" v-model="new_mesh.physical_location.location_params">
                 </td>
+                <td>
+                  <button class="button is-dark" type="button" v-on:click="addMesh">Add Mesh</button>
+                </td>
               </tr>
-              <td>
-                <button class="button is-dark" type="button" v-on:click="addMesh">Add Mesh</button>
-              </td>
             </table>
 
 
@@ -136,6 +161,11 @@
                   {{ item.swarm.swarm_name }}
                   {% endraw %}
                 </td>
+                <td>
+                  {% raw %}
+                  {{ item.token }}
+                  {% endraw %}
+                </td>
               </tr>
               <tr>
                 <td>
@@ -143,7 +173,7 @@
                 </td>
                 <td>
                   <select v-model="new_node.selected_mesh">
-                    <option v-for="(mesh_item, mesh_index) in meshes">
+                    <option v-for="(mesh_item, mesh_index) in meshes" v-bind:value="mesh_index">
                       {% raw %}
                       {{ mesh_item.mesh_name }}
                       {% endraw %}
@@ -152,7 +182,7 @@
                 </td>
                 <td>
                   <select v-model="new_node.selected_swarm">
-                    <option v-for="(swarm_item, swarm_index) in swarms">
+                    <option v-for="(swarm_item, swarm_index) in swarms" v-bind:value="swarm_index">
                       {% raw %}
                       {{ swarm_item.swarm_name }}
                       {% endraw %}

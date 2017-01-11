@@ -91,6 +91,9 @@ meshes = {
                 'location_type' : {'type' : 'string'},
                 'location_params' : {'type' : 'string'}
             }
+        },
+        'last_allocated' : {
+            'type' : 'integer'
         }
     }
 }

@@ -1,14 +1,8 @@
 apiPrefixUrl = "/api/v0";
 idSelector = "#";
-debug_flag = true;
-
-debug = function(something) {
-    if (debug_flag) {
-        console.log(something);
-    }
-}
 
 getFromServer = function(resource, callback) {
+    console.log('second');
     $.ajax({
         url: apiPrefixUrl.concat(resource),
         type: "GET",
@@ -31,7 +25,6 @@ updateField = function(resource, value, etag, callback) {
         data: JSON.stringify(value),
         contentType: "application/json; charset=utf-8",
         dataType: "json",
-
         headers: {
             "If-Match" : etag
         },
@@ -43,7 +36,9 @@ updateField = function(resource, value, etag, callback) {
         }
     });
 }
+
 postToServer = function(resource, value, callback) {
+    console.log('first');
     $.ajax({
         type: "POST",
         url: apiPrefixUrl.concat(resource),
@@ -58,50 +53,6 @@ postToServer = function(resource, value, callback) {
         }
     });
 }
-
-
-insertResourceInListClass = function(arr, className) {
-
-    for (i=0; i < arr._items.length; i++){
-        $("."+className).append("<tr>");
-        $("."+className).append("<td>" + arr._items[i].mesh_name + "</td>");
-        $("."+className).append("<td>" + arr._items[i].radio.radio_type + "</td>");
-        $("."+className).append("<td>" + arr._items[i].radio.radio_params + "</td>");
-        $("."+className).append("<td>" + arr._items[i].physical_location.location_params + "</td>");
-        $("."+className).append("</tr>");
-    }
-}
-
-
-/*
-printMessage = function(msg) {
-    console.log(msg);
-}
-
-insertInMeshList = function(resource) {
-    insertResourceInListClass(resource, "mesh_list");
-}
-
-insertInSwarmList = function(resource) {
-    insertResourceInListClass(resource, "swarm_list");
-}
-
-insertInNodeList = function(resource) {
-    insertResourceInListClass(resource, "node_list");
-}
-
-insertInTransformList = function(resource) {
-    insertResourceInListClass(resource, "transform_list");
-}
-
-getFromServer("/meshes", insertInMeshList);
-getFromServer("/swarms", insertInSwarmList);
-//getFromServer("/nodes", insertInNodeList);
-//getFromServer("/transforms", insertInTransformsList);
-*/
-
-
-
 
 submitForm = function(form_name, resource) {
     var toSend = $(idSelector.concat(form_name)).serializeObject();
@@ -120,8 +71,6 @@ submitForm = function(form_name, resource) {
         }
     });
 }
-
-/* TEST DATA */
 
 window.onload = function () {
 
@@ -256,7 +205,7 @@ window.onload = function () {
                 var resource = "/" + this.transforms[index]._links.self.href;
                 console.log(resource);
                 var update = {
-                    "active" : this.transforms[index].active
+                    'active' : new_state
                 };
                 var self = this;
                 updateField(resource, update, this.transforms[index]._etag, function(result) {
@@ -268,20 +217,37 @@ window.onload = function () {
             },
             addMesh : function () {
                 var self = this;
-                postToServer("/meshes", this.new_mesh, function() {
+                postToServer("/meshes", this.new_mesh, function(result) {
                     self.meshes.push(self.new_mesh);
                     console.log(self.new_mesh);
                 });
             },
             addSwarm : function () {
                 var self = this;
-                postToServer("/swarms", this.new_swarm, function() {
+                postToServer("/swarms", this.new_swarm, function(result) {
                     self.swarms.push(self.new_swarm);
                     console.log(self.new_swarm);
                 });
             },
             addNode : function () {
-                console.log("Adding Node");
+                var self = this;
+                var nodeToSend = {
+                    node_name : self.new_node.node_name,
+                    swarm : self.swarms[self.new_node.selected_swarm]._id,
+                    mesh : self.meshes[self.new_node.selected_mesh]._id
+                };
+                postToServer("/nodes", nodeToSend, self.fetchNodes);
+
+            },
+            fetchNodes : function () {
+                var self = this;
+                setTimeout(function() {
+                    console.log("fetching new nodes");
+                    getFromServer('/nodes?embedded={"swarm":1,"mesh":1}', function(result) {
+                        console.log(self);
+                        self.nodes = result._items;
+                    });
+                }, 1000)
             },
             fetchAll : function () {
                 var self = this;
@@ -303,7 +269,7 @@ window.onload = function () {
                 getFromServer('/swarms', function(result) {
                     self.swarms = result._items;
                 });
-                getFromServer('/nodes', function(result) {
+                getFromServer('/nodes?embedded={"swarm":1,"mesh":1}', function(result) {
                     self.nodes = result._items;
                 });
                 console.log("fetching all from servers");
