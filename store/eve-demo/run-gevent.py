@@ -72,7 +72,8 @@ class MqttThread(Thread):
             print("Subscribing %s" % topic)
 
     def on_message(self, client, userdata, msg):
-        socketio.emit('msg', {'count': str(msg.payload)}, namespace='/sl')
+        msg = "%s: %s" % (msg.topic, msg.payload.decode().strip('\0').replace('/',' |  '))
+        socketio.emit('msg', {'count': msg}, namespace='/sl')
 
 
     def run(self):
