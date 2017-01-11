@@ -68,7 +68,8 @@ void setup()
   pinMode(LORALED, OUTPUT);
 #endif
 
-#define SL_TOKEN "2b7e151628aed2a6abf7158809cf4f3c9900000000c064440004"
+// #define SL_TOKEN "2b7e151628aed2a6abf7158809cf4f3c9900000000c064440004"
+#define SL_TOKEN "3ca5de6fa904467e4e66f1fc8e6f54bd0500000000c064440005"
   sl.set_pins(RFM95_CS, RFM95_RST, RFM95_INT);
   sl.init(SL_TOKEN);
   sl.register_handler(sl_on_receive);
