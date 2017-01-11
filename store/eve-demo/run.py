@@ -92,13 +92,17 @@ def create_token(radio_params, swarm_key, sl_id, node_id ):
     x = struct.pack('<f',915.00)
     import codecs
     freq = codecs.encode(x, 'hex').decode()
-    key = hashlib.sha224(swarm_key.encode("utf-8")).hexdigest()[:16]
+    print("fre is ", freq)
+    key = hashlib.sha224(swarm_key.encode("utf-8")).hexdigest()[:32]
+    print("key is ", key)
 #    hexed_sl_id = struct.pack('<I',sl_id).hex()
     x = struct.pack('<I',sl_id)
     hexed_sl_id = codecs.encode(x, 'hex').decode()
+    print("sid is ", hexed_sl_id)
 #    hexed_node_id = struct.pack('<B', node_id).hex()
     x = struct.pack('<B', node_id)
     hexed_node_id = codecs.encode(x, 'hex').decode()
+    print("nid is ", hexed_node_id)
     return key + hexed_sl_id + freq + modem_config + hexed_node_id
 
 def send_bridge_token(response):
