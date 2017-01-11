@@ -1,0 +1,39 @@
+<html>
+  <head>
+    <title>steamlink</title>
+    <script
+       src="https://code.jquery.com/jquery-3.1.1.min.js"
+       integrity="sha256-hVVnYaiADRTO2PzUGmuLJr8BLUSjGIZsDYGmIJLv2b8="
+       crossorigin="anonymous"></script>
+    <link rel="stylesheet" type="text/css" href="/static/bulma.css">
+  </head>
+  <body>
+
+
+    <section class="hero">
+      <div class="hero-body">
+        <div class="container">
+          <h1 class="title"> steamlink status </h1>
+
+          <h2 class="subtitle">Meshes</h2>
+		  <h3><span id="connected">{{ connected }} meshes</span></h3>
+        </div>
+      </div>
+    </section>
+
+    <script type="text/javascript" 
+                src="http://code.jquery.com/jquery-1.11.1.min.js"></script>
+    <script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/socket.io/1.4.5/socket.io.min.js"></script>
+
+    <script type="text/javascript">
+        $(document).ready(function() {
+            var url = "http://" + document.domain + ":" + location.port;
+            console.log("url", url);
+            var socket = io.connect(url + "/sl");
+            socket.on('msg', function(msg) {
+                $("#connected").html(msg.count);
+            });
+        });
+    </script>
+
+</html>
