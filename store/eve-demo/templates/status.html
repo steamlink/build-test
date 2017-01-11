@@ -33,7 +33,7 @@
 
     <script type="text/javascript">
         $(document).ready(function() {
-            var url = "http://" + document.domain + ":" + location.port;
+            var url = "https://" + document.domain + ":" + location.port;
 			var dt = dynamicTable.config('mesh-status-table', 
            ['mesh', 'status','slsent','slreceived','mqttsent','mqttreceived','mqttqcount','loraqcount'],
            ['Mesh', 'Status','LoRa Sent','LoRa Received','MQTT Sent','MQTT Received','MQTT Queue','LoRa Queue'], 
