@@ -10,6 +10,7 @@ import json
 import struct
 import signal
 import traceback
+import hashlib
 import pprint
 
 from Crypto.Cipher import AES
@@ -19,15 +20,22 @@ from Crypto.Cipher import AES
 N_TYP_VER = 0
 B_TYP_VER = 0
 
-DBG = 1
+DBG = 0
+
+NOMESH = "nomesh" 	# placeholder
 
 class Mesh:
 	sfields = ['status', 'slsent', 'slreceived', \
 			'mqttsent', 'mqttreceived', 'mqttqcount', 'loraqcount']
-	def __init__(self, mid, mname):
+
+	def __init__(self, oid, mname, location, rtype, rparams):
 		mesh_table[mname] = self
-		self.mesh_id = mid
+		self.mesh_oid = oid
 		self.mesh_name = mname
+		self.location = location
+		self.radio_type = rtype
+		self.radio_params = rparams
+
 		self.lastcontact = None
 		self.status = {}
 		self.status["loraqcount"] = 0
@@ -58,19 +66,77 @@ class Mesh:
 
 
 class Swarm:
-	def __init__(self, sid, sname, skey, sowner, smesh_id):
-		swarm_table[sid] = self
-		self.sl_id = sid
+	def __init__(self, oid, sname, skey, stype):
+		swarm_table[oid] = self
+		self.oid = oid
 		self.swarm_name = sname
-		self.swarm_key = skey
-		self.swarm_mesh_id = smesh_id
+		self.swarm_crypto_key = skey
+		self.swarm_crypto_type = stype
 
-		self.swarm_bkey =  bytes.fromhex(self.swarm_key)
+		key = hashlib.sha224(self.swarm_crypto_key.encode("utf-8")).hexdigest()[:32]
+		self.swarm_bkey =  bytes.fromhex(key)
+
+
+class Node:
+	def __init__(self, sid, nid, nname, mesh, swarm):
+		node_table[sid] = self
+		self.sl_id = sid
+		self.node_id = nid
+		self.node_name = nname
+		self.mesh = mesh
+		self.swarm = swarm
+		swarm_sl_id_table[self.sl_id] = swarm
+
 
 
 # Simulate mongo swarm and mesh collections
+node_table = {}
 mesh_table = {}
 swarm_table = {}
+swarm_sl_id_table = {}
+
+
+def findswarm(sl_id, rmesh, nid):
+	
+	if not sl_id in node_table:
+		dbgprint(1, 'findswarm(%s, %s, %s)' % (sl_id, rmesh, nid))
+		mdb_nodes = mdb.collection('nodes')
+		node = mdb_nodes.find_one({'sl_id': sl_id})
+		dbgprint(1, 'findswarm: got node %s' % (str(node)))
+		if not node:
+			log('error', 'node with sl_id %s not in table' % sl_id)
+			raise SLException("no node %s" % sl_id)
+		soid = node['swarm']
+		if not soid in swarm_table:
+			mdb_swarms = mdb.collection('swarms')
+			swarm = mdb_swarms.find_one({'_id': soid})
+			dbgprint(2, 'findswarm: got swarm %s' % (str(swarm)))
+			if not swarm:
+				log('error', 'swarm with oid %s not in table' % soid)
+				raise SLException("no swarm %s" % soid)
+			sw = Swarm(soid, swarm['swarm_name'], swarm['swarm_crypto']['crypto_key'], \
+						swarm['swarm_crypto']['crypto_type'])
+		else:
+			sw = swarm_table[soid]
+		moid = node['mesh']
+		if not moid in mesh_table:
+			mdb_meshs = mdb.collection('meshes')
+			mesh = mdb_meshs.find_one({'_id': moid})
+			dbgprint(2, 'findswarm: got mesh %s' % (str(mesh)))
+			if not mesh:
+				log('error', 'mesh with oid %s not in table' % moid)
+				raise SLException("no mesh %s" % moid)
+			ms = Mesh(moid, mesh['mesh_name'], mesh['physical_location']['location_params'], \
+						mesh['radio']['radio_type'], mesh['radio']['radio_params'])
+		else:
+			ms = swarm_table[moid]
+		nd = Node(sl_id, nid, node['node_name'], ms, sw)
+		if rmesh and rmesh != NOMESH and rmesh != nd.mesh.mesh_name:
+			log('warning', 'pkg from sl_id/node %s/%s should be mesh %s but was mesh %s' % \
+				(sl_id, nid, rmesh, nd.mesh.mesh_name))
+		
+		
+	return node_table[sl_id]
 
 
 # use the libray's log function
@@ -89,7 +155,7 @@ class B_typ_0:
 
 	sfmt = '<BBBL'
 	def __init__(self, pkt=None):
-		self.mesh = "nomesh"
+		self.mesh = NOMESH
 		if pkt:
 			dlen = len(pkt) - struct.calcsize(B_typ_0.sfmt)
 			sfmt = "%s%is" % (B_typ_0.sfmt, dlen)
@@ -111,12 +177,16 @@ class B_typ_0:
 			epayload = b''
 
 		if len(epayload) > 0:
-			if not self.sl_id in swarm_table:
+			if not findswarm(self.sl_id, self.mesh, self.node_id):
 				raise SLException("init: swarm %s not in table" % self.sl_id)
-			bkey = swarm_table[self.sl_id].swarm_bkey
-			self.payload = AES128_decrypt(epayload, bkey).decode().rstrip('\0')
+			bkey = swarm_sl_id_table[self.sl_id].swarm_bkey
+			dcrypted = AES128_decrypt(epayload, bkey)
+			try:
+				self.payload = dcrypted.decode().rstrip('\0')
+			except:
+				raise SLException("B_typ_0: wrong crypto key??")
 		elif len(pkt) > 8:
-			raise SLException("init: impossible payload length")
+			raise SLException("B_typ_0: impossible payload length")
 		else:
 			self.payload = ''
 
@@ -128,9 +198,9 @@ class B_typ_0:
 		""" return a binary on-wire packet """
 		header = struct.pack(B_typ_0.sfmt, (self.n_ver << 4) | self.b_ver, self.node_id, self.rssi + 256, self.sl_id)
 
-		if not self.sl_id in swarm_table:
+		if not findswarm(self.sl_id, self.mesh, self.node_id):
 			raise SLException("pack: swarm %s not in table" % self.sl_id)
-		bkey = swarm_table[self.sl_id].swarm_bkey
+		bkey = swarm_sl_id_table[self.sl_id].swarm_bkey
 		payload = AES128_encrypt(self.payload, bkey)
 		return header + payload
 
@@ -207,17 +277,27 @@ def publish_mongo(publish, output_data, record):
 	if not mongop:
 		mongop = MongoDB(publish['url'], publish['db'])
 	#N.B. we want to pass a dict to ..insert(..)
+	log('info', "publish_mongo %s %s" % (publish['collection'], json.loads(output_data)))
 	_id = mongop.insert(publish['collection'], json.loads(output_data))
+	if not _id:
+		log('error', "publish_mongo error: %s %s %s" % (_id, publish['collection'], json.loads(output_data)))
 	return _id
 	
 
 def publish_mqtt(publish, output_data, data):
-	topic = publish['topic'] % data
+	try:
+		topic = publish['topic'] % data
+	except KeyError as e:
+		log('error', "publish topic '%s' missing key '%s' in data '%s'" % (publish['topic'], e, data))
+		return
 	retain = publish.get('retain',False)
 	if publish['_testmode']:
 		log('test', "publish_mqtt %s %s" % (topic, output_data))
 		return
-	client.publish(topic, output_data, retain=retain)
+	log('info', "publish_mqtt %s %s" % (topic, output_data))
+	rc, mid = client.publish(topic, output_data, retain=retain)
+	if rc:
+		log('error', "publish_mqtt failed %s, %s %s %s" % (rc, topic, output_data, retain))
 
 
 def AES128_decrypt(pkt, bkey):
@@ -239,7 +319,7 @@ def AES128_encrypt(msg, bkey):
 
 
 def process(client, pkt, timestamp):
-	""" process a pkt received on the data topic """
+	""" process a pkt received on the data topic, pubish on SL_NATIVE topic """
 
 	# log the pkt
 	ts=time.strftime("%Y-%m-%d %H:%M:%S",time.localtime(timestamp))
@@ -267,12 +347,13 @@ def on_message(client, userdata, msg):
 		return
 	origin_mesh = topic[1]
 	origin_topic = topic[2]
-
+	dbgprint(1, "on_messgge %s %s" % (msg.topic, msg.payload))
 	if topic[0] == conf['SL_NATIVE_PREFIX']:
 		if origin_topic == "data":
 			pkt = json.loads(msg.payload.decode('utf-8'))
 			pkt['topic'] = msg.topic
 			userdata.process_message(pkt)
+			return
 		elif origin_topic != "control":
 			log('error', "bogus msg, %s: %s" % (msg.topic, msg.payload))
 			return
@@ -288,11 +369,12 @@ def on_message(client, userdata, msg):
 			log('error', "could not build binary pkt from '%s' '%s', cause '%s'" % (msg.topic, msg.payload, e))
 			return
 		try:
-			otopic = "%s/mesh_%s/control" % (conf['SL_TRANSPORT_PREFIX'], pkt['_mesh'])
+			otopic = "%s/%s/control" % (conf['SL_TRANSPORT_PREFIX'], pkt['_mesh'])
 			pac = opkt.pack()
 		except Exception as e:
 			log('error', "could not build packet, cause %s" % e)
 			return
+		dbgprint(1, "publish: %s %s" % (otopic, ":".join("{:02x}".format(c) for c in pac)))
 		client.publish(otopic, bytearray(pac))
 
 	elif topic[0] == conf['SL_TRANSPORT_PREFIX']:
@@ -304,6 +386,7 @@ def on_message(client, userdata, msg):
 				return
 			except Exception as e:
 				log('error', "payload format or decrypt error: %s" % e)
+				traceback.print_exc(file=sys.stderr)
 				return
 
 	
@@ -339,26 +422,44 @@ REQUIRED_NAMES = ['MQTT_SERVER', 'MQTT_PORT', 'MQTT_USERNAME', \
 	'MONGO_URL', 'MONGO_DB', 'PIDFILE']
 
 
+mdb = None
 def loadmongoconfig(mongourl, mongodb):
+	global mdb
 	dbgprint(1, "loadmongoconfig(%s, %s)" % (mongourl, mongodb))
 
-	mdb = MongoDB(mongourl, mongodb)
-	mdb_transforms =  mdb.collection('transforms')
-	mdb_filters =  mdb.collection('filters')
-	mdb_selectors =  mdb.collection('selectors')
-	mdb_publishers =  mdb.collection('publishers')
+	if not mdb:
+		mdb = MongoDB(mongourl, mongodb)
+		mdb_transforms =  mdb.collection('transforms')
+		mdb_filters =  mdb.collection('filters')
+		mdb_selectors =  mdb.collection('selectors')
+		mdb_publishers =  mdb.collection('publishers')
 
 	rules = []
 	for tr in mdb_transforms.find():
-		dbgprint(2, "tranform: ", tr)
+		dbgprint(1, "tranform: ", tr)
+		if tr['active'] != 'on':
+			log('notice', "transform '%s' not active" % tr['transform_name'])
+			continue
 		te = {'name': tr['transform_name']}
 		fil = mdb_filters.find_one({'_id': tr['filter']})
-		te[fil['filter_name']] = fil['filter_string']
+		if fil == None:
+			raise SLException("no filter obj %s for transform %s" % (tr['filter'], tr['transform_name']))
+		te[fil['filter_name']] = eval(fil['filter_string'])
 		sel = mdb_selectors.find_one({'_id': tr['selector']})
-		te[sel['selector_name']] = sel['selector_string']
+		if sel == None:
+			raise SLException("no selector obj %s for transform %s" % (tr['selector'], tr['transform_name']))
+		nsel = eval(sel['selector_string'])
+		if len(nsel) != 0:
+			te[sel['selector_name']] = eval(sel['selector_string'])
+			msel = sel['selector_name']
+		else:
+			msel = ''
+		
 		pub = mdb_publishers.find_one({'_id': tr['publisher']})
-		te[pub['publisher_name']] = pub['publisher_string']
-		te['rules'] = [[fil['filter_string'],sel['selector_string'], pub['publisher_string']]]
+		if pub == None:
+			raise SLException("no publisher obj %s for transform %s" % (tr['publisher'], tr['transform_name']))
+		te[pub['publisher_name']] = eval(pub['publisher_string'])
+		te['rules'] = [[fil['filter_name'],msel, pub['publisher_name']]]
 		pprint.pprint(te)
 		rules.append(te)
 
@@ -377,6 +478,7 @@ def loadconf(conffile):
 		exec(open(conffile).read(), conf )
 	except Exception as e:
 		print("Load of config failed: %s" % e)
+		traceback.print_exc(file=sys.stderr)
 		return None
 
 	err = False
@@ -396,8 +498,8 @@ def loadconf(conffile):
 
 	if mongo_rules:
 		conf['RULES'] += mongo_rules
-	print("rules: ", end="")
-	pprint.pprint(conf['RULES'])
+#	print("rules: ", end="")
+#	pprint.pprint(conf['RULES'])
 	return conf
 
 
