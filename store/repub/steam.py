@@ -412,7 +412,7 @@ def on_message(client, userdata, msg):
             dbgprint(1, "on_message: pkg is %s" % str(pkt.dict()))
         elif origin_topic == "status":
             status = mesh_table[origin_mesh].updatestatus(msg.payload)
-            write_stats_data('mesh', json.dumps(status))
+            write_stats_data('mesh', mesh_table[origin_mesh].reportstatus())
             log('notice', "mesh status %s" % (mesh_table[origin_mesh].reportstatus()))
         else:
             log('error', "UNKNOWN %s payload %s" % (msg.topic, msg.payload))
