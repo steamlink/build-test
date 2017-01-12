@@ -2,6 +2,8 @@
 // send pkts to bridge at address 1
 // Mesh has much greater memory requirements, and you may need to limit the
 // max message length to prevent wierd crashes
+#define SL_TOKEN "3ca5de6fa904467e4e66f1fc8e6f54bd0500000000c064440005"
+
 #define MAX_MESSAGE_LEN 50
 
 #include <SteamLink.h>
@@ -68,12 +70,6 @@ void setup()
   pinMode(LORALED, OUTPUT);
 #endif
 
-<<<<<<< Updated upstream
-// #define SL_TOKEN "2b7e151628aed2a6abf7158809cf4f3c9900000000c064440004"
-#define SL_TOKEN "3ca5de6fa904467e4e66f1fc8e6f54bd0500000000c064440005"
-=======
-#define SL_TOKEN "3ca5de6fa904467e4e66f1fc8e6f54bd0400000000c064440005"
->>>>>>> Stashed changes
   sl.set_pins(RFM95_CS, RFM95_RST, RFM95_INT);
   sl.init(SL_TOKEN);
   sl.register_handler(sl_on_receive);

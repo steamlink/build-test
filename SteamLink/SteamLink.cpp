@@ -126,10 +126,11 @@ void SteamLink::update() {
   uint8_t *packet;
   uint8_t packet_len;
   uint8_t from; // TODO: might need to "validate" sender!
+  uint8_t to;
   //recv packet
 //  bool received = manager->recvfromAck(slrcvbuffer, &rcvlen, &from);
-  bool received = manager->recvfrom(slrcvbuffer, &rcvlen, &from);
-  if (received) {
+  bool received = manager->recvfrom(slrcvbuffer, &rcvlen, &from, &to);
+  if (received && (to == conf.node_address)) {
     last_rssi = driver->lastRssi();
     // decrypt if we have encryption mode on
 #ifdef DBG
