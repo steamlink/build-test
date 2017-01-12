@@ -444,7 +444,7 @@ def loadmongoconfig(mongourl, mongodb):
     global mdb
     dbgprint(1, "loadmongoconfig(%s, %s)" % (mongourl, mongodb))
 
-    if not mdb:
+    if 1 or not mdb:
         mdb = MongoDB(mongourl, mongodb)
         mdb_transforms =  mdb.collection('transforms')
         mdb_filters =  mdb.collection('filters')
