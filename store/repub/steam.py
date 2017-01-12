@@ -21,7 +21,7 @@ from Crypto.Cipher import AES
 N_TYP_VER = 0
 B_TYP_VER = 0
 
-DBG = 0
+DBG = 1
 
 NOMESH = "nomesh"	 # placeholder
 
@@ -54,7 +54,7 @@ class Mesh:
 		v['mesh'] = self.mesh_name
 		for i in self.status:
 			v[i] = self.status[i]
-		return json.dumps(v)
+		return v
 
 
 	def updatestatus(self, payload):
@@ -113,7 +113,7 @@ def findmesh(rmesh):
 
 
 def findswarm(sl_id, rmesh, nid):
-	
+
 	if not sl_id in node_table:
 		dbgprint(1, 'findswarm(%s, %s, %s)' % (sl_id, rmesh, nid))
 		mdb_nodes = mdb.collection('nodes')
@@ -152,8 +152,8 @@ def findswarm(sl_id, rmesh, nid):
 		if rmesh and rmesh != NOMESH and rmesh != nd.mesh.mesh_name:
 			log('warning', 'pkg from sl_id/node %s/%s should be mesh %s but was mesh %s' % \
 				(sl_id, nid, rmesh, nd.mesh.mesh_name))
-		
-		
+
+
 	return node_table[sl_id]
 
 
@@ -353,19 +353,24 @@ def AES128_encrypt(msg, bkey):
 	return bytearray(encryptor.encrypt(pmsg))
 
 
-def write_stats_data(what, data):
+def write_stats_data(what):
+	data = []
+	if what == 'mesh':
+		for mname in mesh_name_table:
+			data.append(mesh_name_table[mname].reportstatus())
+
 	sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 
 	server_address = '/tmp/eve_stats_socket'
-	dbgprint(1, 'write_stats_data: connecting to %s' % server_address)
+	dbgprint(3, 'write_stats_data: connecting to %s' % server_address)
 	try:
 		sock.connect(server_address)
 	except socket.error as msg:
 		print("not sent",msg)
 		sys.exit(1)
 
-	dbgprint(1, 'write_stats_data: writing to %s' % data)
-	message = bytes("%s|%s" % (what, data), 'UTF-8') 
+	dbgprint(1, 'write_stats_data: writing %s' % data)
+	message = bytes("%s|%s" % (what, json.dumps(data)), 'UTF-8') 
 	sock.sendall(message)
 
 
@@ -447,7 +452,8 @@ def on_message(client, userdata, msg):
 		elif origin_topic == "status":
 			findmesh(origin_mesh)
 			status = mesh_name_table[origin_mesh].updatestatus(msg.payload)
-			write_stats_data('mesh', mesh_name_table[origin_mesh].reportstatus())
+			
+			write_stats_data('mesh')
 			log('notice', "mesh status %s" % (mesh_name_table[origin_mesh].reportstatus()))
 		else:
 			log('error', "UNKNOWN %s payload %s" % (msg.topic, msg.payload))
@@ -522,11 +528,10 @@ def loadmongoconfig():
 
 
 def loadconf(conffile):
+	global DBG
 	conf = {}
-	conf['DBG'] = 0
-	# Temportary
-	conf['Mesh'] = Mesh
-	conf['Swarm'] = Swarm
+	conf['DBG'] = DBG
+
 	try:
 		exec(open(conffile).read(), conf )
 	except Exception as e:
@@ -547,7 +552,8 @@ def loadconf(conffile):
 					  conf['SL_TRANSPORT_PREFIX']+"/+/status", \
 					  conf['SL_NATIVE_PREFIX']+"/+/control",\
 					  conf['SL_NATIVE_PREFIX']+"/+/data"]
-
+	if conf['DBG'] > DBG:
+		DBG = conf['DBG']
 	return conf
 
 
@@ -569,7 +575,6 @@ def main():
 	
 		if not conf:
 			sys.exit(1)
-		DBG = conf['DBG']
 	
 		pid = os.getpid()
 		open(conf['PIDFILE'],"w").write("%s" % pid)
