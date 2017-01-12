@@ -159,8 +159,8 @@
 			var url = "https://" + document.domain + ":" + location.port;
 			var node_dyntable = dynamicTable();
 			var node_table = node_dyntable.config('node-data-table', 
-			   ['payload', '_node_id', '_mesh', '_rssi', '_sl_id'],
-			   ['Payload', 'Node','Mesh','RSSI','Swarm'], 
+			   ['_ts', '_node_id', '_mesh', '_rssi', '_sl_id', 'payload'],
+			   ['Time Stamp', 'Node','Mesh','RSSI','SL ID', 'Payload'], 
 			   'nothing yet...');
 			var mesh_dyntable = dynamicTable();
 			var mesh_table = mesh_dyntable.config('mesh-status-table', 

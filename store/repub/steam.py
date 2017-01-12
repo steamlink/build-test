@@ -49,6 +49,9 @@ class Mesh:
 		self.status["mqttsent"] = 0
 		self.status["mqttqcount"] = 0
 
+	def __str__(self):
+		return "Mesh name=%s type=%s" % (self.mesh_name, self.radio_type)
+
 	def reportstatus(self):
 		v = {}
 		v['mesh'] = self.mesh_name
@@ -78,6 +81,9 @@ class Swarm:
 		key = hashlib.sha224(self.swarm_crypto_key.encode("utf-8")).hexdigest()[:32]
 		self.swarm_bkey =  bytes.fromhex(key)
 
+	def __str__(self):
+		return 'Swarm name=%s, crypto_key=%s' % (self.swarm_name, self.swarm_crypto_key)
+
 
 class Node:
 	def __init__(self, sid, nid, nname, mesh, swarm):
@@ -88,7 +94,20 @@ class Node:
 		self.mesh = mesh
 		self.swarm = swarm
 		swarm_sl_id_table[self.sl_id] = swarm
+		self.lastpkt = None
 
+	def __str__(self):
+		return "Node name=%s sl_id=%s node_id=%s" % (self.node_name,
+				 self.sl_id, self.node_id)
+
+	def updatestatus(self, pkt):
+		self.lastpkt = pkt
+
+	def reportstatus(self):
+		if not self.lastpkt:
+			return {}
+		return self.lastpkt.dict()
+		
 
 
 # Simulate mongo swarm and mesh collections
@@ -112,13 +131,13 @@ def findmesh(rmesh):
 				mesh['radio']['radio_type'], mesh['radio']['radio_params'])
 
 
-def findswarm(sl_id, rmesh, nid):
+def findNode(sl_id):
 
 	if not sl_id in node_table:
-		dbgprint(1, 'findswarm(%s, %s, %s)' % (sl_id, rmesh, nid))
+		dbgprint(1, 'findNode(%s)' % (sl_id))
 		mdb_nodes = mdb.collection('nodes')
 		node = mdb_nodes.find_one({'sl_id': sl_id})
-		dbgprint(1, 'findswarm: got node %s' % (str(node)))
+		dbgprint(1, 'findNode: using node %s' % (str(node)))
 		if not node:
 			log('error', 'node with sl_id %s not in table' % sl_id)
 			raise SLException("no node %s" % sl_id)
@@ -126,7 +145,7 @@ def findswarm(sl_id, rmesh, nid):
 		if not soid in swarm_table:
 			mdb_swarms = mdb.collection('swarms')
 			swarm = mdb_swarms.find_one({'_id': soid})
-			dbgprint(2, 'findswarm: got swarm %s' % (str(swarm)))
+			dbgprint(2, 'findNode: got swarm %s' % (str(swarm)))
 			if not swarm:
 				log('error', 'swarm with oid %s not in table' % soid)
 				raise SLException("no swarm %s" % soid)
@@ -135,11 +154,12 @@ def findswarm(sl_id, rmesh, nid):
 					swarm['swarm_crypto']['crypto_type'])
 		else:
 			sw = swarm_table[soid]
+		dbgprint(2,"using swarm %s" % str(sw))
 		moid = node['mesh']
 		if not moid in mesh_table:
 			mdb_meshs = mdb.collection('meshes')
 			mesh = mdb_meshs.find_one({'_id': moid})
-			dbgprint(2, 'findswarm: got mesh %s' % (str(mesh)))
+			dbgprint(2, 'findNode: got mesh %s' % (str(mesh)))
 			if not mesh:
 				log('error', 'mesh with oid %s not in table' % moid)
 				raise SLException("no mesh %s" % moid)
@@ -147,11 +167,13 @@ def findswarm(sl_id, rmesh, nid):
 					mesh['physical_location']['location_params'], \
 					mesh['radio']['radio_type'], mesh['radio']['radio_params'])
 		else:
-			ms = swarm_table[moid]
-		nd = Node(sl_id, nid, node['node_name'], ms, sw)
-		if rmesh and rmesh != NOMESH and rmesh != nd.mesh.mesh_name:
-			log('warning', 'pkg from sl_id/node %s/%s should be mesh %s but was mesh %s' % \
-				(sl_id, nid, rmesh, nd.mesh.mesh_name))
+			ms = mesh_table[moid]
+		dbgprint(2,"using mesh %s" % str(ms))
+		nd = Node(sl_id, node['node_id'], node['node_name'], ms, sw)
+		dbgprint(2,"using Node %s" % nd)
+#		if rmesh and rmesh != NOMESH and rmesh != nd.mesh.mesh_name:
+#			log('warning', 'pkt from sl_id/node %s/%s should be mesh %s but was mesh %s' % \
+#				(sl_id, node['node_id'], rmesh, nd.mesh.mesh_name))
 
 
 	return node_table[sl_id]
@@ -191,6 +213,7 @@ class B_typ_0:
 	sfmt = '<BBBL'
 	def __init__(self, pkt=None):
 		self.mesh = NOMESH
+		self._ts = time.strftime("%Y-%m-%d %H:%M:%S",time.localtime())
 		if pkt:
 			dlen = len(pkt) - struct.calcsize(B_typ_0.sfmt)
 			sfmt = "%s%is" % (B_typ_0.sfmt, dlen)
@@ -212,8 +235,8 @@ class B_typ_0:
 			epayload = b''
 
 		if len(epayload) > 0:
-			if not findswarm(self.sl_id, self.mesh, self.node_id):
-				raise SLException("init: swarm %s not in table" % self.sl_id)
+			if not findNode(self.sl_id):
+				raise SLException("init: node %s not in table" % self.sl_id)
 			bkey = swarm_sl_id_table[self.sl_id].swarm_bkey
 			dcrypted = AES128_decrypt(epayload, bkey)
 			try:
@@ -233,8 +256,8 @@ class B_typ_0:
 		""" return a binary on-wire packet """
 		header = struct.pack(B_typ_0.sfmt, (self.n_ver << 4) | self.b_ver, self.node_id, self.rssi + 256, self.sl_id)
 
-		if not findswarm(self.sl_id, self.mesh, self.node_id):
-			raise SLException("pack: swarm %s not in table" % self.sl_id)
+		if not findNode(self.sl_id):
+			raise SLException("pack: node %s not in table" % self.sl_id)
 		bkey = swarm_sl_id_table[self.sl_id].swarm_bkey
 		payload = AES128_encrypt(self.payload, bkey)
 		return header + payload
@@ -242,7 +265,7 @@ class B_typ_0:
 
 	def dict(self):
 		return {'_mesh': self.mesh, '_node_id': self.node_id, '_rssi': self.rssi, \
-			'_sl_id': self.sl_id, 'payload': self.payload }
+			'_sl_id': self.sl_id, '_ts': self._ts, 'payload': self.payload }
 
 
 	def json(self):
@@ -358,6 +381,9 @@ def write_stats_data(what):
 	if what == 'mesh':
 		for mname in mesh_name_table:
 			data.append(mesh_name_table[mname].reportstatus())
+	elif what == 'node':
+		for slid in node_table:
+			data.append(node_table[slid].reportstatus())
 
 	sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 
@@ -403,7 +429,7 @@ def on_message(client, userdata, msg):
 		return
 	origin_mesh = topic[1]
 	origin_topic = topic[2]
-	dbgprint(1, "on_messgge %s %s" % (msg.topic, msg.payload))
+	dbgprint(2, "on_messgge %s %s" % (msg.topic, msg.payload))
 	if topic[0] == conf['SL_NATIVE_PREFIX']:
 		if origin_topic == "data":
 			pkt = json.loads(msg.payload.decode('utf-8'))
@@ -442,13 +468,15 @@ def on_message(client, userdata, msg):
 				return
 			except Exception as e:
 				log('error', "payload format or decrypt error: %s" % e)
-				traceback.print_exc(file=sys.stderr)
+				traceback.print_exc(file=logf)
 				return
 
 	
 			pkt.setmesh(origin_mesh)
+			node_table[pkt.sl_id].updatestatus(pkt)
 			process(client, pkt, msg.timestamp)
-			dbgprint(1, "on_message: pkg is %s" % str(pkt.dict()))
+			write_stats_data('node')
+			dbgprint(3, "on_message: pkt is %s" % str(pkt.dict()))
 		elif origin_topic == "status":
 			findmesh(origin_mesh)
 			status = mesh_name_table[origin_mesh].updatestatus(msg.payload)
@@ -644,7 +672,7 @@ while True:
 		break
 	except Exception as e:
 		log('error', 'main exit with error %s' % e)
-		traceback.print_exc(file=sys.stderr)
+		traceback.print_exc(file=logf)
 		if DBG > 0 or time.time() > (startts + 1):
 			log('error', 'exit')
 			rc = 4

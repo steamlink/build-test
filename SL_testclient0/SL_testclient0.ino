@@ -59,7 +59,7 @@ void setup()
 {
   Serial.begin(115200);
   delay(1000);
-  Serial.println(F("!ID SL_testclient" VER));
+  Serial.println(F("!ID SL_testclient0 " VER));
 
   pinMode(LED, OUTPUT);
   pinMode(BUTTON, INPUT_PULLUP);
@@ -86,7 +86,7 @@ int waitInterval = 20000;
 
 int getBatInfo() {
 #ifdef VBATPIN
-    return int(analogRead(VBATPIN) * 6.45); // = *2*3.3/1024*1000
+     return int(analogRead(VBATPIN) * 6.45); // = *2*3.3/1024*1000
 #else
     return 0.0;
 #endif
