@@ -157,7 +157,14 @@
       <div class="container">
         <div class="nocolumns">
           <h2 class="title">Log</h2>
-          <p id="log"></p>
+          <table class="log_list table" id="log-status-table">
+            <thead>
+              <th>Time Stamp</th>
+              <th>Message</th>
+            </thead>
+            <tr id="log">
+            </tr>
+          </table>
         </div>
       </div>
     </section>
@@ -188,8 +195,9 @@
 					mesh_table.load(msg.mesh[0]);
 				};
 				if ('log' in msg) {
-                                        $('#log').append(msg.log[0].line);
-					console.log(msg.log[0].line);
+                                    $('#log').append("<td>" + msg.log[0]._ts + "</td>");
+                                    $('#log').append("<td>" + msg.log[0].line + "</td>");
+                                    console.log(msg.log[0].line);
 				};
 			});
 		});
