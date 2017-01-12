@@ -329,8 +329,9 @@ def write_stats_data(what, data):
     except socket.error as msg:
         print("not sent",msg)
         sys.exit(1)
-#    message = "%s|%s" (what, data)
-    message = bytes("%s" % (data), 'UTF-8') 
+
+    dbgprint(1, 'write_stats_data: writing to %s' % data)
+    message = bytes(data, 'UTF-8') 
     sock.sendall(message)
 
 
