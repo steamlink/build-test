@@ -14,7 +14,8 @@ getFromServer = function(resource, callback) {
         error: function (xhr, ajaxOptions, thrownError) {
             console.log(xhr.status);
             console.log(thrownError);
-        }
+        },
+        cache: false
     });
 }
 
@@ -146,7 +147,7 @@ window.onload = function () {
             submitFilter: function() {
                 var self = this;
                 postToServer("/filters", this.form_transform.filter, function(result) {
-                    self.form_transform.filter = result._id;
+                    self.form_transform.filter._id = result._id;
                     self.filters.push(self.form_transform.filter);
                     self.form_transform.filter = {};
                     console.log(self.filters);
@@ -155,7 +156,7 @@ window.onload = function () {
             submitSelector: function() {
                 var self = this;
                 postToServer("/selectors", this.form_transform.selector, function(result) {
-                    self.form_transform.selector = result._id;
+                    self.form_transform.selector._id = result._id;
                     self.selectors.push(self.form_transform.selector);
                     self.form_transform.selector = {};
                     console.log(self.selectors);
@@ -165,7 +166,7 @@ window.onload = function () {
             submitPublisher: function() {
                 var self = this;
                 postToServer("/publishers", this.form_transform.publisher, function(result) {
-                    self.form_transform.publisher = result._id;
+                    self.form_transform.publisher._id = result._id;
                     self.publishers.push(self.form_transform.publisher);
                     self.form_transform.publisher = {};
                     console.log(self.publishers);
@@ -211,24 +212,43 @@ window.onload = function () {
                 };
                 var self = this;
                 updateField(resource, update, this.transforms[index]._etag, function(result) {
-                    self.transforms[index].active = new_state;
-                    self.transforms[index]._etag = result._etag;
+                    console.log("updating transform");
                     console.log(result);
+                    self.fetchTransforms();
+                    console.log("fetched new transforms");
                 });
 
             },
             addMesh : function () {
                 var self = this;
                 postToServer("/meshes", this.new_mesh, function(result) {
-                    self.meshes.push(self.new_mesh);
-                    console.log(self.new_mesh);
+                    console.log(result);
+                    self.fetchMeshes();
+                    self.new_mesh = {
+                        mesh_name : "",
+                        radio : {
+                            radio_type : "",
+                            radio_params : ""
+                        },
+                        physical_location : {
+                            location_params : ""
+                        }
+                    };
                 });
+
             },
             addSwarm : function () {
                 var self = this;
                 postToServer("/swarms", this.new_swarm, function(result) {
-                    self.swarms.push(self.new_swarm);
-                    console.log(self.new_swarm);
+                    console.log(result);
+                    self.fetchSwarms();
+                    self.new_swarm =  {
+                        swarm_name : "",
+                        swarm_crypto : {
+                            crypto_type : "aes",
+                            crypto_key : ""
+                        }
+                    };
                 });
             },
             addNode : function () {
@@ -238,18 +258,46 @@ window.onload = function () {
                     swarm : self.swarms[self.new_node.selected_swarm]._id,
                     mesh : self.meshes[self.new_node.selected_mesh]._id
                 };
-                postToServer("/nodes", nodeToSend, self.fetchNodes);
+                postToServer("/nodes", nodeToSend, function (result) {
+                    console.log(result)
+                    self.fetchNodes();
+                    self.new_node = {
+                        selected_swarm : "",
+                        selected_mesh : "",
+                        node_name : "",
+                        token : "",
+                    };
+                });
 
             },
             fetchNodes : function () {
                 var self = this;
-                setTimeout(function() {
-                    console.log("fetching new nodes");
-                    getFromServer('/nodes?embedded={"swarm":1,"mesh":1}', function(result) {
-                        console.log(self);
-                        self.nodes = result._items;
-                    });
-                }, 1000)
+                console.log("fetching new nodes");
+                getFromServer('/nodes?embedded={"swarm":1,"mesh":1}', function(result) {
+                    console.log(self);
+                    self.nodes = result._items;
+                });
+            },
+            fetchMeshes : function () {
+                var self = this;
+                console.log("fetching new meshes");
+                getFromServer('/meshes', function(result) {
+                    self.meshes = result._items;
+                });
+            },
+            fetchSwarms : function () {
+                var self = this;
+                console.log("fetching new swarms");
+                getFromServer('/swarms', function(result) {
+                    self.swarms = result._items;
+                });
+            },
+            fetchTransforms : function () {
+                var self = this;
+                getFromServer('/transforms?embedded={"filter":1,"selector":1,"publisher":1}', function(result) {
+                    self.transforms = result._items;
+                    self.$forceUpdate();
+                });
             },
             fetchAll : function () {
                 var self = this;

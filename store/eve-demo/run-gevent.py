@@ -180,6 +180,7 @@ def init_last_allocated(items):
 
 def restart_repub(item, orig=None):
     print("restarting repub engine")
+    print(item)
     restart(REPUB_PIDFILE)
 
 app.on_insert_nodes += add_token_to_node

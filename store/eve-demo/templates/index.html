@@ -14,7 +14,7 @@
     <nav class="nav">
       <div class="nav-left">
         <a href = "/" class="nav-item">
-          Home
+          steamlink
         </a>
       </div>
 
@@ -33,12 +33,19 @@
       </div>
     </nav>
 
-    <section class="hero">
+    <section class="hero is-success">
       <div class="hero-body">
         <div class="container">
-          <h1 class="title">
-            steamlink dashboard
-          </h1>
+          <p class="title">
+            dashboard
+          </p>
+          <p class="subtitle">
+            administer
+            <strong>
+              your steamlink
+            </strong>
+            network
+          </p>
         </div>
       </div>
     </section>
@@ -48,7 +55,7 @@
         <div class="columns">
           <div class="column">
 
-            <h2 class="subtitle">Meshes</h2>
+            <h2 class="title">Meshes</h2>
             <table class="mesh_list table">
               <thead>
                 <th>Mesh Name</th>
@@ -105,7 +112,7 @@
             </table>
 
 
-            <h2 class="subtitle">Swarms</h2>
+            <h2 class="title">Swarms</h2>
             <table class="swarms_list table">
               <thead>
                 <th>Swarm Name</th>
@@ -139,12 +146,13 @@
 
 
 
-            <h2 class="subtitle">Nodes</h2>
+            <h2 class="title">Nodes</h2>
                         <table class="nodes_list table">
               <thead>
                 <th>Node Name</th>
                 <th>Mesh</th>
                 <th>Swarm</th>
+                <th>SLID</th>
                 <th>Token</th>
               </thead>
 
@@ -166,6 +174,11 @@
                 </td>
                 <td>
                   {% raw %}
+                  {{ item.sl_id }}
+                  {% endraw %}
+                </td>
+                <td>
+                  {% raw %}
                   {{ item.token }}
                   {% endraw %}
                 </td>
@@ -175,22 +188,26 @@
                   <input class="input" type="text" name="new_node_name" placeholder="New node name" v-model="new_node.node_name">
                 </td>
                 <td>
-                  <select v-model="new_node.selected_mesh">
-                    <option v-for="(mesh_item, mesh_index) in meshes" v-bind:value="mesh_index">
-                      {% raw %}
-                      {{ mesh_item.mesh_name }}
-                      {% endraw %}
-                    </option>
-                  </select>
+                  <span class="select">
+                    <select v-model="new_node.selected_mesh">
+                      <option v-for="(mesh_item, mesh_index) in meshes" v-bind:value="mesh_index">
+                        {% raw %}
+                        {{ mesh_item.mesh_name }}
+                        {% endraw %}
+                      </option>
+                    </select>
+                  </span>
                 </td>
                 <td>
-                  <select v-model="new_node.selected_swarm">
-                    <option v-for="(swarm_item, swarm_index) in swarms" v-bind:value="swarm_index">
-                      {% raw %}
-                      {{ swarm_item.swarm_name }}
-                      {% endraw %}
-                    </option>
-                  </select>
+                  <span class="select">
+                    <select v-model="new_node.selected_swarm">
+                      <option v-for="(swarm_item, swarm_index) in swarms" v-bind:value="swarm_index">
+                        {% raw %}
+                        {{ swarm_item.swarm_name }}
+                        {% endraw %}
+                      </option>
+                    </select>
+                  </span>
                 </td>
                 <td>
                   <button class="button is-dark" type="button" v-on:click="addNode">Add Node</button>
@@ -198,7 +215,7 @@
               </tr>
             </table>
 
-            <h2 class="subtitle">Transforms</h2>
+            <h2 class="title">Transforms</h2>
             <table class="transforms_list table">
               <thead>
                 <th>Transform name</th>
@@ -230,16 +247,19 @@
                 </td>
 
                 <td>
-                  <button class="button is-small" type="button" v-on:click="activateTransform(index)">
+                  <button class="button is-info" type="button" v-on:click="activateTransform(index)">
                     {% raw %}
                     {{ item.active }}
                     {% endraw %}
                   </button>
                 </td>
               </tr>
+              <tr>
+                <td>
+                  <a class="button is-dark" href="/add-transform">Add new transform</a>
+                </td>
+              </tr>
             </table>
-            <a class="button is-dark" href="/add-transform">Add new transform</a>
-
           </div>
         </div>
       </div>

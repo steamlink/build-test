@@ -18,12 +18,42 @@
   </head>
   <body>
 
-    <section class="hero">
+
+    <nav class="nav">
+      <div class="nav-left">
+        <a href = "/" class="nav-item">
+          steamlink
+        </a>
+      </div>
+
+      <!-- This "nav-menu" is hidden on mobile -->
+      <!-- Add the modifier "is-active" to display it on mobile -->
+      <div class="nav-right nav-menu">
+        <a href="/static/evelog.html" class="nav-item">
+          Eve Log
+        </a>
+        <a href="/static/republog.html" class="nav-item">
+          Repub Log
+        </a>
+        <a href="/status" class="nav-item">
+          Status
+        </a>
+      </div>
+    </nav>
+
+    <section class="hero is-primary">
       <div class="hero-body">
         <div class="container">
-          <h1 class="title">
-            steamlink dashboard
-          </h1>
+          <p class="title">
+            dashboard
+          </p>
+          <p class="subtitle">
+            administer
+            <strong>
+              your steamlink
+            </strong>
+            network
+          </p>
         </div>
       </div>
     </section>
@@ -66,10 +96,10 @@
                   <input class="input" type="text" name="new_filter_name" placeholder="Filter name" v-model="form_transform.filter.filter_name">
                 </td>
                 <td>
-                  <input class="input" type="text" name="new_filter_string" placeholder="Filter string" v-model="form_transform.filter.filter_string">
+                  <textarea class="textarea" name="new_filter_string" placeholder="Filter string" v-model="form_transform.filter.filter_string"></textarea>
                 </td>
                 <td>
-                  <button class="button is-small" type="button" v-on:click="submitFilter"> Submit New Filter</button>
+                  <button class="button is-small" type="button" v-on:click="submitFilter">Submit New Filter</button>
                 </td>
               </tr>
             </table>
@@ -107,10 +137,10 @@
                   <input class="input" type="text" name="new_selector_name" placeholder="Selector name" v-model="form_transform.selector.selector_name">
                 </td>
                 <td>
-                  <input class="input" type="text" name="new_selector_string" placeholder="Selector string" v-model="form_transform.selector.selector_string">
+                  <textarea class="textarea" name="new_selector_string" placeholder="Selector string" v-model="form_transform.selector.selector_string"></textarea>
                 </td>
                 <td>
-                  <button class="button is-small" type="button" v-on:click="submitSelector"> Submit New Selector</button>
+                  <button class="button is-small" type="button" v-on:click="submitSelector">Submit New Selector</button>
                 </td>
               </tr>
             </table>
@@ -149,10 +179,10 @@
                   <input class="input" type="text" name="new_publisher_name" placeholder="Publisher name" v-model="form_transform.publisher.publisher_name">
                 </td>
                 <td>
-                  <input class="input" type="text" name="new_publisher_string" placeholder="Publisher string" v-model="form_transform.publisher.publisher_string">
+                  <textarea class="textarea" name="new_publisher_string" placeholder="Publisher string" v-model="form_transform.publisher.publisher_string"></textarea>
                 </td>
                 <td>
-                  <button class="button is-small" type="button" v-on:click="submitPublisher"> Submit New Publisher</button>
+                  <button class="button is-small" type="button" v-on:click="submitPublisher">Submit New Publisher</button>
                 </td>
               </tr>
             </table>
