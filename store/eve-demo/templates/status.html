@@ -137,22 +137,30 @@
     </section>
 
     <section class="section">
-      <div class="container" id="app_transforms">
+      <div class="container">
         <div class="nocolumns">
-
-		  <h2 class="title">Meshes</h2>
-		  <p />
-		  <table class="mesh_list table" id="mesh-status-table"></table>
-
-		  <p />
-		  <h2 class="title">Node Data</h2>
-		  <table id="node-data-table"></table>
-
-		  <p />
-		</div>
-	  </div>
-	</section>
-
+          
+	  <h2 class="title">Meshes</h2>
+	  <p />
+	  <table class="mesh_list table" id="mesh-status-table"></table>
+          
+	  <p />
+	  <h2 class="title">Node Data</h2>
+	  <table id="node-data-table"></table>
+          
+	  <p />
+	</div>
+      </div>
+    </section>
+    
+    <section class="section">
+      <div class="container">
+        <div class="nocolumns">
+          <h2 class="title">Log</h2>
+          <p id="log"></p>
+        </div>
+      </div>
+    </section>
 
 	<script type="text/javascript">
 		$(document).ready(function(e) {
@@ -164,9 +172,9 @@
 			   'nothing yet...');
 			var mesh_dyntable = dynamicTable();
 			var mesh_table = mesh_dyntable.config('mesh-status-table', 
-			   ['mesh', 'status','slsent','slreceived','mqttsent',
+			   ['_ts', 'mesh', 'status','slsent','slreceived','mqttsent',
 				'mqttreceived','mqttqcount','loraqcount'],
-			   ['Mesh', 'Status','LoRa Sent','LoRa Received','MQTT Sent',
+			   ['Time Stamp', 'Mesh', 'Status','LoRa Sent','LoRa Received','MQTT Sent',
 				'MQTT Received','MQTT Queue','LoRa Queue'], 
 			   'nothing yet...');
 			console.log("url", url);
@@ -180,6 +188,7 @@
 					mesh_table.load(msg.mesh[0]);
 				};
 				if ('log' in msg) {
+                                        $('#log').append(msg.log[0].line);
 					console.log(msg.log[0].line);
 				};
 			});
