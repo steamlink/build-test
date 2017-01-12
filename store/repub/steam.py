@@ -41,6 +41,7 @@ class Mesh:
 
 		self.lastcontact = None
 		self.status = {}
+		self.status["_ts"] = ""
 		self.status["loraqcount"] = 0
 		self.status["slreceived"] = 0
 		self.status["_sl_id"] = 1
@@ -67,6 +68,7 @@ class Mesh:
 		if len(status) != len(Mesh.sfields):
 			return json.dumps({'status': payload, 'from_mesh': mesh})
 		else:
+			self.status["_ts"] = time.strftime("%Y-%m-%d %H:%M:%S: ",time.localtime(time_stamp))
 			for i in range(len(status)):
 				self.status[Mesh.sfields[i]] = status[i]
 
