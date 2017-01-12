@@ -12,6 +12,7 @@ import signal
 import traceback
 import hashlib
 import pprint
+import socket
 
 from Crypto.Cipher import AES
 
@@ -318,6 +319,21 @@ def AES128_encrypt(msg, bkey):
 	return bytearray(encryptor.encrypt(pmsg))
 
 
+def write_stats_data(what, data):
+	sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+
+	server_address = '/tmp/eve_stats_socket'
+	dbgprint(1, 'write_stats_data: connecting to %s' % server_address)
+	try:
+        sock.connect(server_address)
+    except socket.error, msg:
+        print >>sys.stderr, msg
+        sys.exit(1)
+#	message = "%s|%s" (what, data)
+	message = "%s" (data)
+	sock.sendall(message)
+
+
 def process(client, pkt, timestamp):
 	""" process a pkt received on the data topic, pubish on SL_NATIVE topic """
 
@@ -395,7 +411,8 @@ def on_message(client, userdata, msg):
 			dbgprint(1, "on_message: pkg is %s" % str(pkt.dict()))
 		elif origin_topic == "status":
 			status = mesh_table[origin_mesh].updatestatus(msg.payload)
-			log('notice', "%s" % (mesh_table[origin_mesh].reportstatus()))
+			write_stats_data('mesh', json.dumps(status))
+			log('notice', "mesh status %s" % (mesh_table[origin_mesh].reportstatus()))
 		else:
 			log('error', "UNKNOWN %s payload %s" % (msg.topic, msg.payload))
 

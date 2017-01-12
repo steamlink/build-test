@@ -5,6 +5,7 @@
        src="https://code.jquery.com/jquery-3.1.1.min.js"
        integrity="sha256-hVVnYaiADRTO2PzUGmuLJr8BLUSjGIZsDYGmIJLv2b8="
        crossorigin="anonymous"></script>
+    <script src="/static/jsfiddle.js"> </script>
     <link rel="stylesheet" type="text/css" href="/static/bulma.css">
   </head>
   <body>
@@ -16,24 +17,32 @@
           <h1 class="title"> steamlink status </h1>
 
           <h2 class="subtitle">Meshes</h2>
-		  <h3><span id="connected">{{ connected }} meshes</span></h3>
+<!--		  <h3><span id="connected">{{ connected }} meshes</span></h3> --!>
+		  <table id="mesh-status-table"></table>
+
+          <br />
         </div>
       </div>
     </section>
 
-    <script type="text/javascript" 
-                src="http://code.jquery.com/jquery-1.11.1.min.js"></script>
+<!--    <script type="text/javascript" 
+                src="http://code.jquery.com/jquery-1.11.1.min.js"></script> -->
     <script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/socket.io/1.4.5/socket.io.min.js"></script>
 
     <script type="text/javascript">
-        $(document).ready(function() {
-            var url = "http://" + document.domain + ":" + location.port;
+        window.onload = function() {
+            var url = "https://" + document.domain + ":" + location.port;
+			var dt = dynamicTable.config('mesh-status-table', 
+           ['mesh', 'status','slsent','slreceived','mqttsent','mqttreceived','mqttqcount','loraqcount'],
+           ['Mesh', 'Status','LoRa Sent','LoRa Received','MQTT Sent','MQTT Received','MQTT Queue','LoRa Queue'], 
+                                 'There are no items to list...');
             console.log("url", url);
             var socket = io.connect(url + "/sl");
             socket.on('msg', function(msg) {
-                $("#connected").html(msg.count);
+				console.log(msg.count);
+				dt.load(msg.count);
             });
-        });
+        }
     </script>
 
 </html>
