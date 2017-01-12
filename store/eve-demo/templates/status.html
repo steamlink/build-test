@@ -143,10 +143,10 @@
 	  <h2 class="title">Meshes</h2>
 	  <p />
 	  <table class="mesh_list table" id="mesh-status-table"></table>
-          
+        
 	  <p />
 	  <h2 class="title">Node Data</h2>
-	  <table id="node-data-table"></table>
+	  <table class="table" id="node-data-table"></table>
           
 	  <p />
 	</div>
@@ -157,7 +157,12 @@
       <div class="container">
         <div class="nocolumns">
           <h2 class="title">Log</h2>
-          <p id="log"></p>
+          <table class="log_list table" id="log">
+            <thead>
+              <th>Time Stamp</th>
+              <th>Message</th>
+            </thead>
+          </table>
         </div>
       </div>
     </section>
@@ -188,8 +193,11 @@
 					mesh_table.load(msg.mesh[0]);
 				};
 				if ('log' in msg) {
-                                        $('#log').append(msg.log[0].line);
-					console.log(msg.log[0].line);
+                                    $('#log').append("<tr>");
+                                    $('#log').append("<td>" + msg.log[0]._ts + "</td>");
+                                    $('#log').append("<td>" + msg.log[0].line + "</td>");
+                                    $('#log').append("</tr>");
+                                    console.log(msg.log[0].line);
 				};
 			});
 		});
