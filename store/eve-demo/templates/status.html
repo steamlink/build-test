@@ -172,14 +172,15 @@
 			console.log("url", url);
 			var socket = io.connect(url + "/sl");
 			socket.on('msg', function(msg) {
-				console.log("msg:", msg);
+				// console.log("msg:", msg);
 				if ('node' in msg) {
-					console.log("nodes...");
 					node_table.load(msg.node[0]);
 				};
 				if ('mesh' in msg) {
 					mesh_table.load(msg.mesh[0]);
-					console.log("meshes...");
+				};
+				if ('log' in msg) {
+					console.log(msg.log[0].line);
 				};
 			});
 		});

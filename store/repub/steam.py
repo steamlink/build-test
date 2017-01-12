@@ -13,6 +13,7 @@ import traceback
 import hashlib
 import pprint
 import socket
+import io
 
 from Crypto.Cipher import AES
 
@@ -185,22 +186,46 @@ def openlog():
 	if 'LOGFILE' in conf:
 		logf = open(conf['LOGFILE'], "a")
 		repubmqtt.log = log
+		repubmqtt.dbgprint = dbgprint
 	else:
 		logf = sys.stderr
 
 
+loglevels = {
+			'emerg':       0,
+			'alert':       1,
+			'crit':        2,
+			'error':       3,
+			'warning':     4,
+			'notice':      5,
+			'info':        6,
+			'debug':       7
+			}
+
+loglvl = 4
+
 def log(lvl, *args, **kwargs):
+	l = loglevels.get(lvl, 3)
 	time_stamp = time.time()
 	if False:
 	   	ts=time.strftime("%Y-%m-%d %H:%M:%S: ",time.localtime(time_stamp))
 	else:
 		ts=""
-	print("%s%s" % (ts, lvl), *args, file=logf, **kwargs)
+	output = io.StringIO()
+	print("%s%s" % (ts, lvl), *args, file=output, **kwargs)
+
+	logline = output.getvalue()[:-1]
+	output.close()
+
+	print(logline, file=logf)
 	logf.flush()
+	if l > loglvl:
+		return
+	write_stats_data('log', {'lvl': lvl, 'line': logline })
 
 
 def dbgprint(lvl, *args, **kwargs):
-	if DBG >= lvl: log('dbg'+str(lvl), *args, **kwargs)
+	if DBG >= lvl: log('debug', str(lvl), *args, **kwargs)
 
 
 class SLException(BaseException):
@@ -376,7 +401,7 @@ def AES128_encrypt(msg, bkey):
 	return bytearray(encryptor.encrypt(pmsg))
 
 
-def write_stats_data(what):
+def write_stats_data(what, ddata=None):
 	data = []
 	if what == 'mesh':
 		for mname in mesh_name_table:
@@ -384,6 +409,8 @@ def write_stats_data(what):
 	elif what == 'node':
 		for slid in node_table:
 			data.append(node_table[slid].reportstatus())
+	elif what == 'log':
+		data = ddata
 
 	sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 
