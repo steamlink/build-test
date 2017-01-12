@@ -8,7 +8,7 @@
 
 #include <SteamLink.h>
 
-#define VER "3"
+#define VER "4"
 
 // for Feather M0
 #if 1

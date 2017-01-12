@@ -1,1 +1,3 @@
 Eve==0.6.1
+gevent
+flask_socketio

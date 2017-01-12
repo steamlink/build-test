@@ -39,8 +39,8 @@
             console.log("url", url);
             var socket = io.connect(url + "/sl");
             socket.on('msg', function(msg) {
-				console.log(msg.count);
-				dt.load(msg.count);
+				console.log(msg.mesh);
+				dt.load(msg.mesh);
             });
         }
     </script>
