@@ -80,7 +80,7 @@ class FileThread(Thread):
                     data = connection.recv(32768)
                     print('received "%s"' % data)
                     if data:
-                        socketio.emit('msg', {'count': [data]}, namespace='/sl')
+                        socketio.emit('msg', {'count': [json.loads(data)]}, namespace='/sl')
                         connection.sendall(data)
                     else:
                         print('no more data from', client_address)
