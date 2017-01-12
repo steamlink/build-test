@@ -330,7 +330,7 @@ def write_stats_data(what, data):
         print("not sent",msg)
         sys.exit(1)
 #    message = "%s|%s" (what, data)
-    message = "%s" (data)
+    message = "%s" % (data)
     sock.sendall(message)
 
 
