@@ -369,8 +369,8 @@ def write_stats_data(what):
 		print("not sent",msg)
 		sys.exit(1)
 
-	dbgprint(1, 'write_stats_data: writing %s' % data)
 	message = bytes("%s|%s" % (what, json.dumps(data)), 'UTF-8') 
+	dbgprint(3, 'write_stats_data: writing %s' % message)
 	sock.sendall(message)
 
 

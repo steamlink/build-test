@@ -5,66 +5,165 @@
 	   src="https://code.jquery.com/jquery-3.1.1.min.js"
 	   integrity="sha256-hVVnYaiADRTO2PzUGmuLJr8BLUSjGIZsDYGmIJLv2b8="
 	   crossorigin="anonymous"></script>
-	<script src="/static/jsfiddle.js"> </script>
+
+ 	<script type="text/javascript">
+		function dynamicTable() {
+		    
+		    var _tableId, _table, 
+		        _fields, _headers, 
+		        _defaultText;
+		    
+		    /** Builds the row with columns from the specified names. 
+		     *  If the item parameter is specified, the memebers of the names array will be used as property names of the item; otherwise they will be directly parsed as text.
+		     */
+		    function _buildRowColumns(names, item) {
+		        var row = '<tr>';
+		        if (names && names.length > 0)
+		        {
+		            $.each(names, function(index, name) {
+		                var c = item ? item[name+''] : name;
+		                row += '<td>' + c + '</td>';
+		            });
+		        }
+		        row += '<tr>';
+		        return row;
+		    }
+		    
+		    /** Builds and sets the headers of the table. */
+		    function _setHeaders() {
+		        // if no headers specified, we will use the fields as headers.
+		        _headers = (_headers == null || _headers.length < 1) ? _fields : _headers; 
+		        var h = _buildRowColumns(_headers);
+		        if (_table.children('thead').length < 1) _table.prepend('<thead></thead>');
+		        _table.children('thead').html(h);
+		    }
+		    
+		    function _setNoItemsInfo() {
+		        if (_table.length < 1) return; //not configured.
+		        var colspan = _headers != null && _headers.length > 0 ? 
+		            'colspan="' + _headers.length + '"' : '';
+		        var content = '<tr class="no-items"><td ' + colspan + ' style="text-align:center">' + 
+		            _defaultText + '</td></tr>';
+		        if (_table.children('tbody').length > 0)
+		            _table.children('tbody').html(content);
+		        else _table.append('<tbody>' + content + '</tbody>');
+		    }
+		    
+		    function _removeNoItemsInfo() {
+		        var c = _table.children('tbody').children('tr');
+		        if (c.length == 1 && c.hasClass('no-items')) _table.children('tbody').empty();
+		    }
+		    
+		    return {
+		        /** Configres the dynamic table. */
+		        config: function(tableId, fields, headers, defaultText) {
+		            _tableId = tableId;
+		            _table = $('#' + tableId);
+		            _fields = fields || null;
+		            _headers = headers || null;
+		            _defaultText = defaultText || 'No items to list...';
+		            _setHeaders();
+		            _setNoItemsInfo();
+		            return this;
+		        },
+		        /** Loads the specified data to the table body. */
+		        load: function(data, append) {
+		            if (_table.length < 1) return; //not configured.
+		            _setHeaders();
+		            _removeNoItemsInfo();
+		            if (data && data.length > 0) {
+		                var rows = '';
+		                $.each(data, function(index, item) {
+		                    rows += _buildRowColumns(_fields, item);
+		                });
+		                var mthd = append ? 'append' : 'html';
+		                _table.children('tbody')[mthd](rows);
+		            }
+		            else {
+		                _setNoItemsInfo();
+		            }
+		            return this;
+		        },
+		        /** Clears the table body. */
+		        clear: function() {
+		            _setNoItemsInfo();
+		            return this;
+		        }
+		    };
+		};
+	</script>
+	<script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/socket.io/1.4.5/socket.io.min.js"></script>
 	<link rel="stylesheet" type="text/css" href="/static/bulma.css">
   </head>
   <body>
 
+    <nav class="nav">
+      <div class="nav-left">
+        <a href = "/" class="nav-item">
+          steamlink
+        </a>
+      </div>
 
-	<section class="hero">
-	  <div class="hero-body">
-		<div class="container">
-		  <h1 class="title"> steamlink status </h1>
+      <!-- This "nav-menu" is hidden on mobile -->
+      <!-- Add the modifier "is-active" to display it on mobile -->
+      <div class="nav-right nav-menu">
+        <a href="/static/evelog.html" class="nav-item">
+          Eve Log
+        </a>
+        <a href="/static/republog.html" class="nav-item">
+          Repub Log
+        </a>
+        <a href="/status" class="nav-item">
+          Status
+        </a>
+      </div>
+    </nav>
 
-		  <h2 class="subtitle">Meshes</h2>
-		  <table id="mesh-status-table"></table>
+    <section class="hero is-success">
+      <div class="hero-body">
+        <div class="container">
+          <p class="title">
+            status
+          </p>
+          <p class="subtitle">
+            watch
+            <strong>
+              your steamlink
+            </strong>
+            network
+          </p>
+        </div>
+      </div>
+    </section>
 
-		  <br />
-		  <h2 class="subtitle">Node Data</h2>
+    <section class="section">
+      <div class="container" id="app_transforms">
+        <div class="nocolumns">
+
+		  <h2 class="title">Meshes</h2>
+		  <p />
+		  <table class="mesh_list table" id="mesh-status-table"></table>
+
+		  <p />
+		  <h2 class="title">Node Data</h2>
 		  <table id="node-data-table"></table>
 
-		  <br />
+		  <p />
 		</div>
 	  </div>
 	</section>
 
-	<script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/socket.io/1.4.5/socket.io.min.js"></script>
 
 	<script type="text/javascript">
-		function clone(obj) {
-			if (null == obj || "object" != typeof obj) return obj;
-			var copy = obj.constructor();
-			for (var attr in obj) {
-				if (obj.hasOwnProperty(attr)) copy[attr] = obj[attr];
-			}
-			return copy;
-		};
-
-		Function.prototype.clone = function() {
-			var cloneObj = this;
-			if(this.__isClone) {
-			  cloneObj = this.__clonedFrom;
-			}
-
-			var temp = function() { return cloneObj.apply(this, arguments); };
-			for(var key in this) {
-				temp[key] = this[key];
-			}
-
-			temp.__isClone = true;
-			temp.__clonedFrom = cloneObj;
-
-			return temp;
-		};
-		window.onload = function() {
+		$(document).ready(function(e) {
 			var url = "https://" + document.domain + ":" + location.port;
-			var node_tableDyn = clone(dynamicTable);
-			var node_table = node_tableDyn.config('node-data-table', 
+			var node_dyntable = dynamicTable();
+			var node_table = node_dyntable.config('node-data-table', 
 			   ['payload', '_node_id', '_mesh', '_rssi', '_sl_id'],
 			   ['Payload', 'Node','Mesh','RSSI','Swarm'], 
 			   'nothing yet...');
-			var mesh_tableDyn = clone(dynamicTable);
-			var mesh_table = mesh_tableDyn.config('mesh-status-table', 
+			var mesh_dyntable = dynamicTable();
+			var mesh_table = mesh_dyntable.config('mesh-status-table', 
 			   ['mesh', 'status','slsent','slreceived','mqttsent',
 				'mqttreceived','mqttqcount','loraqcount'],
 			   ['Mesh', 'Status','LoRa Sent','LoRa Received','MQTT Sent',
@@ -74,7 +173,7 @@
 			var socket = io.connect(url + "/sl");
 			socket.on('msg', function(msg) {
 				console.log("msg:", msg);
-				if ('nodes' in msg) {
+				if ('node' in msg) {
 					console.log("nodes...");
 					node_table.load(msg.node[0]);
 				};
@@ -83,7 +182,7 @@
 					console.log("meshes...");
 				};
 			});
-		}
+		});
 	</script>
 
 </html>
