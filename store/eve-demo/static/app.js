@@ -146,18 +146,18 @@ window.onload = function () {
             submitFilter: function() {
                 var self = this;
                 postToServer("/filters", this.form_transform.filter, function(result) {
-                    self.new_transform.filter = result._id;
-                    self.form_transform.filter._id = result._id;
+                    self.form_transform.filter = result._id;
                     self.filters.push(self.form_transform.filter);
+                    self.form_transform.filter = {};
                     console.log(self.filters);
                 })
             },
             submitSelector: function() {
                 var self = this;
                 postToServer("/selectors", this.form_transform.selector, function(result) {
-                    self.new_transform.selector = result._id;
-                    self.form_transform.selector._id = result._id;
+                    self.form_transform.selector = result._id;
                     self.selectors.push(self.form_transform.selector);
+                    self.form_transform.selector = {};
                     console.log(self.selectors);
                 })
                 console.log("submitting selector");
@@ -165,34 +165,36 @@ window.onload = function () {
             submitPublisher: function() {
                 var self = this;
                 postToServer("/publishers", this.form_transform.publisher, function(result) {
-                    self.new_transform.publisher = result._id;
-                    self.form_transform.publisher._id = result._id;
+                    self.form_transform.publisher = result._id;
                     self.publishers.push(self.form_transform.publisher);
+                    self.form_transform.publisher = {};
                     console.log(self.publishers);
                 })
                 console.log("submitting publisher");
             },
             submitTransform : function () {
                 console.log("submitting transform");
-                this.new_transform.transform_name = this.form_transform.name;
-                this.new_transform.active = "off";
+                var new_transform = {};
+                new_transform.transform_name = this.form_transform.name;
+                new_transform.active = "off";
                 if (this.filter_picked != -1){
-                    this.new_transform.filter = this.filters[this.filter_picked]._id;
+                    new_transform.filter = this.filters[this.filter_picked]._id;
                 }
                 if (this.selector_picked != -1){
-                    this.new_transform.selector = this.selectors[this.selector_picked]._id;
+                    new_transform.selector = this.selectors[this.selector_picked]._id;
                 }
                 if (this.publisher_picked != -1){
-                    this.new_transform.publisher = this.publishers[this.publisher_picked]._id;
+                    new_transform.publisher = this.publishers[this.publisher_picked]._id;
                 }
                 if((this.filter_picked != -1) && (this.publisher_picked != -1)) {
                     var self = this;
-                    postToServer("/transforms", this.new_transform, function (result) {
+                    postToServer("/transforms", new_transform, function (result) {
                         console.log(result);
                         console.log("transform added");
+                        window.location.href = "/";
                     })
                 }
-                console.log(this.new_transform);
+                console.log(new_transform);
             },
             activateTransform : function (index) {
                 var new_state = "";
