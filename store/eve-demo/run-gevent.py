@@ -61,7 +61,7 @@ class FileThread(Thread):
 				raise
 
 		self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-		self.lastdata = None
+		self.lastdata = {}
 
 
 	def on_message(self, msg):
@@ -87,8 +87,8 @@ class FileThread(Thread):
 					if len(msg) != 2:
 						print("error: stats msg format error: %s" % data)
 						break
-					self.lastdata = {msg[0]: [json.loads(msg[1])]} 
-					socketio.emit('msg', self.lastdata, namespace='/sl')
+					self.lastdata[msg[0]] = {msg[0]: [json.loads(msg[1])]} 
+					socketio.emit('msg', self.lastdata[msg[0]], namespace='/sl')
 			except Exception as e:
 				pass
 #				print("filesock: trap %s" % e)
@@ -208,7 +208,8 @@ def ws_conn():
 		thread.start()
 
 	if thread.lastdata:
-		socketio.emit('msg', thread.lastdata, namespace='/sl')
+		for k in thread.lastdata:
+			socketio.emit('msg', thread.lastdata[k], namespace='/sl')
 	concount += 1
 
 
