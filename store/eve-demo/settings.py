@@ -30,6 +30,7 @@ MONGO_PORT = os.environ.get('MONGO_PORT', 27017)
 # MONGO_PASSWORD = os.environ.get('MONGO_PASSWORD', 'user')
 MONGO_DBNAME = os.environ.get('MONGO_DBNAME', 'evedemo')
 DEBUG = True
+PAGINATION = False
 
 # Enable reads (GET), inserts (POST) and DELETE for resources/collections
 # (if you omit this line, the API will default to ['GET'] and provide
