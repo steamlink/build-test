@@ -68,7 +68,7 @@ class Mesh:
 		if len(status) != len(Mesh.sfields):
 			return json.dumps({'status': payload, 'from_mesh': mesh})
 		else:
-			self.status["_ts"] = time.strftime("%Y-%m-%d %H:%M:%S: ",time.localtime(time_stamp))
+			self.status["_ts"] = time.strftime("%Y-%m-%d %H:%M:%S: ",time.localtime())
 			for i in range(len(status)):
 				self.status[Mesh.sfields[i]] = status[i]
 
@@ -204,15 +204,13 @@ loglevels = {
 			'debug':       7
 			}
 
-loglvl = 4
+loglvl = 5
 
 def log(lvl, *args, **kwargs):
 	l = loglevels.get(lvl, 3)
 	time_stamp = time.time()
-	if False:
-	   	ts=time.strftime("%Y-%m-%d %H:%M:%S: ",time.localtime(time_stamp))
-	else:
-		ts=""
+	_ts=time.strftime("%Y-%m-%d %H:%M:%S: ",time.localtime(time_stamp))
+	ts="" # or _ts
 	output = io.StringIO()
 	print("%s%s" % (ts, lvl), *args, file=output, **kwargs)
 
@@ -223,7 +221,7 @@ def log(lvl, *args, **kwargs):
 	logf.flush()
 	if l > loglvl:
 		return
-	write_stats_data('log', {'lvl': lvl, 'line': logline })
+	write_stats_data('log', {'lvl': l, '_ts': _ts, 'line': logline })
 
 
 def dbgprint(lvl, *args, **kwargs):
