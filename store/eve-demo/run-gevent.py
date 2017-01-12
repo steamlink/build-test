@@ -209,7 +209,8 @@ def ws_conn():
 
 	if thread.lastdata:
 		for k in thread.lastdata:
-			socketio.emit('msg', thread.lastdata[k], namespace='/sl')
+			if k != 'log':
+				socketio.emit('msg', thread.lastdata[k], namespace='/sl')
 	concount += 1
 
 
