@@ -183,7 +183,7 @@ def findNode(sl_id):
 logf = sys.stderr
 def openlog():
 	global logf
-	if 'LOGFILE' in conf:
+	if conf and 'LOGFILE' in conf:
 		logf = open(conf['LOGFILE'], "a")
 		repubmqtt.log = log
 		repubmqtt.dbgprint = dbgprint
@@ -509,7 +509,7 @@ def on_message(client, userdata, msg):
 			status = mesh_name_table[origin_mesh].updatestatus(msg.payload)
 			
 			write_stats_data('mesh')
-			log('notice', "mesh status %s" % (mesh_name_table[origin_mesh].reportstatus()))
+			dbgprint(3, "mesh status %s" % (mesh_name_table[origin_mesh].reportstatus()))
 		else:
 			log('error', "UNKNOWN %s payload %s" % (msg.topic, msg.payload))
 
@@ -590,7 +590,7 @@ def loadconf(conffile):
 	try:
 		exec(open(conffile).read(), conf )
 	except Exception as e:
-		print("Load of config failed: %s" % e)
+		print("Load of config failed: %s" % e, file=sys.stderr)
 		traceback.print_exc(file=sys.stderr)
 		return None
 
@@ -620,6 +620,8 @@ def main():
 	running = True
 	while running:
 		conf = loadconf( sys.argv[1])
+		if not conf:
+			sys.exit(1)
 		openlog()
 		log('info',"open mongodb(%s, %s)" % (conf['MONGO_URL'],conf['MONGO_DB']))
 
