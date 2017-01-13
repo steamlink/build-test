@@ -1,8 +1,9 @@
 // SL_bidge0
 // -*- mode: C++ -*-
-// first run a a bridge
+// bridge for a SteamLink base LoRa network
+// https://steamlink.net/
 
-#define VER "6"
+#define VER "7"
 
 #include <SPI.h>
 #include <ESP8266WiFi.h>
@@ -39,7 +40,7 @@
 #define MINTXGAP 0 /// was 125 TODO: remove it and related code once waitCAD is shown to work
 
 // sizes of queues
-#define LORAQSIZE 40	// probably more than available memory
+#define LORAQSIZE 40    // probably more than available memory
 #define MQTTQSIZE 100
 
 // WiFi Creds are in SL_Credentials.h
@@ -49,7 +50,6 @@ WiFiClientSecure client;
 #else
 WiFiClient client;
 #endif
-
 
 void sl_on_receive(uint8_t* buffer, uint8_t size, uint8_t from);
 
@@ -71,7 +71,6 @@ typedef struct b_typ_0 {
   uint8_t  bpayload[];
 } b_type_0;
 #pragma pack(pop)
-
 
 boolean slinitdone = false;
 
@@ -110,7 +109,6 @@ Adafruit_MQTT_Subscribe mqtt_subs_state = Adafruit_MQTT_Subscribe(&mqtt, \
 // Inst Steamlink
 SteamLink sl;
 
-
 #if USE_SSL
 void verifyFingerprint() {
 
@@ -139,23 +137,13 @@ void *allocmem(size_t size) {
   void *ret;
   ret = malloc(size);
   if (ret == 0) {
-	Serial.println("out of memory!!");
-	while(1);
+    Serial.println("out of memory!!");
+    while(1);
   }
-#ifdef DBG
-  Serial.print("allocmem ");
-  Serial.print(size);
-  Serial.print(" at ");
-  Serial.println((unsigned long)ret, HEX);
-#endif
   return ret;
 }
 
 void freemem(void *ptr) {
-#ifdef DBG
-  Serial.print("freemem at ");
-  Serial.println((unsigned long)ptr, HEX);
-#endif
   free(ptr);
 }
 
@@ -165,11 +153,10 @@ void freemem(void *ptr) {
 //
 void setup()
 {
-  int8_t cnt;
+  int8_t cnt, cnt0;
   Serial.begin(115200);
   delay(200);
-  Serial.println(F("!ID SL_bridge" VER));
-  Serial.println(F("WiFi Network " WLAN_SSID));
+  Serial.println(F("!ID SL_bridge " SL_MESHID " Ver " VER));
 
 #ifdef LORA_LED
   pinMode(LORA_LED, OUTPUT);
@@ -180,15 +167,31 @@ void setup()
   digitalWrite(MQTT_LED, HIGH);
 #endif
 
-  WiFi.begin(WLAN_SSID, WLAN_PASS);
-
-  cnt = 40;
+  // try connecting to one of the WiFi networks
+  struct Credentials* endPtr = creds + sizeof(creds)/sizeof(creds[0]);
   while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
-    if (cnt-- == 0) {
-      Serial.println(F("\ndie, wait for reset"));
-      while (1);
+    struct Credentials* ptr = creds;
+    cnt0 = 5;
+    while ((ptr<endPtr) && (WiFi.status() != WL_CONNECTED)) {
+      Serial.print(F("WiFi Network "));
+      Serial.println(ptr->ssid);
+      WiFi.begin(ptr->ssid, ptr->pass);
+      cnt = WIFI_WAITSECONDS;
+      while (WiFi.status() != WL_CONNECTED) {
+        delay(1000);
+        Serial.print(".");
+        if (cnt-- == 0) {
+          break;
+        }
+      }
+      if (WiFi.status() == WL_CONNECTED) 
+        break;
+      if (cnt0-- == 0) {
+        Serial.println(F("\ndie, wait for reset"));
+        while (1);
+      }
+      Serial.println(F("\ntry next nextwork"));
+      ptr++;
     }
   }
   Serial.println("");
@@ -226,17 +229,17 @@ void sl_on_receive(uint8_t* buffer, uint8_t size, uint8_t from)
 #endif
     slreceived += 1;
 
-	uint8_t msg_size = size+sizeof(b_typ_0);
+    uint8_t msg_size = size+sizeof(b_typ_0);
     b_typ_0 *msg = (b_typ_0 *) allocmem(msg_size);
 
-	msg->b_typ = B_TYP_VER;
-	msg->n_typ = N_TYP_VER;
+    msg->b_typ = B_TYP_VER;
+    msg->n_typ = N_TYP_VER;
     msg->node_id = from;
-	msg->rssi = sl.get_last_rssi();
+    msg->rssi = sl.get_last_rssi();
     memcpy(msg->bpayload, buffer, size);
     if (mqttQ.enqueue((uint8_t *)msg, msg_size) == 0) {
       Serial.println("sl_on_receive: WARN: mqttQ FULL, pkt dropped");
-      hwm = MAX(hwm - 1, 2);		// decrease high water mark
+      hwm = MAX(hwm - 1, 2);        // decrease high water mark
     }
     else {
       Serial.printf("sl_on_receive: queued from %i RSSI %i size %i\n", from, msg->rssi, size);
@@ -331,8 +334,8 @@ void UpdStatus(char *newstatus)
   uint8_t i, len;
 
   len = snprintf((char *)buf, sizeof(buf), "%s/%li/%li/%li/%li/%i/%i", \
-		newstatus, slsent, slreceived, mqttsent, mqttreceived, \
-		mqttQ.queuelevel(), loraQ.queuelevel());
+     newstatus, slsent, slreceived, mqttsent, mqttreceived, \
+     mqttQ.queuelevel(), loraQ.queuelevel());
   len = MIN(len+1,sizeof(buf));
   i = 5;
   while (!slstatus.publish(buf, len) && i--) {
@@ -341,7 +344,7 @@ void UpdStatus(char *newstatus)
       delay(500);
   }
   if (i == 0) 
-	while(1);
+    while(1);
   Serial.print(F("status update: "));
   Serial.println((char *)buf);
 }
@@ -359,7 +362,7 @@ void BridgeConnect()
     return;
 
   sl.set_pins(RFM95_CS, RFM95_RST, RFM95_INT);
-  sl.init(SL_TOKEN, false);	// no cryto
+  sl.init(SL_TOKEN, false);    // no cryto
   sl.register_handler(sl_on_receive);
   slinitdone = true;
 }
@@ -374,11 +377,11 @@ void MQTT_connect()
 
   // done if already connected.
   if (slinitdone && mqtt.connected()) {
-	nextretry = 0;
+    nextretry = 0;
     return;
   }
   if (nextretry >= millis())
-	return;
+    return;
 
   Serial.print(F("MQTT connect " SL_SERVER ":"));
   Serial.print(SL_SERVERPORT);
@@ -393,7 +396,7 @@ void MQTT_connect()
     mqtt.disconnect();
   }
   else {
-	Serial.println(" OK");
+    Serial.println(" OK");
     UpdStatus("Online");
     nextretry = 0;
   }
@@ -405,16 +408,16 @@ void MQTT_connect()
 //
 
 void CBupdatestate(char  *cmd, uint16_t len) {
-	mqttreceived += 1;
-	updatestate(cmd, len);
+    mqttreceived += 1;
+    updatestate(cmd, len);
 }
 
 void CBupdatecontrol(char *data, uint16_t len) {
 
-	b_typ_0 *cntl = (b_typ_0 *) data;
+    b_typ_0 *cntl = (b_typ_0 *) data;
 
-	mqttreceived += 1;
-	sendmsgtonode(cntl, len);
+    mqttreceived += 1;
+    sendmsgtonode(cntl, len);
 }
 
 
