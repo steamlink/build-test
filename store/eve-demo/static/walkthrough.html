@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html>
+  <title>steamlink</title>
+  <link rel="stylesheet" type="text/css" href="/static/bulma.css">
+  <body id="preview">
+
+    <nav class="nav">
+      <div class="nav-left">
+        <a href = "/" class="nav-item">
+          steamlink
+        </a>
+      </div>
+
+      <!-- This "nav-menu" is hidden on mobile -->
+      <!-- Add the modifier "is-active" to display it on mobile -->
+      <div class="nav-right nav-menu">
+        <a href="/static/evelog.html" class="nav-item">
+          Eve Log
+        </a>
+        <a href="/static/republog.html" class="nav-item">
+          Repub Log
+        </a>
+        <a href="/status" class="nav-item">
+          Status
+        </a>
+        <a href="/static/walkthrough.html" class="nav-item">
+          Guide
+        </a>
+      </div>
+    </nav>
+
+    <section class="hero is-success">
+      <div class="hero-body">
+        <div class="container">
+          <p class="title">
+            dashboard
+          </p>
+          <p class="subtitle">
+            learn about
+            <strong>
+              your steamlink
+            </strong>
+            network
+          </p>
+        </div>
+      </div>
+    </section>
+
+
+    <section class="section">
+      <div class="container">
+        <div class="columns">
+          <div class="column content">
+
+            <h1>
+              <a id="Set_up_your_first_steamlink_testnode_0">
+              </a>Set up your first
+              <strong>steamlink</strong> testnode!</h1>
+            <h3>
+              <a id="1_Install_Arduino_software_on_your_computer_2">
+              </a>
+              1. Install Arduino software on your computer
+            </h3>
+            <ul>
+              <li>Follow the instructions on
+                <a href="https://www.arduino.cc/en/Main/Software">https://www.arduino.cc/en/Main/Software</a></li>
+            </ul>
+            <h3>
+              <a id="2_Install_the_RadioHead_library_4"></a>
+              2. Install the RadioHead library
+            </h3>
+            <ul>
+              <li>Download the RadioHead library and place it in your Arduino Libraries directory, which is in your Arduino folder</li>
+              <li>The latest version can be found at <a href="http://www.airspayce.com/mikem/arduino/RadioHead/RadioHead-1.65.zip">http://www.airspayce.com/mikem/arduino/RadioHead/RadioHead-1.65.zip</a></li>
+              <li>On <strong>Linux machines</strong>, the Arduino folder is named “Sketchbook” and it is typically located in <code>/home/&lt;username&gt;</code></li>
+              <li>On <strong>Windows and Macintosh machines</strong>, the default name of the Arduino directory is “Arduino” and is located in your Documents folder.</li>
+            </ul>
+            <h3><a id="3_Download_the_steamlink_source_code_9"></a>3. Download the <strong>steamlink</strong> source code</h3>
+            <ul>
+              <li>Either Git Clone or download from: <a href="https://github.com/steamlink/build-test">https://github.com/steamlink/build-test</a></li>
+              <li>Move or copy the SteamLink directory (which includes the Arduino Library) to your Arduino Libraries directory.</li>
+            </ul>
+            <h3><a id="4_Open_the_SL_testclient0ino_file_with_the_Arduino_software_12"></a>4. Open the SL_testclient0.ino file with the Arduino software</h3>
+            <ul>
+              <li>From the SL_testclient0 directory within build-test directory, open the SL_testclient0.ino file with the Arduino software</li>
+            </ul>
+            <h3><a id="5_Add_your_node_on_the_dashboard_14"></a>5. Add your node on the dashboard</h3>
+            <ul>
+              <li>Open <a href="https://demo.steamlink.net">https://demo.steamlink.net</a> in your browser</li>
+              <li>Add a node with the correct mesh and swarm choice (you do not have to create a new mesh or swarm, there is a demo mesh and swarm created for this workshop)</li>
+              <li>Keep a note of your SLID and your node token. Your node token needs to be added to the top of your SL_testclient0.ino file like so:<br>
+                <code>#define SL_TOKEN &quot;YOUR_NODE_TOKEN_GOES_HERE&quot;</code></li>
+            </ul>
+            <h3><a id="6_Wire_up_your_breadboard_like_this_19"></a>6. Wire up your breadboard like this:</h3>
+            <figure class="image">
+              <img src="/static/SL_testnode0_bb.png">
+            </figure>
+            <h3><a id="7_Compile_and_flash_your_code_through_the_Arduino_software_20"></a>7. Compile and flash your code through the Arduino software</h3>
+            <h3><a id="8_Check_if_youre_online_httpsdemosteamlinknetstatus_21"></a>8. Check if you’re online: <a href="https://demo.steamlink.net/status">https://demo.steamlink.net/status</a></h3>
+            <h3><a id="9_Now_go_add_some_transforms_to_trigger_events_from_your_node_22"></a>9. Now go add some transforms to trigger events from your node!</h3>
+          </div>
+        </div>
+      </div>
+    </section>
+</body>
+</html>
