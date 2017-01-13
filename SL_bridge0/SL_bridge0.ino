@@ -290,7 +290,7 @@ void slsend() {
   sl.phex((uint8_t *)pkt->bpayload, len - sizeof(b_typ_0));
   Serial.println();
   uint8_t scode = sl.send((uint8_t *)pkt->bpayload, pkt->node_id, len - sizeof(b_typ_0));
-  if (scode == 0) {
+  if (scode == 1) {
     slsent += 1;
   }
   Serial.print("slsend code: ");
