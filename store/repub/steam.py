@@ -277,13 +277,18 @@ class B_typ_0:
 		self.mesh = mesh
 
 
-	def pack(self):
-		""" return a binary on-wire packet """
-		header = struct.pack(B_typ_0.sfmt, (self.n_ver << 4) | self.b_ver, self.node_id, self.rssi + 256, self.sl_id)
-
+	def setfields(self):
 		if not findNode(self.sl_id):
 			raise SLException("pack: node %s not in table" % self.sl_id)
+		self.node_id = node_table[self.sl_id].node_id
+		self.mesh = node_table[self.sl_id].mesh.mesh_name
+
+	def pack(self):
+		""" return a binary on-wire packet """
+
+		self.setfields()
 		bkey = swarm_sl_id_table[self.sl_id].swarm_bkey
+		header = struct.pack(B_typ_0.sfmt, (self.n_ver << 4) | self.b_ver, self.node_id, self.rssi + 256, self.sl_id)
 		payload = AES128_encrypt(self.payload, bkey)
 		return header + payload
 
@@ -299,11 +304,11 @@ class B_typ_0:
 
 	# alternate initializer for B_typ
 class B_typ_0_new(B_typ_0):
-	def __init__(self, node_id, sl_id, pkt):
+	def __init__(self, sl_id, pkt):
 		B_typ_0.__init__(self)
-		self.node_id = node_id
 		self.sl_id = sl_id
 		self.payload = pkt
+		self.setfields()
 
 
 class MongoDB:
@@ -472,13 +477,14 @@ def on_message(client, userdata, msg):
 			log('error', "control msg to '%s' not json: '%s'" % (msg.topic, msg.payload))
 			return
 
+# lookup _node_id from origin_mesh
 		try:
-			opkt = B_typ_0_new(pkt['_node_id'], int(topic[1]), pkt['payload'])
+			opkt = B_typ_0_new(int(topic[1]), pkt['payload'])
 		except Exception as e:
 			log('error', "could not build binary pkt from '%s' '%s', cause '%s'" % (msg.topic, msg.payload, e))
 			return
 		try:
-			otopic = "%s/%s/control" % (conf['SL_TRANSPORT_PREFIX'], pkt['_mesh'])
+			otopic = "%s/%s/control" % (conf['SL_TRANSPORT_PREFIX'], opkt.mesh)
 			pac = opkt.pack()
 		except Exception as e:
 			log('error', "could not build packet, cause %s" % e)
