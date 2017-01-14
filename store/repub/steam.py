@@ -216,12 +216,12 @@ def log(lvl, *args, **kwargs):
 	else:
 		ts=""
 	output = io.StringIO()
-	print("%s%s" % (ts, lvl), *args, file=output, **kwargs)
+	print(*args, file=output, **kwargs)
 
 	logline = output.getvalue()[:-1]
 	output.close()
 
-	print(logline, file=logf)
+	print("%s %s: %s" % (ts, lvl, logline), file=logf)
 	logf.flush()
 	if l > log_lvl:
 		return
@@ -240,9 +240,11 @@ class B_typ_0:
 	""" store to bridge packet format """
 
 	sfmt = '<BBBL'
-	def __init__(self, pkt=None):
+	def __init__(self, pkt=None, timestamp=None):
 		self.mesh = NOMESH
-		self._ts = time.strftime("%Y-%m-%d %H:%M:%S",time.localtime())
+		if not timestamp:
+			timestamp = time.time()
+		self._ts = time.strftime("%Y-%m-%d %H:%M:%S",time.localtime(timestamp))
 		if pkt:
 			dlen = len(pkt) - struct.calcsize(B_typ_0.sfmt)
 			sfmt = "%s%is" % (B_typ_0.sfmt, dlen)
@@ -308,8 +310,8 @@ class B_typ_0:
 
 	# alternate initializer for B_typ
 class B_typ_0_new(B_typ_0):
-	def __init__(self, sl_id, pkt):
-		B_typ_0.__init__(self)
+	def __init__(self, sl_id, pkt, timestamp):
+		B_typ_0.__init__(self, timestamp=timestamp)
 		self.sl_id = sl_id
 		self.payload = pkt
 		self.setfields()
@@ -459,7 +461,10 @@ def on_connect(client, userdata, flags, rc):
 
 # The callback for when a PUBLISH message is received from the server.
 def on_message(client, userdata, msg):
-	ts=time.strftime("%Y-%m-%d %H:%M:%S",time.localtime(msg.timestamp))
+	if False:		# for now, don't trust timestamp in message:
+		timestamp = msg.timestamp
+	else:
+		timestamp = time.time()
 	topic = msg.topic.split('/')
 	if len(topic) != 3 or not topic[0] in [conf['SL_TRANSPORT_PREFIX'], conf['SL_NATIVE_PREFIX']]:
 		log('error', "bogus msg, %s: %s" % (msg.topic, msg.payload))
@@ -484,7 +489,7 @@ def on_message(client, userdata, msg):
 
 # lookup _node_id from origin_mesh
 		try:
-			opkt = B_typ_0_new(int(topic[1]), pkt['payload'])
+			opkt = B_typ_0_new(int(topic[1]), pkt['payload'], timestamp)
 		except Exception as e:
 			log('error', "could not build binary pkt from '%s' '%s', cause '%s'" % (msg.topic, msg.payload, e))
 			return
@@ -500,7 +505,7 @@ def on_message(client, userdata, msg):
 	elif topic[0] == conf['SL_TRANSPORT_PREFIX']:
 		if origin_topic == "data":
 			try:
-				pkt = B_typ_0(msg.payload)
+				pkt = B_typ_0(msg.payload, timestamp)
 			except SLException as e:
 				log('error', "packet format error: %s" % e)
 				return
@@ -512,7 +517,7 @@ def on_message(client, userdata, msg):
 	
 			pkt.setmesh(origin_mesh)
 			node_table[pkt.sl_id].updatestatus(pkt)
-			process(client, pkt, msg.timestamp)
+			process(client, pkt, timestamp)
 			write_stats_data('node')
 			dbgprint(3, "on_message: pkt is %s" % str(pkt.dict()))
 		elif origin_topic == "status":
