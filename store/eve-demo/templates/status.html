@@ -159,10 +159,14 @@
     <section class="section">
       <div class="container">
         <div class="nocolumns">
-          <h2 class="title">Log</h2>
+          <h2 class="title">Log 
+			<select id="SelectErrorLevel">
+			</select>
+		  </h2>
           <table class="log_list table" id="log">
             <thead>
               <th>Time Stamp</th>
+              <th>Level</th>
               <th>Message</th>
             </thead>
           </table>
@@ -171,7 +175,28 @@
     </section>
 
 	<script type="text/javascript">
+		
 		$(document).ready(function(e) {
+			var lvltable = {0: 'emerg',
+							1: 'alert',
+							2: 'crit',
+							3: 'error',
+							4: 'warning',
+							5: 'notice',
+							6: 'info',
+							7: 'debug',
+                        }
+			var select = $('#SelectErrorLevel');
+			select.empty();
+			for (k in lvltable) {
+				if (k == 3) {
+					select.append('<option value="' + k + '" selected="selected">' + lvltable[k] + '</option>');
+				} else {
+					select.append('<option value="' + k + '">' + lvltable[k] + '</option>');
+				}
+			};
+
+
 			var url = "https://" + document.domain + ":" + location.port;
 			var node_dyntable = dynamicTable();
 			var node_table = node_dyntable.config('node-data-table', 
@@ -196,11 +221,16 @@
 					mesh_table.load(msg.mesh[0]);
 				};
 				if ('log' in msg) {
-                                    $('#log').append("<tr>");
-                                    $('#log').append("<td>" + msg.log[0]._ts + "</td>");
-                                    $('#log').append("<td>" + msg.log[0].line + "</td>");
-                                    $('#log').append("</tr>");
-                                    console.log(msg.log[0].line);
+					var e = document.getElementById("SelectErrorLevel");
+					var highLevel = e.options[e.selectedIndex].value
+					if (msg.log[0].lvl <= highLevel)  {
+						$('#log').append("<tr>");
+						$('#log').append("<td>" + msg.log[0]._ts + "</td>");
+						$('#log').append("<td>" + lvltable[msg.log[0].lvl] + "</td>");
+						$('#log').append("<td>" + msg.log[0].line + "</td>");
+						$('#log').append("</tr>");
+					};
+					console.log(msg.log[0].line);
 				};
 			});
 		});
