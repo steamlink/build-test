@@ -204,13 +204,17 @@ loglevels = {
 			'debug':       7
 			}
 
-loglvl = 5
+log_lvl = 5
+log_ts = True
 
 def log(lvl, *args, **kwargs):
 	l = loglevels.get(lvl, 3)
 	time_stamp = time.time()
-	_ts=time.strftime("%Y-%m-%d %H:%M:%S: ",time.localtime(time_stamp))
-	ts="" # or _ts
+	_ts=time.strftime("%Y-%m-%d %H:%M:%S",time.localtime(time_stamp))
+	if log_ts:
+		ts=_ts+": "
+	else:
+		ts=""
 	output = io.StringIO()
 	print("%s%s" % (ts, lvl), *args, file=output, **kwargs)
 
@@ -219,7 +223,7 @@ def log(lvl, *args, **kwargs):
 
 	print(logline, file=logf)
 	logf.flush()
-	if l > loglvl:
+	if l > log_lvl:
 		return
 	write_stats_data('log', {'lvl': l, '_ts': _ts, 'line': logline })
 
@@ -407,6 +411,7 @@ def AES128_encrypt(msg, bkey):
 
 
 def write_stats_data(what, ddata=None):
+	#N.B. no log or dbprint in this function, for now!!
 	data = []
 	if what == 'mesh':
 		for mname in mesh_name_table:
@@ -419,16 +424,16 @@ def write_stats_data(what, ddata=None):
 
 	sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 
-	server_address = '/tmp/eve_stats_socket'
-	dbgprint(3, 'write_stats_data: connecting to %s' % server_address)
+	stats_socket = '/tmp/eve_stats_socket'
+#	dbgprint(3, 'write_stats_data: connecting to %s' % stats_socket)
 	try:
-		sock.connect(server_address)
+		sock.connect(stats_socket)
 	except socket.error as msg:
-		print("not sent",msg)
-		sys.exit(1)
+#		log('warning', 'stats data not sent, cause: %s' % msg)
+		return
 
 	message = bytes("%s|%s" % (what, json.dumps(data)), 'UTF-8') 
-	dbgprint(3, 'write_stats_data: writing %s' % message)
+#	dbgprint(3, 'write_stats_data: writing %s' % message)
 	sock.sendall(message)
 
 
@@ -618,7 +623,7 @@ def loadconf(conffile):
 	return conf
 
 
-def main():
+def steam():
 	global client, conf, sigseen, mdb
 	signal.signal(signal.SIGHUP, handler)
 	signal.signal(signal.SIGTERM, handler)
@@ -700,7 +705,7 @@ if len(sys.argv) != 2:
 log('notice','steam starting')
 while True:
 	try:
-		rc = main()
+		rc = steam()
 		break
 	except KeyboardInterrupt:
 		rc = 1
