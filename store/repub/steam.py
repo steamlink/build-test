@@ -1,5 +1,11 @@
 #!/usr/bin/python3
 
+from gevent import monkey
+monkey.patch_all()
+
+import logging
+from threading import Thread, Event
+
 import paho.mqtt.client as mqtt
 from pymongo import MongoClient
 import repubmqtt
@@ -15,8 +21,10 @@ import pprint
 import socket
 import io
 
-from Crypto.Cipher import AES
 
+# use safe eval function
+from ast import literal_eval as eval
+from Crypto.Cipher import AES
 
 
 N_TYP_VER = 0
@@ -125,9 +133,9 @@ def findmesh(rmesh):
 	if not rmesh in mesh_name_table:
 		mdb_meshs = mdb.collection('meshes')
 		mesh = mdb_meshs.find_one({'mesh_name': rmesh})
-		dbgprint(2, 'findmesh: got mesh %s' % (str(mesh)))
+		if DBG >= 2: logger.debug( 'findmesh: got mesh %s' % (str(mesh)))
 		if not mesh:
-			log('error', 'mesh with name %s not in table' % rmesh)
+			logger.error( 'mesh with name %s not in table' % rmesh)
 			raise SLException("no mesh %s" % rmesh)
 		ms = Mesh(mesh['_id'], rmesh, \
 				mesh['physical_location']['location_params'], \
@@ -137,99 +145,47 @@ def findmesh(rmesh):
 def findNode(sl_id):
 
 	if not sl_id in node_table:
-		dbgprint(1, 'findNode(%s)' % (sl_id))
+		if DBG >= 1: logger.debug('findNode(%s)' % (sl_id))
 		mdb_nodes = mdb.collection('nodes')
 		node = mdb_nodes.find_one({'sl_id': sl_id})
-		dbgprint(1, 'findNode: using node %s' % (str(node)))
+		if DBG >= 1: logger.debug('findNode: using node %s', str(node))
 		if not node:
-			log('error', 'node with sl_id %s not in table' % sl_id)
+			logger.error( 'node with sl_id %s not in table' % sl_id)
 			raise SLException("no node %s" % sl_id)
 		soid = node['swarm']
 		if not soid in swarm_table:
 			mdb_swarms = mdb.collection('swarms')
 			swarm = mdb_swarms.find_one({'_id': soid})
-			dbgprint(2, 'findNode: got swarm %s' % (str(swarm)))
+			if DBG >= 2: logger.debug( 'findNode: got swarm %s', str(swarm))
 			if not swarm:
-				log('error', 'swarm with oid %s not in table' % soid)
+				logger.error( 'swarm with oid %s not in table' % soid)
 				raise SLException("no swarm %s" % soid)
 			sw = Swarm(soid, swarm['swarm_name'], \
 					swarm['swarm_crypto']['crypto_key'], \
 					swarm['swarm_crypto']['crypto_type'])
 		else:
 			sw = swarm_table[soid]
-		dbgprint(2,"using swarm %s" % str(sw))
+		if DBG >= 2: logger.debug("using swarm %s", str(sw))
 		moid = node['mesh']
 		if not moid in mesh_table:
 			mdb_meshs = mdb.collection('meshes')
 			mesh = mdb_meshs.find_one({'_id': moid})
-			dbgprint(2, 'findNode: got mesh %s' % (str(mesh)))
+			if DBG >= 2: logger.debug('findNode: got mesh %s', str(mesh))
 			if not mesh:
-				log('error', 'mesh with oid %s not in table' % moid)
+				logger.error( 'mesh with oid %s not in table' % moid)
 				raise SLException("no mesh %s" % moid)
 			ms = Mesh(moid, mesh['mesh_name'],
 					mesh['physical_location']['location_params'], \
 					mesh['radio']['radio_type'], mesh['radio']['radio_params'])
 		else:
 			ms = mesh_table[moid]
-		dbgprint(2,"using mesh %s" % str(ms))
+		if DBG >= 2: logger.debug("using mesh %s", str(ms))
 		nd = Node(sl_id, node['node_id'], node['node_name'], ms, sw)
-		dbgprint(2,"using Node %s" % nd)
-#		if rmesh and rmesh != NOMESH and rmesh != nd.mesh.mesh_name:
-#			log('warning', 'pkt from sl_id/node %s/%s should be mesh %s but was mesh %s' % \
-#				(sl_id, node['node_id'], rmesh, nd.mesh.mesh_name))
+		if DBG >= 2: logger.debug("using Node %s", nd)
 
 
 	return node_table[sl_id]
 
-
-logf = sys.stderr
-def openlog():
-	global logf
-	if conf and 'LOGFILE' in conf:
-		logf = open(conf['LOGFILE'], "a")
-		repubmqtt.log = log
-		repubmqtt.dbgprint = dbgprint
-	else:
-		logf = sys.stderr
-
-
-loglevels = {
-			'emerg':       0,
-			'alert':       1,
-			'crit':        2,
-			'error':       3,
-			'warning':     4,
-			'notice':      5,
-			'info':        6,
-			'debug':       7
-			}
-
-log_lvl = 5
-log_ts = True
-
-def log(lvl, *args, **kwargs):
-	l = loglevels.get(lvl, 3)
-	time_stamp = time.time()
-	_ts=time.strftime("%Y-%m-%d %H:%M:%S",time.localtime(time_stamp))
-	if log_ts:
-		ts=_ts+": "
-	else:
-		ts=""
-	output = io.StringIO()
-	print(*args, file=output, **kwargs)
-
-	logline = output.getvalue()[:-1]
-	output.close()
-
-	print("%s %s: %s" % (ts, lvl, logline), file=logf)
-	logf.flush()
-	if l > log_lvl:
-		return
-	write_stats_data('log', {'lvl': l, '_ts': _ts, 'line': logline })
-
-
-def dbgprint(lvl, *args, **kwargs):
-	if DBG >= lvl: log('debug', str(lvl), *args, **kwargs)
 
 
 class SLException(BaseException):
@@ -254,8 +210,8 @@ class B_typ_0:
 			if self.n_ver != N_TYP_VER or self.b_ver != B_TYP_VER:
 				raise SLException("B/N type version mismatch")
 			self.rssi = self.rssi - 256
-			dbgprint(3, "pkt self.n_ver %s self.b_ver %s self.rssi %s self.node_id %s self.sl_id %s" % \
-				(self.n_ver, self.b_ver, self.rssi, self.node_id, self.sl_id ))
+			if DBG >= 3: logger.debug("pkt self.n_ver %s self.b_ver %s self.rssi %s self.node_id %s self.sl_id %s", \
+				self.n_ver, self.b_ver, self.rssi, self.node_id, self.sl_id)
 		else:
 			pkt = ''
 			self.n_ver = N_TYP_VER
@@ -367,14 +323,14 @@ def publish_mongo(publish, output_data, record):
 	global mongop
 
 	if publish['_testmode']:
-		log('test', "publish_mongo %s %s" % (url, output_data))
+		logger.info("test: publish_mongo %s %s" % (url, output_data))
 	if not mongop:
 		mongop = MongoDB(publish['url'], publish['db'])
 	#N.B. we want to pass a dict to ..insert(..)
-	log('info', "publish_mongo %s %s" % (publish['collection'], json.loads(output_data)))
+	logger.info( "publish_mongo %s %s" % (publish['collection'], json.loads(output_data)))
 	_id = mongop.insert(publish['collection'], json.loads(output_data))
 	if not _id:
-		log('error', "publish_mongo error: %s %s %s" % (_id, publish['collection'], json.loads(output_data)))
+		logger.error( "publish_mongo error: %s %s %s" % (_id, publish['collection'], json.loads(output_data)))
 	return _id
 	
 
@@ -382,21 +338,21 @@ def publish_mqtt(publish, output_data, data):
 	try:
 		topic = publish['topic'] % data
 	except KeyError as e:
-		log('error', "publish topic '%s' missing key '%s' in data '%s'" % (publish['topic'], e, data))
+		logger.error( "publish topic '%s' missing key '%s' in data '%s'" % (publish['topic'], e, data))
 		return
 	retain = publish.get('retain',False)
 	if publish['_testmode']:
-		log('test', "publish_mqtt %s %s" % (topic, output_data))
+		logger.info("test: publish_mqtt %s %s" % (topic, output_data))
 		return
-	log('info', "publish_mqtt %s %s" % (topic, output_data))
+	logger.info( "publish_mqtt %s %s" % (topic, output_data))
 	rc, mid = client.publish(topic, output_data, retain=retain)
 	if rc:
-		log('error', "publish_mqtt failed %s, %s %s %s" % (rc, topic, output_data, retain))
+		logger.error( "publish_mqtt failed %s, %s %s %s" % (rc, topic, output_data, retain))
 
 
 def AES128_decrypt(pkt, bkey):
 	if len(pkt) % 16 != 0:
-		log('error', "decrypt pkt len (%s)error: %s" % \
+		logger.error( "decrypt pkt len (%s)error: %s" % \
 			(len(pkt)), " ".join("{:02x}".format(ord(c)) for c in pkt))
 		return ""
 	decryptor = AES.new(bkey, AES.MODE_ECB)
@@ -427,15 +383,15 @@ def write_stats_data(what, ddata=None):
 	sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 
 	stats_socket = '/tmp/eve_stats_socket'
-#	dbgprint(3, 'write_stats_data: connecting to %s' % stats_socket)
+	if DBG >= 3: logger.debug('write_stats_data: connecting to %s' % stats_socket)
 	try:
 		sock.connect(stats_socket)
 	except socket.error as msg:
-#		log('warning', 'stats data not sent, cause: %s' % msg)
+#		logger.warn('stats data not sent, cause: %s' % msg)
 		return
 
 	message = bytes("%s|%s" % (what, json.dumps(data)), 'UTF-8') 
-#	dbgprint(3, 'write_stats_data: writing %s' % message)
+	if DBG >= 3: logger.debug('write_stats_data: writing %s' % message)
 	sock.sendall(message)
 
 
@@ -444,7 +400,7 @@ def process(client, pkt, timestamp):
 
 	# log the pkt
 	ts=time.strftime("%Y-%m-%d %H:%M:%S",time.localtime(timestamp))
-	dbgprint(1, "%s: %s" % (ts, pkt.json()))
+	if DBG >= 1: logger.debug("%s: %s", ts, pkt.json())
 	# "native" publish
 	otopic = "%s/%s/data" % (conf['SL_NATIVE_PREFIX'], pkt.sl_id)
 	client.publish(otopic,  pkt.json())
@@ -453,10 +409,10 @@ def process(client, pkt, timestamp):
 # The callback for when the client receives a CONNACK response from the server.
 def on_connect(client, userdata, flags, rc):
 
-	log('notice',"connected to MQTT boker,code "+str(rc))
+	logger.info("connected to MQTT boker,code "+str(rc))
 	for topic in conf['TOPICS']:
 		client.subscribe(topic)
-		log('notice', "subscribe %s" % topic)
+		logger.info( "subscribe %s" % topic)
 
 
 # The callback for when a PUBLISH message is received from the server.
@@ -467,11 +423,11 @@ def on_message(client, userdata, msg):
 		timestamp = time.time()
 	topic = msg.topic.split('/')
 	if len(topic) != 3 or not topic[0] in [conf['SL_TRANSPORT_PREFIX'], conf['SL_NATIVE_PREFIX']]:
-		log('error', "bogus msg, %s: %s" % (msg.topic, msg.payload))
+		logger.error( "bogus msg, %s: %s" % (msg.topic, msg.payload))
 		return
 	origin_mesh = topic[1]
 	origin_topic = topic[2]
-	dbgprint(2, "on_messgge %s %s" % (msg.topic, msg.payload))
+	if DBG >= 2: logger.debug("on_messgge %s %s", msg.topic, msg.payload)
 	if topic[0] == conf['SL_NATIVE_PREFIX']:
 		if origin_topic == "data":
 			pkt = json.loads(msg.payload.decode('utf-8'))
@@ -479,27 +435,27 @@ def on_message(client, userdata, msg):
 			userdata.process_message(pkt)
 			return
 		elif origin_topic != "control":
-			log('error', "bogus msg, %s: %s" % (msg.topic, msg.payload))
+			logger.error( "bogus msg, %s: %s" % (msg.topic, msg.payload))
 			return
 		try:
 			pkt = json.loads(msg.payload.decode('utf-8'))
 		except:
-			log('error', "control msg to '%s' not json: '%s'" % (msg.topic, msg.payload))
+			logger.error( "control msg to '%s' not json: '%s'" % (msg.topic, msg.payload))
 			return
 
 # lookup _node_id from origin_mesh
 		try:
 			opkt = B_typ_0_new(int(topic[1]), pkt['payload'], timestamp)
 		except Exception as e:
-			log('error', "could not build binary pkt from '%s' '%s', cause '%s'" % (msg.topic, msg.payload, e))
+			logger.error( "could not build binary pkt from '%s' '%s', cause '%s'" % (msg.topic, msg.payload, e))
 			return
 		try:
 			otopic = "%s/%s/control" % (conf['SL_TRANSPORT_PREFIX'], opkt.mesh)
 			pac = opkt.pack()
 		except Exception as e:
-			log('error', "could not build packet, cause %s" % e)
+			logger.error( "could not build packet, cause %s" % e)
 			return
-		dbgprint(1, "publish: %s %s" % (otopic, ":".join("{:02x}".format(c) for c in pac)))
+		if DBG >= 1: logger.debug("publish: %s %s", otopic, ":".join("{:02x}".format(c) for c in pac))
 		client.publish(otopic, bytearray(pac))
 
 	elif topic[0] == conf['SL_TRANSPORT_PREFIX']:
@@ -507,11 +463,11 @@ def on_message(client, userdata, msg):
 			try:
 				pkt = B_typ_0(msg.payload, timestamp)
 			except SLException as e:
-				log('error', "packet format error: %s" % e)
+				logger.error( "packet format error: %s" % e)
 				return
 			except Exception as e:
-				log('error', "payload format or decrypt error: %s" % e)
-				traceback.print_exc(file=logf)
+				logger.error( "payload format or decrypt error: %s" % e)
+				traceback.print_exc(file=sys.stderr)
 				return
 
 	
@@ -519,15 +475,15 @@ def on_message(client, userdata, msg):
 			node_table[pkt.sl_id].updatestatus(pkt)
 			process(client, pkt, timestamp)
 			write_stats_data('node')
-			dbgprint(3, "on_message: pkt is %s" % str(pkt.dict()))
+			if DBG >= 3: logger.debug("on_message: pkt is %s", str(pkt.dict()))
 		elif origin_topic == "status":
 			findmesh(origin_mesh)
 			status = mesh_name_table[origin_mesh].updatestatus(msg.payload)
 			
 			write_stats_data('mesh')
-			dbgprint(3, "mesh status %s" % (mesh_name_table[origin_mesh].reportstatus()))
+			if DBG >= 3: logger.debug("mesh status %s", mesh_name_table[origin_mesh].reportstatus())
 		else:
-			log('error', "UNKNOWN %s payload %s" % (msg.topic, msg.payload))
+			logger.error( "UNKNOWN %s payload %s" % (msg.topic, msg.payload))
 
 
 def getstatus(client, mesh):
@@ -538,10 +494,8 @@ def getstatus(client, mesh):
 sigseen = None
 def handler(signum, frame):
 	global sigseen 
-	log('notice', 'Signal handler called with signal %s' % signum)
+	logger.info( 'Signal handler called with signal %s' % signum)
 	sigseen = signum
-
-
 
 #
 # Main
@@ -553,10 +507,7 @@ REQUIRED_NAMES = ['MQTT_SERVER', 'MQTT_PORT', 'MQTT_USERNAME', \
 	'SL_TRANSPORT_PREFIX', 'SL_NATIVE_PREFIX', 'POLLINTERVAL', \
 	'MONGO_URL', 'MONGO_DB', 'PIDFILE']
 
-
 mdb = None
-
-
 
 def loadmongoconfig():
 
@@ -567,9 +518,9 @@ def loadmongoconfig():
 
 	rules = []
 	for tr in mdb_transforms.find():
-		dbgprint(1, "tranform: ", tr)
+		if DBG >= 1: logger.debug("transform: %s", tr)
 		if tr['active'] != 'on':
-			log('notice', "transform '%s' not active" % tr['transform_name'])
+			logger.info( "transform '%s' not active" % tr['transform_name'])
 			continue
 		te = {'name': tr['transform_name']}
 		fil = mdb_filters.find_one({'_id': tr['filter']})
@@ -600,11 +551,12 @@ def loadmongoconfig():
 
 def loadconf(conffile):
 	global DBG
+	global_env = {'__builtin__': None }
 	conf = {}
 	conf['DBG'] = DBG
 
 	try:
-		exec(open(conffile).read(), conf )
+		exec(open(conffile).read(), global_env, conf )
 	except Exception as e:
 		print("Load of config failed: %s" % e, file=sys.stderr)
 		traceback.print_exc(file=sys.stderr)
@@ -638,8 +590,7 @@ def steam():
 		conf = loadconf( sys.argv[1])
 		if not conf:
 			sys.exit(1)
-		openlog()
-		log('info',"open mongodb(%s, %s)" % (conf['MONGO_URL'],conf['MONGO_DB']))
+		logger.info("open mongodb(%s, %s)" % (conf['MONGO_URL'],conf['MONGO_DB']))
 
 		mdb = MongoDB(conf['MONGO_URL'], conf['MONGO_DB'])
 		mongo_rules = loadmongoconfig()
@@ -652,7 +603,7 @@ def steam():
 		pid = os.getpid()
 		open(conf['PIDFILE'],"w").write("%s" % pid)
 
-		repub = repubmqtt.Republish(conf['RULES'], conf['XLATE'])
+		repub = repubmqtt.Republish(conf['RULES'], conf['XLATE'], log_name)
 		repub.setdebuglevel(conf['DBG'])
 		repub.register_publish_protocol('mongo', publish_mongo)
 		repub.register_publish_protocol('mqtt', publish_mqtt)
@@ -672,11 +623,11 @@ def steam():
 		while running:
 			if sigseen:
 				if sigseen == signal.SIGHUP:
-					log('notice', 'restart on SIGHUP')
+					logger.info( 'restart on SIGHUP')
 					sigseen = None
 					break
 				if sigseen == signal.SIGTERM:
-					log('notice', 'restart on SIGTERM')
+					logger.info( 'restart on SIGTERM')
 					sigseen = None
 					running = False
 					break
@@ -701,13 +652,28 @@ def steam():
 # main
 #
 
+#stats_fp = open("/tmp/eve_stats_socket","w")
+
+log_format='%(asctime)s %(levelname)s: %(message)s'
+log_datefmt='%Y-%m-%d %H:%M:%S'
+log_name = 'steam'
+logging.basicConfig(level=logging.DEBUG, format=log_format, datefmt=log_datefmt)
+logger = logging.getLogger(log_name)
+#stream_handler = logging.StreamHandler(stats_fp)
+#stream_formatter = logging.Formatter('log|{"line": "%(message)s", "_ts": "%(asctime)s", "lvl": "%(levelname)s"}', datefmt="%Y-%m-%d %H:%M:%S")
+
+#stream_handler.setFormatter(stream_formatter)
+#stream_handler.setLevel(logging.DEBUG)
+#logger.addHandler(stream_handler)
+
+
 startts = time.time()
 if len(sys.argv) != 2:
 	print("usage: %s <conffile>")
 	sys.exit(1)
 
 
-log('notice','steam starting')
+logger.info('steam starting')
 while True:
 	try:
 		rc = steam()
@@ -716,14 +682,14 @@ while True:
 		rc = 1
 		break
 	except Exception as e:
-		log('error', 'main exit with error %s' % e)
-		traceback.print_exc(file=logf)
+		logger.error( 'main exit with error %s' % e)
+		traceback.print_exc(file=sys.stderr)
 		if DBG > 0 or time.time() > (startts + 1):
-			log('error', 'exit')
+			logger.error( 'exit')
 			rc = 4
 			break
-		log('notice', 'restarting in 5 seconds')
+		logger.info( 'restarting in 5 seconds')
 		time.sleep(5)
 
-log('notice','steam exit, code=%s' % rc)
+logger.info('steam exit, code=%s' % rc)
 sys.exit(rc)
