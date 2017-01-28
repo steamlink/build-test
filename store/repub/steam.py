@@ -648,23 +648,53 @@ def steam():
 	return rc;
 
 
+
+class SteamThread(Thread):
+	def __init__(self, logger):
+		super(SteamThread, self).__init__()
+
+		self.logger=logger
+		self.logger.info('steam starting')
+
+
+	def run(self):
+		while True:
+			try:
+				rc = steam()
+				break
+			except KeyboardInterrupt:
+				rc = 1
+				break
+			except Exception as e:
+				self.logger.error( 'main exit with error %s' % e)
+				traceback.print_exc(file=sys.stderr)
+				if DBG > 0 or time.time() > (startts + 1):
+					self.logger.error( 'exit')
+					rc = 4
+					break
+				self.logger.info( 'restarting in 5 seconds')
+				time.sleep(5)
+		
+		self.logger.info('steam exit, code=%s' % rc)
+
 #
 # main
 #
 
-#stats_fp = open("/tmp/eve_stats_socket","w")
 
 log_format='%(asctime)s %(levelname)s: %(message)s'
 log_datefmt='%Y-%m-%d %H:%M:%S'
 log_name = 'steam'
-logging.basicConfig(level=logging.DEBUG, format=log_format, datefmt=log_datefmt)
+logging.basicConfig(level=logging.INFO, format=log_format, datefmt=log_datefmt)
 logger = logging.getLogger(log_name)
-#stream_handler = logging.StreamHandler(stats_fp)
-#stream_formatter = logging.Formatter('log|{"line": "%(message)s", "_ts": "%(asctime)s", "lvl": "%(levelname)s"}', datefmt="%Y-%m-%d %H:%M:%S")
 
-#stream_handler.setFormatter(stream_formatter)
-#stream_handler.setLevel(logging.DEBUG)
-#logger.addHandler(stream_handler)
+if False:	# also log messages to a file/socket
+	stats_fp = open("/tmp/eve_stats_socket","w")
+	stream_handler = logging.StreamHandler(stats_fp)
+	stream_formatter = logging.Formatter('log|{"line": "%(message)s", "_ts": "%(asctime)s", "lvl": "%(levelname)s"}', datefmt="%Y-%m-%d %H:%M:%S")
+	stream_handler.setFormatter(stream_formatter)
+	stream_handler.setLevel(logging.DEBUG)
+	logger.addHandler(stream_handler)
 
 
 startts = time.time()
@@ -672,24 +702,9 @@ if len(sys.argv) != 2:
 	print("usage: %s <conffile>")
 	sys.exit(1)
 
+steamthread = SteamThread(logger)
+steamthread.start()
 
-logger.info('steam starting')
-while True:
-	try:
-		rc = steam()
-		break
-	except KeyboardInterrupt:
-		rc = 1
-		break
-	except Exception as e:
-		logger.error( 'main exit with error %s' % e)
-		traceback.print_exc(file=sys.stderr)
-		if DBG > 0 or time.time() > (startts + 1):
-			logger.error( 'exit')
-			rc = 4
-			break
-		logger.info( 'restarting in 5 seconds')
-		time.sleep(5)
+steamthread.join()
 
-logger.info('steam exit, code=%s' % rc)
-sys.exit(rc)
+sys.exit(0)
