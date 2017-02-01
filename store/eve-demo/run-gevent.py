@@ -118,7 +118,7 @@ def add_transform():
 @app.route('/evelog')
 def evelog():
 	def generate():
-		with open('/home/steamlink/log/steamlink_eve.log') as f:
+		with open('/home/steamlink/log/su-steamlink-eve.log') as f:
 #			while True:
 				yield f.read()
 #		time.sleep(1)
@@ -129,7 +129,7 @@ def evelog():
 @app.route('/republog')
 def republog():
 	def generate():
-		with open('/home/steamlink/log/steam.log') as f:
+		with open('/home/steamlink/log/su-steamlink-repub.log') as f:
 #			while True:
 				yield f.read()
 #		time.sleep(1)
