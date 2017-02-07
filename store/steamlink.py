@@ -45,7 +45,7 @@ REQUIRED_NAMES = ['MQTT_SERVER', 'MQTT_PORT', 'MQTT_USERNAME', \
 	'MQTT_PASSWORD', 'MQTT_CLIENTID', 'RULES', 'XLATE', \
 	'pollinterval', \
 	'my_client_id', 'services', 'default_clients', \
-	'MONGO_URL', 'MONGO_DB', 'PIDFILE']
+	'MONGO_URL', 'MONGO_DB']
 
 class SEngine(steamengine.SteamEngine):
 
@@ -272,10 +272,10 @@ class TransportChannel(steamengine.Service):
 			try:
 				pkt = B_typ_0(self.engine, msg.payload, timestamp)
 			except SLException as e:
-				self.logger.error("transport packet format error: %s" % e)
+				self.logger.error("transport packet error: %s" % e)
 				return
 			except Exception as e:
-				self.logger.exception("transport payload format or decrypt error: ")
+				self.logger.exception("transport payload or decrypt error: ")
 				return
 			self.logger.info("transport data %s %s", msg.topic, str(pkt.dict())[:70]+"...")
 
