@@ -47,6 +47,33 @@ REQUIRED_NAMES = ['MQTT_SERVER', 'MQTT_PORT', 'MQTT_USERNAME', \
 	'my_client_id', 'services', 'default_clients', \
 	'MONGO_URL', 'MONGO_DB']
 
+
+class MsgLogHandler(logging.Handler):
+
+	def __init__(self, queue):
+		logging.Handler.__init__(self)
+		self.queue = queue
+
+	def enqueue(self, record):
+		self.queue.put_nowait(record)
+
+	def prepare(self, record):
+		self.format(record)
+		record.msg = record.message
+		record.args = None
+		record.exc_info = None
+		return record
+
+	def emit(self, record):
+		msg = self.format(record)
+		ts = time.strftime("%Y-%d-%m %H:%M:%S", time.localtime(record.created))
+		omsg = {'lvl': record.levelno, '_ts': ts, 'line': msg }
+		try:
+			self.enqueue(omsg)
+		except Exception:
+			self.handleError(record)
+
+
 class SEngine(steamengine.SteamEngine):
 
 	def __init__(self, conf, logger):
@@ -328,6 +355,12 @@ class TransportChannel(steamengine.Service):
 	def __init__(self, service, engine, logger, sv_config=None):
 		super(TransportChannel, self).__init__(service, engine, logger, sv_config)
 
+		# create thread to read msg 
+		self.msglog_task = Thread(target=self.run_msglog)
+		self.msglog_task.name = "msglog_th"
+		self.msglog_task.daemon = True
+
+		self.msglog_task.start()
 
 	def shutdown(self):
 		self.running = False
@@ -339,6 +372,10 @@ class TransportChannel(steamengine.Service):
 			topic = "%s/%s/state" % (self.sv_config['prefix'], mname)
 			self.engine.publish(topic,"state" )
 
+	def run_msglog(self):
+		while self.running:
+			r = msglogQ.get()
+			self.write_stats_data('log', r)
 
 	def process_transport_data(self, pkg, timestamp):
 		""" process a pkt received on the data topic, pubish on the 'native' topic """
@@ -373,15 +410,15 @@ class TransportChannel(steamengine.Service):
 		if self.sv_config.get('stats_socket', None):
 			stats_socket = self.sv_config['stats_socket']
 			sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-			if DBG >= 3: self.logger.debug('write_stats_data: connecting to %s' % stats_socket)
+#			if DBG >= 3: self.logger.debug('write_stats_data: connecting to %s' % stats_socket)
 			try:
 				sock.connect(stats_socket)
 			except socket.error as msg:
-				self.logger.warn('stats data not sent, cause: %s' % msg)
+#				self.logger.warn('stats data not sent, cause: %s' % msg)
 				return
 
 			message = bytes("%s|%s" % (what, json.dumps(data)), 'UTF-8')
-			if DBG >= 3: self.logger.debug('write_stats_data: writing %s' % message)
+#			if DBG >= 3: self.logger.debug('write_stats_data: writing %s' % message)
 			sock.sendall(message)
 
 
@@ -783,22 +820,33 @@ def loadallconfig():
 
 
 def set_logging(logfile):
+	llog_format='%(threadName)-12s %(levelname)-4s: %(message)s'
 	flog_format='%(asctime)s %(threadName)-12s %(levelname)-4s: %(message)s'
 	clog_format='%(threadName)-12s: %(message)s'
+
 	log_datefmt='%Y-%m-%d %H:%M:%S'
-	logging.basicConfig(level=loglevel, format=clog_format, datefmt=log_datefmt)
+	logging.basicConfig(format=clog_format, datefmt=log_datefmt)
 	logger = logging.getLogger()
+	msglog = MsgLogHandler(msglogQ)
+	msglogformatter = logging.Formatter(llog_format, datefmt=log_datefmt)
+	msglog.setFormatter(msglogformatter)
+	msglog.setLevel(logging.INFO)
+	logger.addHandler(msglog)
+	logger.setLevel(loglevel)
 	if logfile:
+		console = logger.handlers[0]
+		logger.removeHandler(console)
+
 		filelog = logging.handlers.RotatingFileHandler(logfile, maxBytes=10*1024*1024, backupCount=3)
 		fileformatter = logging.Formatter(flog_format, datefmt=log_datefmt)
 		filelog.setFormatter(fileformatter)
-		console = logger.handlers[0]
 		logger.addHandler(filelog)
-		logger.removeHandler(console)
 	return logger
 #
 # main
 #
+
+msglogQ = queue.Queue()
 
 cl_args = getargs()
 if not cl_args.log:
@@ -863,4 +911,5 @@ while run_state is "run":
 			break
 
 logger.info('steamlink exit, code=%s' % rc)
+logging.shutdown()
 sys.exit(rc)
