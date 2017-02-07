@@ -92,7 +92,7 @@ class SteamEngine:
 
 		# queue to receive service answers
 		self.service_answers = queue.Queue()
-		self.service_answer_topic = Topic("+", self.my_clientid, "+", "a")
+		self.service_answer_topic = str(Topic("+", self.my_clientid, "+", "a"))
 
 		# start answer runner
 		self.answer_task.start()
@@ -292,7 +292,7 @@ class SteamEngine:
 		self.tasks[task_id] = Event()
 		topic = Topic(service, client_id, task_id, "q")
 		if self.short_circuit and client_id == self.my_clientid:
-			pkt['_topic'] = topic
+			pkt['_topic'] = str(topic)
 			self.dispatch_service(service, pkt)
 		else:
 			self.publish(topic, pkt)
