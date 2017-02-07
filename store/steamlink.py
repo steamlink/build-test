@@ -67,39 +67,6 @@ class SEngine(steamengine.SteamEngine):
 		return avail_services
 
 
-	def write_stats_data(self, what, ddata=None):
-		#N.B. no log or dbprint in this function, for now!!
-		data = []
-		if what == 'mesh':
-			for mname in self.meshes.all():
-				data.append(self.meshes.by_name(mname).reportstatus())
-		elif what == 'node':
-			for slid in self.nodes.all():
-				d = self.nodes.by_sl_id(slid).reportstatus()
-				if self.conf.get('brief_status', False):
-					d['payload'] = "***"
-				data.append(d)
-		elif what == 'log':
-			data = ddata
-
-		topic = "SL/%s/stats" % what
-		self.publish(topic, data, retain=True)
-
-		# TODO:  remove when eve reads mqtt stats channel
-		sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-		stats_socket = '/tmp/eve_stats_socket'
-		if DBG >= 3: logger.debug('write_stats_data: connecting to %s' % stats_socket)
-		try:
-			sock.connect(stats_socket)
-		except socket.error as msg:
-			logger.warn('stats data not sent, cause: %s' % msg)
-			return
-
-		message = bytes("%s|%s" % (what, json.dumps(data)), 'UTF-8')
-		if DBG >= 3: logger.debug('write_stats_data: writing %s' % message)
-		sock.sendall(message)
-
-
 #
 # PingService
 #
@@ -117,37 +84,67 @@ class PingService(steamengine.Service):
 class DBService(steamengine.Service):
 	type = "server"
 
-	def __init__(self, service_id, engine, logger, sv_config):
-		super(DBService, self).__init__(service_id, engine, logger, sv_config)
+	def __init__(self, service, engine, logger, sv_config):
+		super(DBService, self).__init__(service, engine, logger, sv_config)
+
+		# default database paramaters
 		self.mongourl = sv_config['mongourl']
 		self.mongodatabase = sv_config['mongodb']
-		self.mongodb = None
-		if not sv_config.get('lazyopen', True):
-			self.startmongo()
-		self.collections = {}
+		self.db = {'/':  MongoDB(self.mongourl, self.mongodatabase, self.logger) }
+
+
+	def shutdown(self):
+		self.running = False
+		for db in self.db:
+			self.db[db].stopmongo()
+		self.engine.logger.info("Service %s shutdown" % self.service)
+
 
 	functions = ['insert', 'find', 'find_one' ]
 
 
 	def process(self, pkt):
-		""" we are echoing the msg"""
+		""" we are serving network requests """
 		res = {}
+		dbk = "%s/%s" % (pkt.get('url',''), pkt.get('db',''))
+		if not dbk in self.db:
+				self.db[dbk] = MongoDB(pkt['url'], pkt['db'], self.logger)
 		if not pkt['func'] in self.functions:
 			res['res'] = Err('NOTFOUND', 'function %s not defined' % pkt['func']).d()
 		elif pkt['func'] == 'insert':
-			res['res'] = self.insert(pkt['collection'], pkt['data'])
+			res['res'] = self.db[dbk].insert(pkt['collection'], pkt['data'])
 		elif pkt['func'] == 'find':
-			res['res'] = self.find(pkt['collection'], pkt['what'])
+			res['res'] = self.db[dbk].find(pkt['collection'], pkt['what'])
 		elif pkt['func'] == 'find_one':
 			if DBG > 2: self.logger.debug("self.find_one('%s', %s)", pkt['collection'], pkt['what'])
-			res['res'] = self.find_one(pkt['collection'], pkt['what'])
+			res['res'] = self.db[dbk].find_one(pkt['collection'], pkt['what'])
 		return res
 
 
+# MongoDB wrapper class
+class MongoDB:
+	def __init__(self, mongourl, db, logger):
+		self.mongourl = mongourl
+		self.logger = logger
+		self.mongoclient = MongoClient(self.mongourl)
+		self.db = db
+		self.mongodb = None
+		self.running = True
+		self.startmongo()
+		self.collections = {}
+
+	def stopmongo(self):
+		self.running = False
+		self.mongoclient.close()
+		self.mongoclient = None
+		self.mongodb = None
+
 	def startmongo(self):
+		if not self.running:
+			return
 		if not self.mongodb:
-			self.mongodb = MongoClient(self.mongourl)[self.mongodatabase]
-			self.logger.info("mongodb '%s' opened", self.mongodatabase)
+			self.logger.info("mongodb %s connected", self.mongourl)
+			self.mongodb = self.mongoclient[self.db]
 
 
 	def collection(self, collname):
@@ -169,6 +166,8 @@ class DBService(steamengine.Service):
 		if not collection in self.collections:
 			self.collection(collection)
 		tb = self.collections[collection]
+		if what and '_id' in what and type(what['_id']) == type({}):
+			what['_id'] = ObjectId(what['_id']['$oid'])
 		res = tb.find(what)
 		return res
 
@@ -177,10 +176,11 @@ class DBService(steamengine.Service):
 		if not collection in self.collections:
 			self.collection(collection)
 		tb = self.collections[collection]
-		if '_id' in what and type(what['_id']) == type({}):
+		if what and '_id' in what and type(what['_id']) == type({}):
 			what['_id'] = ObjectId(what['_id']['$oid'])
 		res = tb.find_one(what)
 		return res
+
 
 
 #
@@ -189,13 +189,63 @@ class DBService(steamengine.Service):
 class RepubChannel(steamengine.Service):
 	type = "channel"
 
-	def __init__(self, service_id, engine, logger, sv_config=None):
-		super(RepubChannel, self).__init__(service_id, engine, logger, sv_config)
-		self.repub = repubmqtt.Republish(conf['RULES'], conf['XLATE'], '')
-		self.repub.setdebuglevel(DBG)
-		self.repub.register_publish_protocol('mongo', publish_mongo)
-		self.repub.register_publish_protocol('mqtt', publish_mqtt)
+	def __init__(self, service, engine, logger, sv_config=None):
+		super(RepubChannel, self).__init__(service, engine, logger, sv_config)
+		self.repub_rules = []
 
+
+	def defered_setup(self):
+		self.repub_rules = self.loadrules()
+		if self.repub_rules:
+			self.logger.debug("adding rules\s %s", pprint.pformat(self.repub_rules))
+		else:
+			self.logger.error("RepubChanned: no rules!!")
+			sys.exit(1)
+
+		self.connect_repub()
+
+
+	def connect_repub(self):
+		self.repub = repubmqtt.Republish(self.repub_rules, conf['XLATE'], '')
+		self.repub.setdebuglevel(DBG)
+		self.repub.register_publish_protocol('mongo', self.publish_mongo)
+		self.repub.register_publish_protocol('mqtt', self.publish_mqtt)
+
+
+	def loadrules(self):
+		def calldb(collection, func, what=None):
+			q = {'func': func, 'collection': collection}
+			q['what'] = what
+			return self.engine.ask_question("SteamDB", None, q)
+
+		rules = []
+		for tr in calldb('transforms', 'find'):
+			if tr['active'] != 'on':
+				self.logger.warn("transform '%s' not active", tr['transform_name'])
+				continue
+			te = {'name': tr['transform_name']}
+			fil = calldb('filters', 'find_one', {'_id': tr['filter']})
+			if fil == None:
+				raise SLException("no filter obj %s for transform %s" % (tr['filter'], tr['transform_name']))
+			te[fil['filter_name']] = eval(fil['filter_string'])
+			sel = calldb('selectors','find_one',{'_id': tr['selector']})
+			if sel == None:
+				raise SLException("no selector obj %s for transform %s" % (tr['selector'], tr['transform_name']))
+			nsel = eval(sel['selector_string'])
+			if len(nsel) != 0:
+				te[sel['selector_name']] = eval(sel['selector_string'])
+				msel = sel['selector_name']
+			else:
+				msel = ''
+
+			pub = calldb('publishers','find_one', {'_id': tr['publisher']})
+			if pub == None:
+				raise SLException("no publisher obj %s for transform %s" % (tr['publisher'], tr['transform_name']))
+			te[pub['publisher_name']] = eval(pub['publisher_string'])
+			te['rules'] = [[fil['filter_name'],msel, pub['publisher_name']]]
+			rules.append(te)
+
+		return rules
 
 	# Process SteamLink/+/+ messages
 	def process(self, msg):
@@ -203,21 +253,21 @@ class RepubChannel(steamengine.Service):
 		if topic_parts[2] == "data":
 			pkt = loads(msg.payload.decode('utf-8'))
 			pkt['_topic'] = msg.topic
-			self.logger.info("on_m: process_native data %s %s", msg.topic, str(pkt)[:70]+"...")
+			self.logger.debug("on_m: process_native data %s %s", msg.topic, str(pkt)[:90]+"...")
 			try:
 				self.repub.process_message(pkt)
 			except Exception as e:
 				self.logger.error("repub message error %s: %s", e, pkt, exc_info=True)
 			return
 		elif topic_parts[2] != "control":
-			logger.error( "bogus msg, %s: %s", msg.topic, msg.payload)
+			self.logger.error( "bogus msg, %s: %s", msg.topic, msg.payload)
 			return
 		try:
 			pkt = json.loads(msg.payload.decode('utf-8'))
 		except:
 			self.logger.error("control msg to '%s' not json: '%s'", msg.topic, msg.payload)
 			return
-		self.logger.info("native control msg %s %s", msg.topic, str(pkt)[:70]+"...")
+		self.logger.debug("native control msg %s %s", msg.topic, str(pkt)[:90]+"...")
 		try:
 			opkt = B_typ_0_new(self.engine, int(topic_parts[1]), pkt['payload'], None)
 		except Exception as e:
@@ -233,6 +283,41 @@ class RepubChannel(steamengine.Service):
 		if DBG >= 1: self.logger.debug("publish: %s %s", otopic, ":".join("{:02x}".format(c) for c in pac))
 		self.engine.publish(otopic, bytearray(pac), as_json=False)
 
+	#
+	# repubmqtt publishers
+	#
+	def publish_mongo(self, publish, output_data, record):
+		if publish['_testmode']:
+			self.logger.info("test: publish_mongo %s %s" % (url, output_data))
+			return
+		#N.B. we want to pass a dict to ..insert(..)
+		self.logger.debug("publish_mongo %s %s" % (publish['collection'], str(output_data)))
+
+		q = {'func': 'insert', 'collection': publish['collection'], 'what': None,
+				'url': publish['url'], 'db': publish['db'], 'data': output_data }
+		_id = self.engine.ask_question("SteamDB", None, q)
+		if not _id:
+			self.logger.error( "publish_mongo error: %s %s %s" % (_id, publish['collection'], str(output_data)))
+		return _id
+
+
+	def publish_mqtt(self, publish, output_data, data):
+		try:
+			topic = publish['topic'] % data
+		except KeyError as e:
+			self.logger.error( "publish topic '%s' missing key '%s' in data '%s'" % (publish['topic'], e, data))
+			return
+		retain = publish.get('retain',False)
+		if publish['_testmode']:
+			self.logger.info("test: publish_mqtt %s %s" % (topic, output_data))
+			return
+		print( "publish_mqtt %s %s" % (topic, output_data))
+		self.logger.critical( "publish_mqtt %s %s" % (topic, output_data))
+		rc, mid = self.engine.mqtt_con.publish(topic, output_data, retain=retain)
+		if rc:
+			self.logger.error( "publish_mqtt failed %s, %s %s %s" % (rc, topic, output_data, retain))
+
+
 
 #
 # TransportChannel
@@ -240,8 +325,13 @@ class RepubChannel(steamengine.Service):
 class TransportChannel(steamengine.Service):
 	type = "channel"
 
-	def __init__(self, service_id, engine, logger, sv_config=None):
-		super(TransportChannel, self).__init__(service_id, engine, logger, sv_config)
+	def __init__(self, service, engine, logger, sv_config=None):
+		super(TransportChannel, self).__init__(service, engine, logger, sv_config)
+
+
+	def shutdown(self):
+		self.running = False
+		self.engine.logger.info("Service %s shutdown" % self.service)
 
 
 	def poll(self):
@@ -253,11 +343,47 @@ class TransportChannel(steamengine.Service):
 	def process_transport_data(self, pkg, timestamp):
 		""" process a pkt received on the data topic, pubish on the 'native' topic """
 
-		if DBG >= 1: logger.debug("process_transport_data  %s", pkt.json())
+		if DBG >= 1: self.logger.debug("process_transport_data  %s", pkt.json())
 		# "native" publish
 		otopic = "%s/%s/data" % (self.sv_config['native'], pkt.sl_id)
 		print(pkg.dict())
 		self.engine.publish(otopic, pkt.dict(), as_json=False)
+
+
+	def write_stats_data(self, what, ddata=None):
+		data = []
+		if what == 'mesh':
+			for mname in self.engine.meshes.all():
+				data.append(self.engine.meshes.by_name(mname).reportstatus())
+		elif what == 'node':
+			for slid in self.engine.nodes.all():
+				d = self.engine.nodes.by_sl_id(slid).reportstatus()
+				if self.sv_config.get('brief_status', False):
+					d['payload'] = "***"
+				data.append(d)
+		elif what == 'log':
+			data = ddata
+
+		if self.sv_config.get('stats_topic', None):
+			topic = self.sv_config['stats_topic'] % what
+			self.engine.publish(topic, data, retain=True)
+
+		# TODO:  remove when eve reads mqtt stats channel
+
+		if self.sv_config.get('stats_socket', None):
+			stats_socket = self.sv_config['stats_socket']
+			sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+			if DBG >= 3: self.logger.debug('write_stats_data: connecting to %s' % stats_socket)
+			try:
+				sock.connect(stats_socket)
+			except socket.error as msg:
+				self.logger.warn('stats data not sent, cause: %s' % msg)
+				return
+
+			message = bytes("%s|%s" % (what, json.dumps(data)), 'UTF-8')
+			if DBG >= 3: self.logger.debug('write_stats_data: writing %s' % message)
+			sock.sendall(message)
+
 
 
 	# Process SL/+/+ messages
@@ -272,30 +398,30 @@ class TransportChannel(steamengine.Service):
 			try:
 				pkt = B_typ_0(self.engine, msg.payload, timestamp)
 			except SLException as e:
-				self.logger.error("transport packet error: %s" % e)
+				self.logger.error("transport packet error: %s", e)
 				return
 			except Exception as e:
 				self.logger.exception("transport payload or decrypt error: ")
 				return
-			self.logger.info("transport data %s %s", msg.topic, str(pkt.dict())[:70]+"...")
+			self.logger.debug("transport data %s %s", msg.topic, str(pkt.dict())[:90]+"...")
 
 			pkt.setmesh(topic_parts[1])
 			self.engine.nodes.by_sl_id(pkt.sl_id).updatestatus(pkt)
 			otopic = "%s/%s/data" % (self.sv_config['repubprefix'], pkt.sl_id)
 			self.engine.publish(otopic,  pkt.dict())
-			self.engine.write_stats_data('node')
+			self.write_stats_data('node')
 			if DBG >= 3: self.logger.debug("on_message: pkt is %s", str(pkt.dict()))
 
 		elif topic_parts[2] == "status":
-			self.logger.info("transport status %s %s", msg.topic, msg.payload)
+			self.logger.debug("transport status %s %s", msg.topic, msg.payload)
 			status = self.engine.meshes.by_name(topic_parts[1]).updatestatus(msg.payload)
-			self.engine.write_stats_data('mesh')
+			self.write_stats_data('mesh')
 			if DBG >= 3:
 				self.logger.debug("mesh status %s", self.engine.meshes.by_name(topic_parts[1]).reportstatus())
 		elif topic_parts[2] in ["state", "stats", "control" ]:
 			pass
 		else:
-			self.logger.error( "UNKNOWN %s payload %s" % (msg.topic, msg.payload))
+			self.logger.error( "UNKNOWN %s payload %s", msg.topic, msg.payload)
 
 
 
@@ -587,54 +713,6 @@ class B_typ_0_new(B_typ_0):
 		self.payload = pkt
 		self.setfields()
 
-
-# MongoDB class for publisher
-class MongoDB:
-	mongoclient = None
-	def __init__(self, mongourl, db):
-		self.mongourl = mongourl
-		self.startmongo()
-		self.mongodb = MongoDB.mongoclient[db]
-		self.collections = {}
-
-
-	def startmongo(self):
-		if not MongoDB.mongoclient:
-			logger.info("mongodb %s connected", self.mongourl)
-			MongoDB.mongoclient = MongoClient(self.mongourl)
-
-
-	def collection(self, collname):
-		if not self.mongodb:
-			self.startmongo()
-		self.collections[collname] = self.mongodb[collname]
-		return self.collections[collname]
-
-
-	def insert(self, collection, item):
-		if not collection in self.collections:
-			self.collection(collection)
-		tb = self.collections[collection]
-		_id = tb.insert_one(item).inserted_id
-		return _id
-
-
-	def find(self, collection, what=None):
-		if not collection in self.collections:
-			self.collection(collection)
-		tb = self.collections[collection]
-		res = tb.find(what)
-		return res
-
-
-	def find_one(self, collection, what):
-		if not collection in self.collections:
-			self.collection(collection)
-		tb = self.collections[collection]
-		res = tb.find_one(what)
-		return res
-
-
 #
 # Testing
 def time_a_question():
@@ -648,47 +726,10 @@ def time_a_question():
 	print("%0.2f per call" % dur)
 
 
-#
-# repubmqtt publishers
-#
-mongop = None
-def publish_mongo(publish, output_data, record):
-	global mongop
-
-	if publish['_testmode']:
-		logger.info("test: publish_mongo %s %s" % (url, output_data))
-		return
-	if not mongop:
-		mongop = MongoDB(publish['url'], publish['db'])
-	#N.B. we want to pass a dict to ..insert(..)
-	logger.info( "publish_mongo %s %s" % (publish['collection'], json.loads(output_data)))
-	_id = mongop.insert(publish['collection'], json.loads(output_data))
-	if not _id:
-		logger.error( "publish_mongo error: %s %s %s" % (_id, publish['collection'], json.loads(output_data)))
-	return _id
-
-
-mqttp = None	#N.B.
-def publish_mqtt(publish, output_data, data):
-	try:
-		topic = publish['topic'] % data
-	except KeyError as e:
-		logger.error( "publish topic '%s' missing key '%s' in data '%s'" % (publish['topic'], e, data))
-		return
-	retain = publish.get('retain',False)
-	if publish['_testmode']:
-		logger.info("test: publish_mqtt %s %s" % (topic, output_data))
-		return
-	logger.info( "publish_mqtt %s %s" % (topic, output_data))
-	rc, mid = mqttp.publish(topic, output_data, retain=retain)
-	if rc:
-		logger.error( "publish_mqtt failed %s, %s %s %s" % (rc, topic, output_data, retain))
-
-
 def change_runstate(newstate):
-	global run_action
-	run_action = newstate
-	signalevent.set()
+	global run_state
+	run_state = newstate
+	runstate_event.set()
 
 def handler(signum, frame):
 	logger.warn('received signal %s' % signum)
@@ -698,88 +739,16 @@ def handler(signum, frame):
 		change_runstate("terminate")
 
 
-#
-# StreamEnging wrapper
-def engine(config, logger):
-	global run_action, signalevent, mqttp
-	signalevent = Event()
-	signal.signal(signal.SIGHUP, handler)
-	signal.signal(signal.SIGTERM, handler)
-
+def check_required_names(conf):
 	err = False
 	for name in REQUIRED_NAMES:
-		if not name in config:
+		if not name in conf:
 			logger.error("required entry '%s' missing in config", name)
 			err = True
 	if err:
 		logger.error("correct config and try again")
 		sys.exit(1)
-
-	mdb = MongoDB(config['MONGO_URL'], config['MONGO_DB'])
-	mongo_rules = loadmongoconfig(mdb)
-	if mongo_rules:
-		logger.debug("adding rule %s", pprint.pformat(mongo_rules))
-		config['RULES'] += mongo_rules
-
-
-	sl = SEngine(config, logger)
-	mqttp = sl.mqtt_con		#N.B.
-	interval = conf.get('pollinterval', 30)
-	polltime = time.time() - interval	# force a get status
-	change_runstate("run")
-	while run_action == "run":
-		waitt = max(polltime + interval - time.time(), 0)
-		if waitt > 0:
-			signalevent.wait(waitt)
-			signalevent.clear()
-		else:
-			polltime = time.time()
-			sl.poll_for_status()
-
-	logger.info('now: %s', run_action)
-	sl.shutdown()
-	return run_action
-
-
-def loadmongoconfig(mdb):
-
-	mdb_transforms =  mdb.collection('transforms')
-	mdb_filters =  mdb.collection('filters')
-	mdb_selectors =  mdb.collection('selectors')
-	mdb_publishers =  mdb.collection('publishers')
-
-	rules = []
-	for tr in mdb_transforms.find():
-		if DBG >= 1: logger.debug("transform: %s", tr)
-		if tr['active'] != 'on':
-			logger.info( "transform '%s' not active" % tr['transform_name'])
-			continue
-		te = {'name': tr['transform_name']}
-		fil = mdb_filters.find_one({'_id': tr['filter']})
-		if fil == None:
-			raise SLException("no filter obj %s for transform %s" % (tr['filter'], tr['transform_name']))
-		te[fil['filter_name']] = eval(fil['filter_string'])
-		sel = mdb_selectors.find_one({'_id': tr['selector']})
-		if sel == None:
-			raise SLException("no selector obj %s for transform %s" % (tr['selector'], tr['transform_name']))
-		nsel = eval(sel['selector_string'])
-		if len(nsel) != 0:
-			te[sel['selector_name']] = eval(sel['selector_string'])
-			msel = sel['selector_name']
-		else:
-			msel = ''
-
-		pub = mdb_publishers.find_one({'_id': tr['publisher']})
-		if pub == None:
-			raise SLException("no publisher obj %s for transform %s" % (tr['publisher'], tr['transform_name']))
-		te[pub['publisher_name']] = eval(pub['publisher_string'])
-		te['rules'] = [[fil['filter_name'],msel, pub['publisher_name']]]
-		rules.append(te)
-
-#	mdb_nodes = mdb.collection(':
-
-	return rules
-
+	return
 
 
 
@@ -802,6 +771,31 @@ def getargs():
 					default=0, action="count")
 	parser.add_argument("conf", help="config file to use",  default=None)
 	return parser.parse_args()
+
+
+def loadallconfig():
+	if os.path.exists(os.path.expanduser("~/.steamlinkrc")):
+		if not loadconf(os.path.expanduser("~/.steamlinkrc")):
+			sys.exit(1)
+
+	if not loadconf(os.path.expanduser(cl_args.conf)):
+		sys.exit(1)
+
+
+def set_logging(logfile):
+	flog_format='%(asctime)s %(threadName)-12s %(levelname)-4s: %(message)s'
+	clog_format='%(threadName)-12s: %(message)s'
+	log_datefmt='%Y-%m-%d %H:%M:%S'
+	logging.basicConfig(level=loglevel, format=clog_format, datefmt=log_datefmt)
+	logger = logging.getLogger()
+	if logfile:
+		filelog = logging.handlers.RotatingFileHandler(logfile, maxBytes=10*1024*1024, backupCount=3)
+		fileformatter = logging.Formatter(flog_format, datefmt=log_datefmt)
+		filelog.setFormatter(fileformatter)
+		console = logger.handlers[0]
+		logger.addHandler(filelog)
+		logger.removeHandler(console)
+	return logger
 #
 # main
 #
@@ -821,60 +815,52 @@ else:
 
 DBG = cl_args.debug if cl_args.debug > 0 else DBG
 
+logger = set_logging(None)
 
-#flog_format='%(asctime)s %(threadName)-12s %(levelname)-4s: %(message)s'
-#clog_format='%(threadName)-12s %(levelname)-4s: %(message)s'
-flog_format='%(asctime)s %(threadName)-12s: %(message)s'
-clog_format='%(threadName)-12s: %(message)s'
-log_datefmt='%Y-%m-%d %H:%M:%S'
-log_name = 'steamlink'
+runstate_event = Event()
+run_state = "run"
 
-logging.basicConfig(level=loglevel, format=clog_format, datefmt=log_datefmt)
-logger = logging.getLogger()
+signal.signal(signal.SIGHUP, handler)
+signal.signal(signal.SIGTERM, handler)
 
-run_action = "run"
-while run_action is "run":
+while run_state is "run":
 	startts = time.time()
 	conf = {}
-	if os.path.exists(os.path.expanduser("~/.steamlinkrc")):
-		if not loadconf(os.path.expanduser("~/.steamlinkrc")):
-			sys.exit(1)
 
-	if not loadconf(os.path.expanduser(cl_args.conf)):
-		sys.exit(1)
+	loadallconfig()
+	check_required_names(conf)	# sys.exit on error!
+
 	DBG = cl_args.debug if cl_args.debug > 0 else conf.get('DBG',0)
+
 	if conf.get('PIDFILE', None):
-		pid = os.getpid()
-		open(conf['PIDFILE'],"w").write("%s" % pid)
+		open(conf['PIDFILE'],"w").write("%s" % os.getpid())
 
 	if conf.get('LOGFILE', None):
-		filelog = logging.handlers.RotatingFileHandler(conf['LOGFILE'], maxBytes=10*1024*1024, backupCount=3)
-		fileformatter = logging.Formatter(flog_format, datefmt=log_datefmt)
-		filelog.setFormatter(fileformatter)
-		console = logger.handlers[0]
-		logger.addHandler(filelog)
-		logger.removeHandler(console)
+		set_logging(conf['LOGFILE'])
+
 	rc = 0
 	logger.info('steamlink starting')
+	runstate_event.clear()
 	try:
-		run_action = engine(conf, logger)
-		if run_action is "restart":
-			run_action = "run"
-		else:
-			break
+		sl = SEngine(conf, logger)
+		runstate_event.wait()
 	except KeyboardInterrupt:
 		change_runstate("terminate")
-		break
+		rc = 2
 	except Exception as e:
-		logger.exception( 'main exit with error %s: ' % e)
 		if DBG > 0 or time.time() > (startts + 1):
-			run_action = "terminate"
-			logger.error( 'exit')
+			run_state = "terminate"
 			rc = 4
+		else:
+			run_state = "restart"
+			time.sleep(5)
+		logger.exception( 'steamlink runtime error, will now %s: %s: ' % (run_state, e))
+	finally:
+		sl.shutdown()
+		if run_state is "restart":
+			run_state = "run"
+		if run_state != "run":
 			break
-		logger.info( 'attempting restart in 5 seconds')
-		time.sleep(5)
 
 logger.info('steamlink exit, code=%s' % rc)
-
 sys.exit(rc)
