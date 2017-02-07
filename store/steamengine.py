@@ -15,6 +15,11 @@ from bson.json_util import dumps
 from bson.json_util import loads
 from pymongo import MongoClient
 
+# Defaults
+allow_short_circuit = True
+network_timeout = 10
+topic_encode = "SE/%(service)s/%(client_id)s/%(task_id)s/%(direction)s"
+
 DBG = 1
 
 class Err:
@@ -34,6 +39,34 @@ class Srv:
 			sys.exit(1)
 
 
+class Topic:
+	encode = None
+	def __init__(self, service, client_id=None, task_id=None, direction=None):
+		if direction != None:		# we have all strings --> descret
+			if not client_id or not task_id:
+				raise ValueError("Topic missing argument")
+			self.service = service
+			self.client_id = client_id
+			self.task_id = task_id
+			self.direction = direction
+		else:						# we have one string --> decode
+			topic = service
+			t = topic.split('/')
+			e = Topic.encode.split('/')
+			if len(t) != len(e):
+				raise ValueError("topic malformed: %s" % topic)
+			for i in range(len(t)):
+				if e[i][:2] == "%(" and e[i][-2:] == ')s':
+					n = e[i][2:-2]
+					self.__dict__[n] = t[i]
+				elif e[i] != t[i]:
+					raise ValueError("topic malformed2: %s" % topic)
+			return
+
+	def __repr__(self):
+		return Topic.encode % self.__dict__
+
+
 class SteamEngine:
 	""" implement routing of mqtt msgs to servers """
 
@@ -42,8 +75,9 @@ class SteamEngine:
 		self.logger = logger
 
 		self.my_clientid = conf['my_client_id']
-		self.short_circuit = conf.get('allow_short_circuit', False)
-		self.task_timeout = conf.get('network_timeout',10)
+		self.short_circuit = conf.get('allow_short_circuit', allow_short_circuit)
+		self.task_timeout = conf.get('network_timeout', network_timeout)
+		Topic.encode = conf.get('topic_encode', topic_encode)
 
 		# service_routing is keyed with subscription topic (mqtt flavoured re), values is the queue to send message to
 		self.running = True
@@ -58,7 +92,7 @@ class SteamEngine:
 
 		# queue to receive service answers
 		self.service_answers = queue.Queue()
-		self.service_answer_topic = "+/%s/+/a" % self.my_clientid
+		self.service_answer_topic = Topic("+", self.my_clientid, "+", "a")
 
 		# start answer runner
 		self.answer_task.start()
@@ -123,17 +157,18 @@ class SteamEngine:
 		self.logger.info("Steamlink run_answers start")
 		while self.running:
 			answer = self.service_answers.get()
-			topic = answer['_topic'][:-1]+'a'
+			topic = Topic(answer['_topic'])
+			topic.direction = 'a'
 			self.logger.info('run_answer publish %s %s', topic, str(answer)[:70]+"...")
-			self.mqtt_con.publish(topic, dumps(answer))
+			self.mqtt_con.publish(str(topic), dumps(answer))
 			self.service_answers.task_done()
 
 
 	def return_answer(self, pkt):
-		tp = pkt['_topic'].split('/')
-		client_id = tp[1]
-		task_id = int(tp[2])
-		if self.short_circuit and client_id == self.my_clientid and task_id in self.tasks:
+		tp = Topic(pkt['_topic'])
+		if self.short_circuit \
+				and tp.client_id == self.my_clientid \
+				and tp.task_id in self.tasks:
 			self.tasks[task_id].answer = pkt
 			self.tasks[task_id].set()
 		else:
@@ -180,13 +215,13 @@ class SteamEngine:
 
 
 	def subscribe(self, service_topic):
-		self.mqtt_con.subscribe(service_topic)
+		self.mqtt_con.subscribe(str(service_topic))
 		self.logger.info( "subscribe %s" % service_topic)
 
 
 	def mqtt_on_message(self, client, userdata, msg):
 		srv_type = None
-		if mqtt.topic_matches_sub(self.service_answer_topic, msg.topic):
+		if mqtt.topic_matches_sub(str(self.service_answer_topic), msg.topic):
 			srv_type = "answer"
 		else:
 			for service_sub in self.service_routing:
@@ -201,19 +236,16 @@ class SteamEngine:
 			self.service_routing[service_sub].queue.put(msg)
 
 		elif srv_type in ['server', 'answer']:
-			topic_parts = msg.topic.split('/')
-			assert len(topic_parts) is 4
-			assert topic_parts[1] == self.my_clientid
-			msg_service_id = topic_parts[0]
-			msg_task_id = int(topic_parts[2])
+			tp = Topic(msg.topic)
+			assert tp.client_id == self.my_clientid
 			pkt = json.loads(msg.payload.decode('utf-8'))
 			pkt['_topic'] = msg.topic
 			self.logger.info("mqtt_on_message %s %s", msg.topic, str(pkt)[:70]+"...")
 
 			if  srv_type is 'answer':
-				self.receive_answer(pkt, msg_task_id)
+				self.receive_answer(pkt, int(tp.task_id))
 			elif srv_type is 'server':
-				self.dispatch_service(msg_service_id, pkt)
+				self.dispatch_service(tp.service, pkt)
 
 
 	def receive_answer(self, pkt, task_id):
@@ -224,13 +256,13 @@ class SteamEngine:
 			self.tasks[task_id].set()
 
 
-	def dispatch_service(self, msg_service_id, pkt):
-		msg_service_topic = "%s/%s/+/q" % (msg_service_id, self.my_clientid)
+	def dispatch_service(self, msg_service, pkt):
+		msg_service_topic = str(Topic(msg_service, self.my_clientid, "+", "q"))
 		if not msg_service_topic in self.service_routing:
-			logger.error("no service '%s' defined", msg_service_id)
-			return 
+			self.logger.error("no service '%s' defined", msg_service)
+			return
 		self.service_routing[msg_service_topic].queue.put(pkt)
-		return 
+		return
 
 
 	def publish(self, topic, pkt, as_json=True, retain=False):
@@ -240,7 +272,7 @@ class SteamEngine:
 			opkt = dumps(pkt)
 		else:
 			opkt = pkt
-		self.mqtt_con.publish(topic, opkt, retain=retain)
+		self.mqtt_con.publish(str(topic), opkt, retain=retain)
 
 
 	def register_service(self, service_topic, service_queue, service_type):
@@ -253,15 +285,15 @@ class SteamEngine:
 				self.subscribe(service_topic)
 
 
-	def ask_question(self, service_id, client_id,  pkt):
+	def ask_question(self, service, client_id,  pkt):
 		if client_id == None:
-			client_id = self.conf['default_clients'].get(service_id, self.my_clientid)
+			client_id = self.conf['default_clients'].get(service, self.my_clientid)
 		task_id = self.new_task_id()
 		self.tasks[task_id] = Event()
-		topic = "%s/%s/%s/q" % (service_id, client_id, task_id)
+		topic = Topic(service, client_id, task_id, "q")
 		if self.short_circuit and client_id == self.my_clientid:
 			pkt['_topic'] = topic
-			self.dispatch_service(service_id, pkt)
+			self.dispatch_service(service, pkt)
 		else:
 			self.publish(topic, pkt)
 		if self.tasks[task_id].wait(self.task_timeout):
@@ -281,22 +313,22 @@ class SteamEngine:
 # Service
 class Service(Thread):
 	type = "server"	# or "channel"
-	def __init__(self, service_id, engine, logger, sv_config):
+	def __init__(self, service, engine, logger, sv_config):
 		super(Service, self).__init__()
 		self.request_q = queue.Queue()
 		self.sv_config = sv_config
 		self.daemon = True
 
 		self.logger = logger
-		self.service_id = service_id
+		self.service = service
 		self.engine = engine
-		self.name = "%s_th" % service_id
+		self.name = "%s_th" % service
 
 		if 'topic' in sv_config:
 			self.service_topic = sv_config['topic']
 		else:
-			self.service_topic = "%s/%s/+/q" % (service_id, engine.my_clientid)
-			sv_config['topic'] = self.service_topic 
+			self.service_topic = str(Topic(service, engine.my_clientid, "+", "q"))
+			sv_config['topic'] = self.service_topic
 
 		if 'type' in sv_config:
 			self.service_type = sv_config['type']
@@ -309,7 +341,7 @@ class Service(Thread):
 
 
 	def run(self):
-		self.engine.logger.info("Service %s start" % self.service_id)
+		self.engine.logger.info("Service %s start" % self.service)
 		while self.running:
 			pkt = self.request_q.get()
 			if self.service_type == 'channel':
