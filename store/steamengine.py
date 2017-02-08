@@ -8,6 +8,7 @@ import paho.mqtt.client as mqtt
 import json
 import queue
 import sys
+import time
 import inspect
 
 from bson import Binary, Code
@@ -90,12 +91,19 @@ class SteamEngine:
 		self.answer_task.name = "answer_th"
 		self.answer_task.daemon = True
 
+		# create thread to polling
+		self.poll_interval = int(self.conf.get('pollinterval', 3600))
+		self.poll_task = Thread(target=self.run_poll)
+		self.poll_task.name = "poll_th"
+		self.poll_task.daemon = True
+
 		# queue to receive service answers
 		self.service_answers = queue.Queue()
-		self.service_answer_topic = str(Topic("+", self.my_clientid, "+", "a"))
+		self.service_answer_topic = Topic("+", self.my_clientid, "+", "a")
 
-		# start answer runner
+		# start runners
 		self.answer_task.start()
+		self.poll_task.start()
 
 		# connect to broker
 		self.mqtt_ready = Event()
@@ -106,17 +114,31 @@ class SteamEngine:
 
 
 	def shutdown(self):
-		self.mqtt_con.disconnect()
+		self.running = False
 		self.mqtt_con.loop_stop()
+		self.mqtt_con.disconnect()
+		for service in self.conf['services']:
+			self.services[service].shutdown()
 
 
 	def poll_for_status(self):
 		for service in self.services:
 			if getattr(self.services[service], 'poll', None) \
-				and inspect.ismethod(self.services[service].poll):
-
-				self.logger.info("polling %s", service)
+					and inspect.ismethod(self.services[service].poll):
+				self.logger.debug("polling %s", service)
 				self.services[service].poll()
+
+
+	def run_poll(self):
+		self.logger.info("Steamlink run_poll start")
+		polltime = time.time() - self.poll_interval	+ 3 # force poll 3 sec after boot
+		while self.running:
+			waitt = max(polltime + self.poll_interval - time.time(), 0)
+			if waitt > 0:
+				time.sleep(waitt)
+			else:
+				polltime = time.time()
+				self.poll_for_status()
 
 
 	def check_sv(self, sv, avail_services):
@@ -130,6 +152,7 @@ class SteamEngine:
 		if err:
 			self.logger.error("correct config and re-run")
 			sys.exit(1)
+
 
 	def get_available_services(self):
 		# find available channels by searching all classes for a 'type' class variable
@@ -159,7 +182,7 @@ class SteamEngine:
 			answer = self.service_answers.get()
 			topic = Topic(answer['_topic'])
 			topic.direction = 'a'
-			self.logger.info('run_answer publish %s %s', topic, str(answer)[:70]+"...")
+			self.logger.debug('run_answer publish %s %s', topic, str(answer)[:70]+"...")
 			self.mqtt_con.publish(str(topic), dumps(answer))
 			self.service_answers.task_done()
 
@@ -216,7 +239,7 @@ class SteamEngine:
 
 	def subscribe(self, service_topic):
 		self.mqtt_con.subscribe(str(service_topic))
-		self.logger.info( "subscribe %s" % service_topic)
+		self.logger.debug( "subscribe %s" % service_topic)
 
 
 	def mqtt_on_message(self, client, userdata, msg):
@@ -240,7 +263,7 @@ class SteamEngine:
 			assert tp.client_id == self.my_clientid
 			pkt = json.loads(msg.payload.decode('utf-8'))
 			pkt['_topic'] = msg.topic
-			self.logger.info("mqtt_on_message %s %s", msg.topic, str(pkt)[:70]+"...")
+			self.logger.debug("mqtt_on_message %s %s", msg.topic, str(pkt)[:70]+"...")
 
 			if  srv_type is 'answer':
 				self.receive_answer(pkt, int(tp.task_id))
@@ -267,7 +290,7 @@ class SteamEngine:
 
 	def publish(self, topic, pkt, as_json=True, retain=False):
 		self.mqtt_ready.wait()
-		self.logger.info("publish: %s %s", topic, pkt)
+		self.logger.debug("publish: %s %s", topic, pkt)
 		if as_json:
 			opkt = dumps(pkt)
 		else:
@@ -279,7 +302,7 @@ class SteamEngine:
 		if  service_topic in self.service_routing:
 			logger.error("service %s already defined", service_topic)
 		else:
-			self.logger.info("register service %s", service_topic)
+			self.logger.debug("register service %s", service_topic)
 			self.service_routing[service_topic] = Srv(service_queue, service_type)
 			if self.mqtt_ready.is_set():
 				self.subscribe(service_topic)
@@ -340,7 +363,17 @@ class Service(Thread):
 		self.running = True
 
 
+	def defered_setup(self):
+		pass
+
+
+	def shutdown(self):
+		self.engine.logger.info("Service %s shutdown" % self.service)
+		self.running = False
+
+
 	def run(self):
+		self.defered_setup()
 		self.engine.logger.info("Service %s start" % self.service)
 		while self.running:
 			pkt = self.request_q.get()
@@ -353,6 +386,7 @@ class Service(Thread):
 				answer['_topic'] = save_topic
 				self.engine.return_answer(answer)
 				self.request_q.task_done()
+		self.engine.logger.info("Service %s finished" % self.service)
 
 
 	def process(self, pkt):
