@@ -112,5 +112,11 @@ rssi    signal      8 bit
 `toronto/+/temperature` --> `toronto/temperature`
 
 
+# TODOS
+* bridges
+  + bridges are nodes too, allocate a node record and make it's address 1
+  + fix bridge_token it needs the mesh_id
 
 
+* packet formats
+  + add a pkt counter in each direction so nodes/stores can know if pkts were lost
