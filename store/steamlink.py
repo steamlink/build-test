@@ -633,7 +633,7 @@ class Nodes:
 
 		res = self.sl.ask_question("SteamDB", None, {'func': "find_one", 'what': {'sl_id': sl_id}, 'collection': 'nodes'})
 		if res is None:
-			raise SLException("no node with sl_id %s" % (sl_id)
+			raise SLException("no node with sl_id %s" % (sl_id))
 		if '_err' in res:
 			raise SLException("cannot get node with sl_id %s: %s" % (sl_id, res['_err']))
 		try:		# hack to get mongodb ObjectIDs across json channels
