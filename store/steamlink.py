@@ -535,9 +535,11 @@ class Meshes:
 
 	def getmesh(self, what):
 		res = self.sl.ask_question("SteamDB", None, {'func': "find_one", 'what': what, 'collection': 'meshes'})
-		if res == None or '_err' in res:
+		if res is None:
 			raise SLException("no mesh %s" % what)
-		try:		# mega-kludge to get mongodb ObjectIDs across json channels
+		if '_err' in res:
+			raise SLException("cannot get mesh %s" % what)
+		try:		# hack to get mongodb ObjectIDs across json channels
 			oid = res['_id']['$oid']
 		except:
 			oid = str(res['_id'])
@@ -581,8 +583,10 @@ class Swarms:
 		if oid in Swarms.swarm_table:
 			return Swarms.swarm_table[oid]
 		res = self.sl.ask_question("SteamDB", None, {'func': "find_one", 'what': {'_id': ObjectId(oid)}, 'collection': 'swarms'})
-		if not res or  '_err' in res:
+		if not res:
 			raise SLException("no swarm %s" % oid)
+		if '_err' in res:
+			raise SLException("cannot get swarm %s" % oid)
 		swarm = Swarm(oid, res['swarm_name'], \
 					res['swarm_crypto']['crypto_key'], \
 					res['swarm_crypto']['crypto_type'])
@@ -628,10 +632,11 @@ class Nodes:
 			return Nodes.node_table[sl_id]
 
 		res = self.sl.ask_question("SteamDB", None, {'func': "find_one", 'what': {'sl_id': sl_id}, 'collection': 'nodes'})
+		if res is None:
+			raise SLException("no node with sl_id %s" % (sl_id)
 		if '_err' in res:
-			raise SLException("no node %s: %s" % (sl_id, res['_err']))
-
-		try:		# mega-kludge to get mongodb ObjectIDs across json channels
+			raise SLException("cannot get node with sl_id %s: %s" % (sl_id, res['_err']))
+		try:		# hack to get mongodb ObjectIDs across json channels
 			msh = self.sl.meshes.by_oid(str(res['mesh']))
 			swm = self.sl.swarms.by_oid(str(res['swarm']))
 		except:
@@ -687,7 +692,7 @@ class B_typ_0:
 			try:
 				self.payload = dcrypted.decode().rstrip('\0')
 			except:
-				raise SLException("B_typ_0: wrong crypto key??")
+				raise SLException("B_typ_0 for sl_id %s: wrong crypto key??" % self.sl_id)
 		elif len(pkt) > 8:
 			raise SLException("B_typ_0: impossible payload length")
 		else:
