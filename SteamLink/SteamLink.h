@@ -54,6 +54,15 @@ class SteamLink {
   uint8_t tx_power = SL_DEFAULT_TXPWR;
   sl_config conf;
   sl_pins pins;
+
+  RH_RF95::ModemConfig modem_config[1] = {
+   { // conf number 4, see https://lowpowerlab.com/forum/general-topics/issue-with-lora-long-range-modes-and-rfm95rfm96/
+    .reg_1d = 0x78, // Reg 0x1D: BW=125kHz, Coding=4/8, Header=explicit
+    .reg_1e = 0xc4, // Reg 0x1E: Spread=4096chips/symbol, CRC=enable
+    .reg_26 = 0x0c  // Reg 0x26: LowDataRate=On, Agc=On
+   }
+  };
+
   RH_RF95* driver;
 //  RHMesh* manager;
   RHDatagram* manager;
