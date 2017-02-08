@@ -16,8 +16,7 @@ void SteamLink::init(char* token, bool encrypted) {
   Serial.println();
 #endif
   Serial.print("sl_id: ");
-  phex(conf.sl_id, 4);
-  Serial.println();
+  Serial.println(conf.sl_id);
   Serial.print("freq: ");
   Serial.println(conf.freq);
   Serial.print("mod_conf: ");
@@ -93,7 +92,7 @@ SL_ERROR SteamLink::send(uint8_t* buf, uint8_t to_addr, uint8_t len) {
 #endif
     packet_size = encrypted_packet_size + 4;
     packet = (uint8_t*) malloc(packet_size);
-    memcpy(&packet[0], conf.sl_id, sizeof(conf.sl_id));
+    memcpy(&packet[0], &conf.sl_id, sizeof(conf.sl_id));
     memcpy(&packet[4], encrypted_packet, encrypted_packet_size);
     free(encrypted_packet);
 //    sent = manager->sendtoWait(packet, packet_size, to_addr);
