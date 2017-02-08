@@ -7,7 +7,7 @@ struct sl_config {
   // private key
   uint8_t key[16];
   // SteamLink ID
-  uint8_t sl_id[4];
+  uint32_t sl_id;
   // freq: the SX1276 chips support multiple radio frequencies, we use
   // 915 MHz in North America (ISM Band), leave as default
   float freq = 915.0;
