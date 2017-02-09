@@ -182,6 +182,7 @@ class SteamEngine:
 			answer = self.service_answers.get()
 			topic = Topic(answer['_topic'])
 			topic.direction = 'a'
+			topic.client_id = answer['_origin']
 			self.logger.debug('run_answer publish %s %s', topic, str(answer)[:70]+"...")
 			self.mqtt_con.publish(str(topic), dumps(answer))
 			self.service_answers.task_done()
@@ -318,6 +319,7 @@ class SteamEngine:
 			pkt['_topic'] = str(topic)
 			self.dispatch_service(service, pkt)
 		else:
+			pkt['_origin'] = self.my_clientid
 			self.publish(topic, pkt)
 		if self.tasks[task_id].wait(self.task_timeout):
 			answer = self.tasks[task_id].answer
@@ -381,9 +383,11 @@ class Service(Thread):
 				self.process(pkt)
 			else:
 				save_topic = pkt['_topic']
+				save_origin = pkt['_origin']
 				del pkt['_topic']
 				answer = self.process(pkt)
 				answer['_topic'] = save_topic
+				answer['_origin'] = save_origin
 				self.engine.return_answer(answer)
 				self.request_q.task_done()
 		self.engine.logger.info("Service %s finished" % self.service)
