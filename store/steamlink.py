@@ -295,15 +295,21 @@ class RepubChannel(steamengine.Service):
 			self.logger.error("control msg to '%s' not json: '%s'", msg.topic, msg.payload)
 			return
 		self.logger.debug("native control msg %s %s", msg.topic, str(pkt)[:90]+"...")
+
+		sl_id = int(topic_parts[1])
 		try:
-			opkt = B_typ_0_new(self.engine, int(topic_parts[1]), pkt['payload'], None)
+			opkt = B_typ_0(self.logger, sl_id, pkt['payload'])
 		except Exception as e:
-			self.logger.error( "could not build binary pkt from '%s' '%s', cause '%s'", msg.topic, pkt, e)
+			self.logger.error("could not build binary pkt from '%s' '%s', cause '%s'", msg.topic, pkt, e)
 			return
+
+		node = self.engine.nodes.by_sl_id(opkt.sl_id)
+		if not node:
+			raise SLException("repub: node %s not in table" % self.sl_id)
+		opkt.setfields(node.node_id, node.mesh.mesh_name, node.swarm.swarm_bkey)
 		try:
 			otopic = "%s/%s/control" % (self.sv_config['repubprefix'], opkt.mesh)
-			bkey = self.engine.swarms.by_sl_id(opkt.sl_id).swarm_bkey
-			pac = opkt.pack(bkey)
+			pac = opkt.pack()
 		except Exception as e:
 			self.logger.error( "could not build packet, cause %s" % e)
 			return
@@ -380,10 +386,10 @@ class TransportChannel(steamengine.Service):
 	def process_transport_data(self, pkg, timestamp):
 		""" process a pkt received on the data topic, pubish on the 'native' topic """
 
-		if DBG >= 1: self.logger.debug("process_transport_data  %s", pkt.json())
+		if DBG >= 1: self.logger.debug("process_transport_data  %s", str(pkt))
 		# "native" publish
 		otopic = "%s/%s/data" % (self.sv_config['native'], pkt.sl_id)
-		print(pkg.dict())
+		print(pkg)
 		self.engine.publish(otopic, pkt.dict(), as_json=False)
 
 
@@ -426,28 +432,35 @@ class TransportChannel(steamengine.Service):
 	# Process SL/+/+ messages
 	def process(self, msg):
 		topic_parts = msg.topic.split('/')
-		timestamp = time.time()		# TODO should come from msg?
 		if len(topic_parts) != 3:
 			self.logger.error("transport topic invalid: %s", topic_parts)
 			return
 
 		if topic_parts[2] == "data":
+			mesh = topic_parts[1]
+			pkt = B_typ_0(self.logger)
 			try:
-				pkt = B_typ_0(self.engine, msg.payload, timestamp)
+				pkt.unpack(msg.payload)
 			except SLException as e:
 				self.logger.error("transport packet error: %s", e)
 				return
 			except Exception as e:
 				self.logger.exception("transport payload or decrypt error: ")
 				return
-			self.logger.debug("transport data %s %s", msg.topic, str(pkt.dict())[:90]+"...")
 
-			pkt.setmesh(topic_parts[1])
+			node = self.engine.nodes.by_sl_id(pkt.sl_id)
+			if not node:
+				raise SLException("transport: node %s not in table" % self.sl_id)
+			if mesh != node.mesh.mesh_name:
+				raise SLException("transport: node %s msg from %s should be in %s" % (self.sl_id, mesh, node.mesh.mesh_name))
+			pkt.setfields(node.node_id, node.mesh.mesh_name, node.swarm.swarm_bkey)
+			self.logger.debug("transport data %s %s", msg.topic,str(pkt)[:90]+"...")
+
 			self.engine.nodes.by_sl_id(pkt.sl_id).updatestatus(pkt)
 			otopic = "%s/%s/data" % (self.sv_config['repubprefix'], pkt.sl_id)
 			self.engine.publish(otopic,  pkt.dict())
 			self.write_stats_data('node')
-			if DBG >= 3: self.logger.debug("on_message: pkt is %s", str(pkt.dict()))
+			if DBG >= 3: self.logger.debug("on_message: pkt is %s", str(pkt))
 
 		elif topic_parts[2] == "status":
 			self.logger.debug("transport status %s %s", msg.topic, msg.payload)
@@ -460,9 +473,6 @@ class TransportChannel(steamengine.Service):
 		else:
 			self.logger.error( "UNKNOWN %s payload %s", msg.topic, msg.payload)
 
-
-
-NOMESH = "nomesh"	 # placeholder
 
 #
 # Mesh
@@ -653,69 +663,62 @@ class SLException(BaseException):
 	pass
 
 
+# empty transport packet
 class B_typ_0:
-	""" store to bridge packet format """
-
 	sfmt = '<BBBL'
-	def __init__(self, sl, pkt=None, timestamp=None):
-		self.mesh = NOMESH
-		self.sl = sl
-		self.logger = self.sl.logger
-		if not timestamp:
-			timestamp = time.time()
-		self._ts = time.strftime("%Y-%m-%d %H:%M:%S",time.localtime(timestamp))
-		if pkt:
-			dlen = len(pkt) - struct.calcsize(B_typ_0.sfmt)
-			sfmt = "%s%is" % (B_typ_0.sfmt, dlen)
-			nb_ver, self.node_id, self.rssi, self.sl_id, epayload =  struct.unpack(sfmt, pkt)
-			self.n_ver = (nb_ver & 0xF0) >> 4
-			self.b_ver = nb_ver & 0x0F
-			if self.n_ver != N_TYP_VER or self.b_ver != B_TYP_VER:
-				raise SLException("B/N type version mismatch: %s %s" % (self.n_ver, self.b_ver))
-			self.rssi = self.rssi - 256
-			if DBG >= 3: self.logger.debug("pkt self.n_ver %s self.b_ver %s self.rssi %s self.node_id %s self.sl_id %s", \
-				self.n_ver, self.b_ver, self.rssi, self.node_id, self.sl_id)
-		else:
-			pkt = ''
-			self.n_ver = N_TYP_VER
-			self.b_ver = B_TYP_VER
-			self.rssi = -10
-			self.node_id = 0
-			self.sl_id = 1
-			epayload = b''
 
-		if len(epayload) > 0:
-			if not self.sl.nodes.by_sl_id(self.sl_id):
-				raise SLException("init: node %s not in table" % self.sl_id)
-			bkey = self.sl.swarms.by_sl_id(self.sl_id).swarm_bkey
-			dcrypted = self.AES128_decrypt(epayload, bkey)
-			try:
-				self.payload = dcrypted.decode().rstrip('\0')
-			except:
-				raise SLException("B_typ_0 for sl_id %s: wrong crypto key??" % self.sl_id)
-		elif len(pkt) > 8:
-			raise SLException("B_typ_0: impossible payload length")
-		else:
-			self.payload = ''
+	def __init__(self, logger, sl_id=None, pkt=None):
+		self.logger = logger
+		self.sl_id = sl_id
+		self.timestamp = time.time()
+		self._ts = time.strftime("%Y-%m-%d %H:%M:%S",time.localtime(self.timestamp))
+		self.payload = pkt
+		self.epayload = None
+		self.n_ver = N_TYP_VER
+		self.b_ver = B_TYP_VER
+		self.rssi = -10
+		self.mesh = None
+		self.bkey = None
+		self.node_id = None
+		self.bkey = None
 
-	def setmesh(self, mesh):
+
+	def setfields(self, node_id, mesh, bkey):
+		if self.mesh and mesh != self.mesh:
+			raise SLException("B_typ_0: node %s from %s, should be from %s " % \
+				(self.sl_id, self.mesh, mesh))
 		self.mesh = mesh
+		self.node_id = node_id
+		self.bkey = bkey
+		if self.epayload:		# we have encrypted payload, decrypt
+			decrypted = self.AES128_decrypt(self.epayload, self.bkey)
+			try:
+				self.payload = decrypted.decode().rstrip('\0')
+			except:
+				raise SLException("B_typ_0: node sl_id %s: wrong crypto key??" % self.sl_id)
+
+	def unpack(self, epkt):
+		dlen = len(epkt) - struct.calcsize(B_typ_0.sfmt)
+		sfmt = "%s%is" % (B_typ_0.sfmt, dlen)
+		nb_ver, self.node_id, rssi, self.sl_id, self.epayload = \
+				 struct.unpack(sfmt, epkt)
+		self.n_ver = (nb_ver & 0xF0) >> 4
+		self.b_ver = nb_ver & 0x0F
+		if self.n_ver != N_TYP_VER or self.b_ver != B_TYP_VER:
+			raise SLException("B_typ_0: B/N type version mismatch: %s %s" % (self.n_ver, self.b_ver))
+		self.rssi = rssi - 256
+		if DBG >= 3: self.logger.debug("pkt self.n_ver %s self.b_ver %s self.rssi %s self.node_id %s self.sl_id %s", \
+			self.n_ver, self.b_ver, self.rssi, self.node_id, self.sl_id)
 
 
-	def setfields(self):
-#		if not self.sl.nodes.by_sl_id(self.sl_id):
-#			raise SLException("pack: node %s not in table" % self.sl_id)
-		self.node_id = self.sl.nodes.by_sl_id(self.sl_id).node_id
-		self.mesh = self.sl.nodes.by_sl_id(self.sl_id).mesh.mesh_name
-
-
-	def pack(self, bkey):
+	def pack(self):
 		""" return a binary on-wire packet """
+		if not self.node_id:
+			raise SLException("B_typ_0: no node_id!")
 
-		self.setfields()
 		header = struct.pack(B_typ_0.sfmt, (self.n_ver << 4) | self.b_ver, self.node_id, self.rssi + 256, self.sl_id)
-		payload = self.AES128_encrypt(self.payload, bkey)
-		return header + payload
+		self.epayload = self.AES128_encrypt(self.payload, self.bkey)
+		return header + self.epayload
 
 
 	def AES128_decrypt(self, pkt, bkey):
@@ -741,19 +744,10 @@ class B_typ_0:
 			'_sl_id': self.sl_id, '_ts': self._ts, 'payload': self.payload }
 
 
-	def json(self):
-		return  dumps(self.dict())
+	def __str__(self):
+		return str(self.dict())
 
 
-	# alternate initializer for B_typ
-class B_typ_0_new(B_typ_0):
-	def __init__(self, sl, sl_id, pkt, timestamp):
-		B_typ_0.__init__(self, sl, timestamp=timestamp)
-		self.sl = sl
-		self.logger = sl.logger
-		self.sl_id = sl_id
-		self.payload = pkt
-		self.setfields()
 
 #
 # Testing
