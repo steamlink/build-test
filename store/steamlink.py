@@ -454,7 +454,8 @@ class TransportChannel(steamengine.Service):
 			if not node:
 				raise SLException("transport: node %s not in table" % self.sl_id)
 			if mesh != node.mesh.mesh_name:
-				raise SLException("transport: node %s msg from %s should be in %s" % (self.sl_id, mesh, node.mesh.mesh_name))
+				logger.error("transport: node %s msg from %s should be in %s", node.sl_id, mesh, node.mesh.mesh_name)
+				return
 			pkt.setfields(node.node_id, node.mesh.mesh_name, node.swarm.swarm_bkey)
 			self.logger.debug("transport data %s %s", msg.topic,str(pkt)[:90]+"...")
 
