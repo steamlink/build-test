@@ -15,6 +15,7 @@ from Crypto.Cipher import AES
 class SLException(BaseException):
 	pass
 
+DBG = 0
 
 N_TYP_VER = 0
 B_TYP_VER = 0
