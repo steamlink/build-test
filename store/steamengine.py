@@ -315,11 +315,11 @@ class SteamEngine:
 		task_id = self.new_task_id()
 		self.tasks[task_id] = Event()
 		topic = Topic(service, client_id, task_id, "q")
+		pkt['_origin'] = self.my_clientid
 		if self.short_circuit and client_id == self.my_clientid:
 			pkt['_topic'] = str(topic)
 			self.dispatch_service(service, pkt)
 		else:
-			pkt['_origin'] = self.my_clientid
 			self.publish(topic, pkt)
 		if self.tasks[task_id].wait(self.task_timeout):
 			answer = self.tasks[task_id].answer
