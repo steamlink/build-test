@@ -228,10 +228,7 @@ class SteamLink:
 		pkt.unpack(msg.payload)
 
 		if pkt.node_id != self.token.node_id:
-			self.logger("got pkt for %s but we are %s" % (pkt.node_id,self.token.node_id))
-			return
-		if pkg.mesh != self.mesh:
-			self.logger("got pkt for %s but we are %s" % (pkt.mesh,self.mesh))
+			self.logger.error("got pkt for %s but we are %s" % (pkt.node_id,self.token.node_id))
 			return
 		pkt.setfields(self.token.node_id, self.mesh, self.token.key)
 		self.on_receive(pkt.payload)
