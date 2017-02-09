@@ -1,8 +1,23 @@
+#!/usr/local/bin/python3
+
+import struct
+import logging
+import random
+import traceback
+import time
+import sys
+import os
+
+from threading import Thread, Event
+from Crypto.Cipher import AES
 
 
 class SLException(BaseException):
 	pass
 
+
+N_TYP_VER = 0
+B_TYP_VER = 0
 
 # empty transport packet
 class B_typ_0:
@@ -25,9 +40,6 @@ class B_typ_0:
 
 
 	def setfields(self, node_id, mesh, bkey):
-		if self.mesh and mesh != self.mesh:
-			raise SLException("B_typ_0: node %s from %s, should be from %s " % \
-				(self.sl_id, self.mesh, mesh))
 		self.mesh = mesh
 		self.node_id = node_id
 		self.bkey = bkey
@@ -89,4 +101,143 @@ class B_typ_0:
 		return str(self.dict())
 
 
+
+class SLToken:
+	from binascii import unhexlify
+	fmt = '<16sifBB'
+	def __init__(self, token_str):
+		btoken = SLToken.unhexlify(token_str)
+		self.key, self.sl_id, self.freq, self.mod_conf, self.node_id = \
+				 struct.unpack(SLToken.fmt, btoken)
+
+	def __str__(self):
+		return "%s %s %s %s %s" % (self.key, self.sl_id, self.freq, self.mod_conf, self.node_id)
+
+
+def loadconf(conffile):
+
+	global_env = {'__builtin__': None }
+	conf = {}
+	try:
+		exec(open(conffile).read(), global_env, conf )
+	except Exception as e:
+		print("Load of config %s failed: %s" % (conffile, e), file=sys.stderr)
+		traceback.print_exc(file=sys.stderr)
+		return None
+	return conf
+
+
+class MqttCon:
+	import paho.mqtt.client as mqtt
+	def __init__(self, logger, conf, subscriptions, on_message):
+		self.logger = logger
+		self.conf = conf
+		self.mqtt_ready = Event()
+		self.mqtt_ready.clear()
+		self.subscriptions = subscriptions
+		self.cb_on_message = on_message
+		client_id = self.conf['MQTT_CLIENTID'] + str(int(random.uniform(1, 1000)))
+		self.con = MqttCon.mqtt.Client(client_id=self.conf['MQTT_CLIENTID'])
+		self.con.tls_set(self.conf['MQTT_CERT']),
+		self.con.username_pw_set(self.conf['MQTT_USERNAME'], self.conf['MQTT_PASSWORD'])
+		self.con.tls_insecure_set(False)
+		self.con.on_connect = self.on_connect
+		self.con.on_disconnect = self.on_disconnect
+		self.con.on_message = self.on_message
+
+		self.logger.info("connecting to MQTT")
+		self.con.connect(self.conf['MQTT_SERVER'], self.conf['MQTT_PORT'], 60)
+		self.con.loop_start()
+		self.con._thread.name = "mqtt_th"  # N.B.
+
+	def on_connect(self, client, userdata, flags, rc):
+		self.logger.warn("connected to MQTT boker,code "+str(rc))
+		for sub in self.subscriptions:
+			self.con.subscribe(sub)
+		self.mqtt_ready.set()
+
+	def on_disconnect(self, client, userdata, flags):
+		self.mqtt_ready.clear()
+		self.logger.warn("disconnected from MQTT boker")
+
+	def on_message(self, client, userdata, msg):
+		return self.cb_on_message(self, client, userdata, msg)
+
+	def subscribe(self, service_topic):
+		self.con.subscribe(str(service_topic))
+
+	def publish(self, topic, pkt, retain=False):
+		self.mqtt_ready.wait()
+		self.logger.warn("publish %s", topic)
+		self.con.publish(topic, pkt, retain)
+
+	def shutdown(self):
+		self.con.loop_stop()
+
+#
+# SteamLink class
+class SteamLink:
+	def __init__(self, logger, token, mesh, encrypted=True):
+		self.logger = logger
+		self.token = SLToken(token)
+		self.mesh = mesh
+		self.encrypted = encrypted
+		self.on_receive = None
+
+		self.pubtopic = "SL/%s/data" % self.mesh
+		self.subscriptions = ["SL/%s/control" % self.mesh]
+
+		if __name__ == "__main__":
+			conffile = os.path.expanduser("~/.steamlinkrc")
+		elif os.environ.get("STEAMLINKRC", None):
+			conffile = os.environ["STEAMLINKRC"]
+		else:
+			print("no config found, use ~/.steamlinkrc or environ STEAMLINKRC")
+			sys.exit(1)
+
+		self.conf = loadconf(conffile)
+
+		self.mqtt_con = MqttCon(logger, self.conf, self.subscriptions, self.on_message)
+	
+
+	def send(self, buf, to_addr=None, len=None):
+		pkt = B_typ_0(self.logger, self.token.sl_id, buf)
+
+		pkt.setfields(self.token.node_id, self.mesh, self.token.key)
+
+		ppkt = pkt.pack()
+		self.mqtt_con.publish(self.pubtopic, ppkt)
+		return 0
+
+
+	def on_message(self, client, userdata, msg):
+		if not self.on_receive:
+			self.logger("no on_receive, pkt dropped")
+			return
+		pkt = B_typ_0(self.logger)
+		pkt.unpack(msg.payload)
+
+		if pkt.node_id != self.token.node_id:
+			self.logger("got pkt for %s but we are %s" % (pkt.node_id,self.token.node_id))
+			return
+		if pkg.mesh != self.mesh:
+			self.logger("got pkt for %s but we are %s" % (pkt.mesh,self.mesh))
+			return
+		pkt.setfields(self.token.node_id, self.mesh, self.token.key)
+		
+	
+	def register_handler(self, on_receive, func=None):
+		self.on_receive = on_receive
+
+
+	def update(self):
+		pass
+
+
+	def set_pin(self, *args):
+		pass
+
+
+	def get_last_rssu(self):
+		return 0;
 
