@@ -300,9 +300,9 @@ class RepubChannel(steamengine.Service):
 		self.logger.debug("native control msg %s %s", msg.topic, str(pkt)[:90]+"...")
 
 		if type(pkt) == type({}) and 'payload' in pkt:
-			dpkt = pkt['payload']
+			dpkt = str(pkt['payload'])
 		else:
-			dpkt = pkt
+			dpkt = str(pkt)
 
 		sl_id = int(topic_parts[1])
 		try:
