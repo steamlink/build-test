@@ -282,41 +282,39 @@ class RepubChannel(steamengine.Service):
 		if topic_parts[2] == "data":
 			pkt = loads(msg.payload.decode('utf-8'))
 			pkt['_topic'] = msg.topic
-			self.logger.debug("on_m: process_native data %s %s", msg.topic, str(pkt)[:90]+"...")
+			self.logger.debug("on_m: process_native data %s %s", \
+					msg.topic, str(pkt)[:90]+"...")
 			try:
 				self.repub.process_message(pkt)
 			except Exception as e:
 				self.logger.error("repub message error %s: %s", e, pkt, exc_info=True)
 			return
-		elif topic_parts[2] != "control":
+
+		elif topic_parts[2] == "control":
+			dpkt = msg.payload.decode('utf-8')
+			sl_id = int(topic_parts[1])
+			try:
+				opkt = B_typ_0(self.logger, sl_id, msg.payload.decode('utf-8'))
+			except Exception as e:
+				self.logger.error("no binary pkt from '%s' '%s', cause'%s'", \
+						msg.topic, dpkt, e)
+				return
+			node = self.engine.nodes.by_sl_id(opkt.sl_id)
+			if not node:
+				self.logger.error("repub: node %s not in table", self.sl_id)
+				return
+			opkt.setfields(node.node_id, node.mesh.mesh_name, node.swarm.swarm_bkey)
+			try:
+				otopic = "%s/%s/control" % (self.sv_config['repubprefix'], opkt.mesh)
+				pac = opkt.pack()
+			except Exception as e:
+				self.logger.error("could not build packet, cause %s" % e)
+				return
+			self.engine.publish(otopic, bytearray(pac), as_json=False)
+			return
+		else:
 			self.logger.error( "bogus msg, %s: %s", msg.topic, msg.payload)
 			return
-		try:
-			pkt = json.loads(msg.payload.decode('utf-8'))
-		except:
-			self.logger.error("control msg to '%s' not json: '%s'", msg.topic, msg.payload)
-			return
-		self.logger.debug("native control msg %s %s", msg.topic, str(pkt)[:90]+"...")
-
-		sl_id = int(topic_parts[1])
-		try:
-			opkt = B_typ_0(self.logger, sl_id, pkt['payload'])
-		except Exception as e:
-			self.logger.error("could not build binary pkt from '%s' '%s', cause '%s'", msg.topic, pkt, e)
-			return
-
-		node = self.engine.nodes.by_sl_id(opkt.sl_id)
-		if not node:
-			raise SLException("repub: node %s not in table" % self.sl_id)
-		opkt.setfields(node.node_id, node.mesh.mesh_name, node.swarm.swarm_bkey)
-		try:
-			otopic = "%s/%s/control" % (self.sv_config['repubprefix'], opkt.mesh)
-			pac = opkt.pack()
-		except Exception as e:
-			self.logger.error( "could not build packet, cause %s" % e)
-			return
-		if DBG >= 1: self.logger.debug("publish: %s %s", otopic, ":".join("{:02x}".format(c) for c in pac))
-		self.engine.publish(otopic, bytearray(pac), as_json=False)
 
 	#
 	# repubmqtt publishers
@@ -376,7 +374,10 @@ class TransportChannel(steamengine.Service):
 
 
 	def poll(self):
+		stale_time = time.time() - 30		# auto-offline after 30 seconds
 		for mname in self.engine.meshes.all():
+			if self.engine.meshes.by_name(mname).status['_time'] < stale_time:
+				self.engine.meshes.by_name(mname).status['status'] = "LOST"
 			topic = "%s/%s/state" % (self.sv_config['prefix'], mname)
 			self.engine.publish(topic,"state" )
 
@@ -452,18 +453,20 @@ class TransportChannel(steamengine.Service):
 
 			node = self.engine.nodes.by_sl_id(pkt.sl_id)
 			if not node:
-				raise SLException("transport: node %s not in table" % self.sl_id)
+				logger.error("transport: node %s not in db", self.sl_id)
+				return
 			if mesh != node.mesh.mesh_name:
-				logger.error("transport: node %s msg from %s should be in %s", node.sl_id, mesh, node.mesh.mesh_name)
+				logger.error("transport: node %s msg from %s should be in %s", \
+					 node.sl_id, mesh, node.mesh.mesh_name)
 				return
 			pkt.setfields(node.node_id, node.mesh.mesh_name, node.swarm.swarm_bkey)
 			self.logger.debug("transport data %s %s", msg.topic,str(pkt)[:90]+"...")
 
-			self.engine.nodes.by_sl_id(pkt.sl_id).updatestatus(pkt)
+			node.updatestatus(pkt)
 			otopic = "%s/%s/data" % (self.sv_config['repubprefix'], pkt.sl_id)
 			self.engine.publish(otopic,  pkt.dict())
 			self.write_stats_data('node')
-			if DBG >= 3: self.logger.debug("on_message: pkt is %s", str(pkt))
+			if DBG >= 3: self.logger.debug("transport: pkt is %s", str(pkt))
 
 		elif topic_parts[2] == "status":
 			self.logger.debug("transport status %s %s", msg.topic, msg.payload)
@@ -492,11 +495,12 @@ class Mesh:
 
 		self.lastcontact = None
 		self.status = {}
+		self.status["_time"] = 0
 		self.status["_ts"] = ""
 		self.status["loraqcount"] = 0
 		self.status["slreceived"] = 0
 		self.status["_sl_id"] = 1
-		self.status["status"] = "Offline"
+		self.status["status"] = "OFFLINE"
 		self.status["slsent"] = 0
 		self.status["mqttreceived"] = 0
 		self.status["mqttsent"] = 0
@@ -519,6 +523,7 @@ class Mesh:
 		if len(status) != len(Mesh.sfields):
 			return dumps({'status': payload, 'from_mesh': mesh})
 		else:
+			self.status["_time"] = time.time()
 			self.status["_ts"] = time.strftime("%Y-%m-%d %H:%M:%S: ",time.localtime())
 			for i in range(len(status)):
 				self.status[Mesh.sfields[i]] = status[i]
