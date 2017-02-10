@@ -291,6 +291,7 @@ class RepubChannel(steamengine.Service):
 		elif topic_parts[2] != "control":
 			self.logger.error( "bogus msg, %s: %s", msg.topic, msg.payload)
 			return
+
 		try:
 			pkt = json.loads(msg.payload.decode('utf-8'))
 		except:
@@ -298,11 +299,16 @@ class RepubChannel(steamengine.Service):
 			return
 		self.logger.debug("native control msg %s %s", msg.topic, str(pkt)[:90]+"...")
 
+		if type(pkt) == type({}) and 'payload' in pkt:
+			dpkt = pkt['payload']
+		else:
+			dpkt = pkt
+
 		sl_id = int(topic_parts[1])
 		try:
-			opkt = B_typ_0(self.logger, sl_id, pkt['payload'])
+			opkt = B_typ_0(self.logger, sl_id, dpkt)
 		except Exception as e:
-			self.logger.error("could not build binary pkt from '%s' '%s', cause '%s'", msg.topic, pkt, e)
+			self.logger.error("could not build binary pkt from '%s' '%s', cause '%s'", msg.topic, dpkt, e)
 			return
 
 		node = self.engine.nodes.by_sl_id(opkt.sl_id)
