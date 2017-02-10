@@ -5,6 +5,7 @@ import traceback
 import time
 import sys
 import os
+import json
 
 from threading import Thread, Event
 from Crypto.Cipher import AES
@@ -207,7 +208,7 @@ class SteamLink:
 	
 
 	def send(self, buf, to_addr=None, len=None):
-		pkt = B_typ_0(self.logger, self.token.sl_id, buf)
+		pkt = B_typ_0(self.logger, self.token.sl_id, json.dumps(buf))
 
 		pkt.setfields(self.token.node_id, self.mesh, self.token.key)
 
