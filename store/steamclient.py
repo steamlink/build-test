@@ -177,6 +177,9 @@ class MqttCon:
 #
 # SteamLink class
 class SteamLink:
+	sfields = ['status', 'slsent', 'slreceived', \
+			'mqttsent', 'mqttreceived', 'mqttqcount', 'loraqcount']
+
 	def __init__(self, token, mesh, encrypted=True, logger=None):
 		if logger is None:
 			logging.basicConfig()
@@ -187,6 +190,15 @@ class SteamLink:
 		self.mesh = mesh
 		self.encrypted = encrypted
 		self.on_receive = None
+
+		self.status = {}
+		self.status["status"] = "Online"
+		self.status["slreceived"] = 0
+		self.status["slsent"] = 0
+		self.status["mqttsent"] = 0
+		self.status["mqttreceived"] = 0
+		self.status["mqttqcount"] = 0
+		self.status["loraqcount"] = 0
 
 		self.pubtopic = "SL/%s/data" % self.mesh
 		self.subscriptions = ["SL/%s/control" % self.mesh, "SL/%s/state" % self.mesh]
@@ -204,8 +216,16 @@ class SteamLink:
 		self.conf = loadconf(conffile)
 
 		self.mqtt_con = MqttCon(logger, self.conf, self.subscriptions, self.on_message)
-		self.mqtt_con.publish("SL/%s/status" % self.mesh, "Online/-/-/-/-/-/-")
+		self.mqtt_con.publish("SL/%s/status" % self.mesh, self.getstatus())
+		self.status["mqttsent"] += 1
 	
+
+	def getstatus(self):
+		v = []
+		for s in SteamLink.sfields:
+			v.append(str(self.status[s]))
+		return '/'.join(v)
+		
 
 	def send(self, buf, to_addr=None, len=None):
 		pkt = B_typ_0(self.logger, self.token.sl_id, json.dumps(buf))
@@ -214,13 +234,17 @@ class SteamLink:
 
 		ppkt = pkt.pack()
 		self.mqtt_con.publish(self.pubtopic, ppkt)
+		self.status["mqttsent"] += 1
+		self.status["slreceived"] += 1
 		return 0
 
 
 	def on_message(self, client, userdata, msg):
+		self.status["mqttreceived"] += 1
 		topic_parts = msg.topic.split('/')
 		if topic_parts[0] == "SL" and topic_parts[2] == "state":
-			self.mqtt_con.publish("SL/%s/status" % self.mesh, "Online/-/-/-/-/-/-")
+			self.mqtt_con.publish("SL/%s/status" % self.mesh, self.getstatus())
+			self.status["mqttsent"] += 1
 			return
 		if not self.on_receive:
 			self.logger.warn("no on_receive, pkt dropped")
@@ -233,6 +257,7 @@ class SteamLink:
 			return
 		pkt.setfields(self.token.node_id, self.mesh, self.token.key)
 		self.on_receive(pkt.payload)
+		self.status["slsent"] += 1
 		
 	
 	def register_handler(self, on_receive, func=None):
@@ -251,5 +276,7 @@ class SteamLink:
 		return 0;
 
 	def shutdown(self):
-		self.mqtt_con.publish("SL/%s/status" % self.mesh, "OFFLINE/-/-/-/-/-/-")
+		self.status['status'] = "OFFLINE"
+		self.mqtt_con.publish("SL/%s/status" % self.mesh, self.getstatus())
+		self.status["mqttsent"] += 1
 		self.mqtt_con.shutdown()
