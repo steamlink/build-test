@@ -1,5 +1,3 @@
-#!/usr/local/bin/python3
-
 import struct
 import logging
 import random
@@ -7,10 +5,10 @@ import traceback
 import time
 import sys
 import os
+import json
 
 from threading import Thread, Event
 from Crypto.Cipher import AES
-
 
 class SLException(BaseException):
 	pass
@@ -162,7 +160,7 @@ class MqttCon:
 		self.logger.warn("disconnected from MQTT boker")
 
 	def on_message(self, client, userdata, msg):
-		return self.cb_on_message(self, client, userdata, msg)
+		return self.cb_on_message(client, userdata, msg)
 
 	def subscribe(self, service_topic):
 		self.con.subscribe(str(service_topic))
@@ -173,12 +171,17 @@ class MqttCon:
 		self.con.publish(topic, pkt, retain)
 
 	def shutdown(self):
+		self.con.disconnect()
 		self.con.loop_stop()
 
 #
 # SteamLink class
 class SteamLink:
-	def __init__(self, logger, token, mesh, encrypted=True):
+	def __init__(self, token, mesh, encrypted=True, logger=None):
+		if logger is None:
+			logging.basicConfig()
+			logger = logging.getLogger()
+			logger.setLevel(logging.INFO)
 		self.logger = logger
 		self.token = SLToken(token)
 		self.mesh = mesh
@@ -186,23 +189,26 @@ class SteamLink:
 		self.on_receive = None
 
 		self.pubtopic = "SL/%s/data" % self.mesh
-		self.subscriptions = ["SL/%s/control" % self.mesh]
+		self.subscriptions = ["SL/%s/control" % self.mesh, "SL/%s/state" % self.mesh]
 
 		if __name__ == "__main__":
-			conffile = os.path.expanduser("~/.steamlinkrc")
-		elif os.environ.get("STEAMLINKRC", None):
-			conffile = os.environ["STEAMLINKRC"]
+			rcfile = "~/.steamlink"
 		else:
-			print("no config found, use ~/.steamlinkrc or environ STEAMLINKRC")
+			rcfile = "~/."+os.path.basename(sys.argv[0]).rstrip('.py')+'rc'
+
+		conffile = os.path.expanduser(rcfile)
+		if not os.path.exists(conffile):
+			print("config %s not found" % conffile)
 			sys.exit(1)
 
 		self.conf = loadconf(conffile)
 
 		self.mqtt_con = MqttCon(logger, self.conf, self.subscriptions, self.on_message)
+		self.mqtt_con.publish("SL/%s/status" % self.mesh, "Online/-/-/-/-/-/-")
 	
 
 	def send(self, buf, to_addr=None, len=None):
-		pkt = B_typ_0(self.logger, self.token.sl_id, buf)
+		pkt = B_typ_0(self.logger, self.token.sl_id, json.dumps(buf))
 
 		pkt.setfields(self.token.node_id, self.mesh, self.token.key)
 
@@ -212,19 +218,21 @@ class SteamLink:
 
 
 	def on_message(self, client, userdata, msg):
+		topic_parts = msg.topic.split('/')
+		if topic_parts[0] == "SL" and topic_parts[2] == "state":
+			self.mqtt_con.publish("SL/%s/status" % self.mesh, "Online/-/-/-/-/-/-")
+			return
 		if not self.on_receive:
-			self.logger("no on_receive, pkt dropped")
+			self.logger.warn("no on_receive, pkt dropped")
 			return
 		pkt = B_typ_0(self.logger)
 		pkt.unpack(msg.payload)
 
 		if pkt.node_id != self.token.node_id:
-			self.logger("got pkt for %s but we are %s" % (pkt.node_id,self.token.node_id))
-			return
-		if pkg.mesh != self.mesh:
-			self.logger("got pkt for %s but we are %s" % (pkt.mesh,self.mesh))
+			self.logger.error("got pkt for %s but we are %s" % (pkt.node_id,self.token.node_id))
 			return
 		pkt.setfields(self.token.node_id, self.mesh, self.token.key)
+		self.on_receive(pkt.payload)
 		
 	
 	def register_handler(self, on_receive, func=None):
@@ -239,6 +247,9 @@ class SteamLink:
 		pass
 
 
-	def get_last_rssu(self):
+	def get_last_rssi(self):
 		return 0;
 
+	def shutdown(self):
+		self.mqtt_con.publish("SL/%s/status" % self.mesh, "OFFLINE/-/-/-/-/-/-")
+		self.mqtt_con.shutdown()
