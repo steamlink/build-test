@@ -338,17 +338,23 @@ class RepubChannel(steamengine.Service):
 		try:
 			topic = publish['topic'] % data
 		except KeyError as e:
-			self.logger.error( "publish topic '%s' missing key '%s' in data '%s'" % (publish['topic'], e, data))
+			self.logger.error( "publish topic '%s' missing key '%s' in data '%s'" %\
+						 (publish['topic'], e, data))
 			return
 		retain = publish.get('retain',False)
 		if publish['_testmode']:
 			self.logger.info("test: publish_mqtt %s %s" % (topic, output_data))
 			return
 		print( "publish_mqtt %s %s" % (topic, output_data))
-		self.logger.critical( "publish_mqtt %s %s" % (topic, output_data))
-		rc, mid = self.engine.mqtt_con.publish(topic, output_data, retain=retain)
-		if rc:
-			self.logger.error( "publish_mqtt failed %s, %s %s %s" % (rc, topic, output_data, retain))
+		if type(output_data) == type({}):
+			self.logger.error("publish_mqtt cannot publish a dict: %s %s", \
+						topic, output_data)
+		else:
+			self.logger.critical( "publish_mqtt %s %s", topic, output_data)
+			rc, mid = self.engine.mqtt_con.publish(topic, output_data, retain=retain)
+			if rc:
+				self.logger.error("publish_mqtt failed %s, %s %s %s" %\
+						(rc, topic, output_data, retain))
 
 
 
