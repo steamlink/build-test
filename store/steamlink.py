@@ -749,7 +749,7 @@ def set_logging(logfile):
 	clog_format='%(threadName)-12s: %(message)s'
 
 	log_datefmt='%Y-%m-%d %H:%M:%S'
-	logging.basicConfig(format=clog_format, datefmt=log_datefmt)
+	logging.basicConfig(format=flog_format, datefmt=log_datefmt)
 	logger = logging.getLogger()
 	msglog = MsgLogHandler(msglogQ)
 	msglogformatter = logging.Formatter(llog_format, datefmt=log_datefmt)
