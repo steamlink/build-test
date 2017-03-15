@@ -117,6 +117,64 @@ rssi    signal      8 bit
   + bridges are nodes too, allocate a node record and make it's address 1
   + fix bridge_token it needs the mesh_id
 
-
 * packet formats
   + add a pkt counter in each direction so nodes/stores can know if pkts were lost
+
+
+* Classification of devices:
+  + Doesn't need a bridge (primary node)
+  + Needs a bridge (secondary node). Every network must have a primary node.
+
+* Primary nodes (must speak TCP/MQTT):
+  - What other protocols can they speak:
+    + LoRa with RadioHead
+    + WiFi
+    + BlueTooth
+    + FSK 433 MHz
+    + ANT+
+    + 1 wire
+    + I2C
+    + SPI
+
+* Secondary node (does not use TCP to connect to store)
+  + Only speaks one of the other protocols
+
+* All nodes need:
+  + Crypto key
+  + SL_ID
+
+* Primary nodes need:
+  + Server "mqtt.steamlink.net"
+  + Server port 8883
+  + Connection ID
+  + Username
+  + Certificate
+
+* Secondary nodes need:
+  + Radio parameters (based on type of radio)
+
+* Setup of each node requires:
+  + Pasting in a block of code
+    - Example: `#define SL_TOKEN XYZ`
+
+
+## Antenna questions
+- Parabolic beamwidth = 70*wavelength/diameter
+- Read: http://wireless.murata.com/media/products/apnotes/antenna.pdf?ref=rfm.com
+- Questions:
+  * What connectors do we need?
+- List of things we need:
+  * 3 bridge settings:
+    - 0 default/recommended
+    - 1 x works
+    - 2 x
+    - 3 x
+    - 4 custom
+  * zip-ties
+  * food containers
+  * string
+  * duct-tape
+
+
+Multiple radio parameters x 3
+Multiple antennas x
