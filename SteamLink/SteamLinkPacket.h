@@ -5,17 +5,16 @@ All packets have a header and a payload
 NOTE FOR ALL PACKET TYPES:
 The header size + format is predetermined.
 
-n_typ 0 (encoded as flags 0000)
-+-----+---------------------+
-|sl_id|encrypted_payload....|
-+-----+---------------------+
+// binary packet if encrypted
++------------------------+
+|   encrypted_payload....|
++------------------------+
 
-b_typ 0
-a btype 0 packet is dependent on an ntype 0 packet
-+-----+-----+-------+----+-----+--------------------+
-|b_typ|n_typ|node_id|rssi|sl_id|encrypted_payload...|
-+-----+-----+-------+----+-----+--------------------+
-|<-----BRIDGE_WRAP------>|<----NODE_PKT----------->>|
+// binary packet
++-----+-----+-----+----+----------------------+
+|b_typ|slid |rssi |flag|  encrypted_payload...|
++-----+-----+-----+----+----------------------+
+|<---BRIDGE_WRAP------>|<----NODE_PKT------>|
 
 store to bridge like bridge to store, with rssi = 0
 bridge to node like node to bridge
@@ -53,7 +52,7 @@ class SteamLinkPacket {
   /// \returns the size of the payload
   uint8_t get_packet(uint8_t* packet, uint8_t packet_length, uint8_t* payload, uint8_t* header, uint8_t header_length);
 
-  /// set_ntype_packet
+  /// set_ntype0_packet
   /// \param packet pointer to packet
   /// \param payload pointer to payload
   /// \param payload_length size of payload
@@ -63,7 +62,7 @@ class SteamLinkPacket {
   /// \returns the size of the packet created
   uint8_t set_ntype0_packet(uint8_t* packet, uint8_t* payload, uint8_t payload_length, uint32_t slid, bool encrypt = false, uint8_t* key = NULL);
 
-  /// get_ntype_packet
+  /// get_ntype0_packet
   /// \param packet pointer to packet
   /// \param packet_length size of packet
   /// \param payload pointer to payload
