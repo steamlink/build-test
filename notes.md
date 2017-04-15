@@ -163,18 +163,59 @@ rssi    signal      8 bit
 - Read: http://wireless.murata.com/media/products/apnotes/antenna.pdf?ref=rfm.com
 - Questions:
   * What connectors do we need?
-- List of things we need:
+
   * 3 bridge settings:
-    - 0 default/recommended
-    - 1 x works
-    - 2 x
-    - 3 x
-    - 4 custom
-  * zip-ties
-  * food containers
-  * string
-  * duct-tape
+   * zip-ties
+   * food containers
+   * string
+   * duct-tape
+
+# Antenna Testing
 
 
-Multiple radio parameters x 3
-Multiple antennas x
+## Base Station
+
+1. Half-wave Dipole
+2. 900 MHz duck antenna (monopole)
+3. LoRa Whip antenna
+4. Big patch antenna
+5. Little patch antenna
+
+
+## Mobile
+1. 900 MHz duck antenna
+2. LoRa Whip antenna
+3. Home-made half-wave dipole
+4. Quad band duck antennas (short)
+
+
+## Modem configurations
+
+```
+1. Bw125Cr45Sf128 = 0,     ///< Bw = 125 kHz, Cr = 4/5, Sf = 128chips/symbol, CRC on. Default medium range
+
+2. Bw500Cr45Sf128,             ///< Bw = 500 kHz, Cr = 4/5, Sf = 128chips/symbol, CRC on. Fast+short range
+
+3. Bw31_25Cr48Sf512,       ///< Bw = 31.25 kHz, Cr = 4/8, Sf = 512chips/symbol, CRC on. Slow+long range
+
+4. Bw125Cr48Sf4096 (patched w/ AGC and Low Data rate on)
+
+```
+
+## Test Matrix
+
+```
+5 transmit antennas x 4 receive antennas x 4 modem configurations
+```
+
+## Bridge
+
+```
+SL/slid/bridge_data
+SL/slid/bridge_control
+```
+
+### LoRa Driver:
+```
+- Turn test flags on
+```

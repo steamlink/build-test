@@ -52,25 +52,23 @@ class SteamLinkPacket {
   /// \returns the size of the payload
   uint8_t get_packet(uint8_t* packet, uint8_t packet_length, uint8_t* payload, uint8_t* header, uint8_t header_length);
 
-  /// set_ntype0_packet
+  /// set_encrypted_packet
+  /// \brief encrypt a payload with no additional header
   /// \param packet pointer to packet
   /// \param payload pointer to payload
   /// \param payload_length size of payload
-  /// \param encrypt true to encrypt
-  /// \param slid the SL_ID
-  /// \param key optional 16 byte encryption key
+  /// \param key 16 byte encryption key
   /// \returns the size of the packet created
-  uint8_t set_ntype0_packet(uint8_t* packet, uint8_t* payload, uint8_t payload_length, uint32_t slid, bool encrypt = false, uint8_t* key = NULL);
+  uint8_t set_encrypted_packet(uint8_t* packet, uint8_t* payload, uint8_t payload_length, uint8_t* key);
 
-  /// get_ntype0_packet
+  /// get_encrypted_packet
+  /// \brief decrypt a payload when packet has no additional header
   /// \param packet pointer to packet
   /// \param packet_length size of packet
   /// \param payload pointer to payload
-  /// \param slid the SL_ID
-  /// \param decrypt true to decrypt
-  /// \param key optional 16 byte encryption key
+  /// \param key 16 byte encryption key
   /// \returns the size of the payload extracted
-  uint8_t get_ntype0_packet(uint8_t* packet, uint8_t packet_length, uint8_t* payload, uint32_t &slid, bool decrypt = false, uint8_t* key = NULL);
+  uint8_t get_encrypted_packet(uint8_t* packet, uint8_t packet_length, uint8_t* payload, uint8_t* key);
 
   /// set_btype_packet
   /// \param packet pointer to packet

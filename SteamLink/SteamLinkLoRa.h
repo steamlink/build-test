@@ -1,15 +1,16 @@
 #ifndef STEAMLINKLORA_H
 #define STEAMLINKLORA_H
 
-#define SL_DEFAULT_TXPWR 23
-#define SL_MAX_MESSAGE_LEN 64
+#define SL_DEFAULT_SLID_SIZE 32 // in bits
+#define SL_LORA_DEFAULT_NODE_SIZE 8 // in bits
+#define SL_LORA_DEFAULT_MESH_SIZE  SL_DEFAULT_SLID_SIZE - SL_LORA_DEFAULT_NODE_SIZE
 
-#define SL_DEFAULT_LORA_BRIDGE_ADDR 1
+#define SL_LORA_DEFAULT_BRIDGE_ADDR 1
 
-#define SL_DEFAULT_FREQUENCY 915
-#define SL_DEFAULT_TX_POWER 23
+#define SL_LORA_MAX_MESSAGE_LEN 64
 
-#define SL_DEFAULT_NET_SIZE 255
+#define SL_LORA_DEFAULT_TXPWR 23
+#define SL_LORA_DEFAULT_FREQUENCY 915
 
 /*
 This library needs the following defines:
@@ -18,8 +19,6 @@ In the SteamLink LoRa driver the SLID, node_addr and mesh_addr are related:
 slid is 32 bits
 MSB...........................LSB
 [24 bit mesh_id][8 bit node_addr]
-
-
 */
 
 class SteamLinkLora {
@@ -27,11 +26,13 @@ class SteamLinkLora {
  public:
 
   //TODO  needs constructor which passes in SLID
-
   typedef void (*on_receive_handler_function)(uint8_t* buffer, uint8_t size);
 
   // buffer is node's payload
-  typedef void (*on_receive_bridge_handler_function)(uint8_t* buffer, uint8_t size, uint32_t slid, uint8_t flag);
+  typedef void (*on_receive_bridge_handler_function)(uint8_t* buffer, uint8_t size, uint32_t slid, uint8_t flag, uint8_t rssi);
+
+  // constructor
+  SteamLinkLora(uint32_t slid);
 
   void init(bool encrypted=true, uint8_t* key=NULL);
 
@@ -64,7 +65,7 @@ class SteamLinkLora {
   ///  this function is to convert from slid to node_addr and mesh_id
   /// \param slid
   /// \returns node_addr
-  uint32_t get_addrs_from_slid(uint32_t slid);
+  uint32_t get_node_from_slid(uint32_t slid);
 
   uint32_t get_net_from_slid(uint32_t slid);
 
@@ -73,9 +74,12 @@ class SteamLinkLora {
 
  private:
 
-  // driver stuff
-  uint8_t driverbuffer[SL_MAX_MESSAGE_LEN];
+  RH_RF95 *driver;
+
+  // only the driver needs to be aware of node_addr
   uint8_t _node_addr;
+
+  uint32_t _slid;
 
   // bridge stuff
   bool _is_bridge;
@@ -88,14 +92,13 @@ class SteamLinkLora {
   bool _encrypted;
   uint8_t* _key;
 
-  // pins
+  // LORA specific pins
   uint8_t _cs_pin;
   uint8_t _reset_pin;
   uint8_t _interrupt_pin;
 
-  // private functions
+  // LORA driver stuff
+  uint8_t driverbuffer[SL_MAX_MESSAGE_LEN];
 
 }
-
-
 #endif
