@@ -1,3 +1,9 @@
+SteamLinkLora::SteamLinkLora(uint32_t slid) {
+  // initialize slid and set _node_addr
+  _slid = slid;
+  _node_addr = get_node_from_slid(slid);
+}
+
 bool SteamLinkLoRa::send(uint8_t* buf) {
   // TODO: short circuit if I'm a bridge!
   uint8_t* packet;
@@ -9,7 +15,7 @@ bool SteamLinkLoRa::send(uint8_t* buf) {
   // TODO: change with actual determined error codes
   if (len >= SL_MAX_MESSAGE_LEN) return false;
 
-  packet_size = SteamLinkPacket::set_ntype0_packet(packet, buf, _slid, _encrypted, _key);
+  packet_size = SteamLinkPacket::set_encrypted_packet(packet, buf, len,  _key);
   sent = manager->sendto(packet, packet_size, to_addr);
   free(packet);
 
@@ -27,15 +33,7 @@ bool SteamLinkLora::init(bool encrypted, uint8_t* key) {
     _key = key;
   }
   driver = new RH_RF95(_cs_pin, _interrupt_pin);
-  manager = new RHDatagram(*driver, conf.node_address);
 
-  // initialize manager
-  if (!manager->init()) {
-    Serial.println("SL_FATAL: manager initialization failed");
-    while (1);
-  }
-
-  Serial.println("manager init done!");
   // Set frequency
   if (!driver->setFrequency(SL_DEFAULT_FREQUENCY)) {
     Serial.println("SL_FATAL: setFrequency failed");
@@ -71,14 +69,14 @@ void SteamLinkLora::update() {
   uint8_t *payload;
   uint32_t slid;
 
-  payload_len = SteamLinkPacket::get_ntype0_packet(driverbuffer, rcvlen, payload, slid,  _encrypted, _key);
+  payload_len = SteamLinkPacket::get_encrypted_packet(driverbuffer, rcvlen, payload, _key);
 
   // All messages must match my node_addr
   // TODO: does this mean we don't have a default bridge address?
   if (to == _node_addr) {
     // check if the message is for me
     uint8_t node_addr;
-    node_addr = get_addrs_from_slid(slid);
+    node_addr = get_node_from_slid(slid);
 
     if (node_addr == _node_addr) {
       // message is for me!
@@ -94,7 +92,7 @@ void SteamLinkLora::update() {
 
 void SteamLinkLoRa::bridge_send(uint8_t* packet, uint8_t packet_size, uint32_t slid) {
   bool sent;
-  uint8_t to_addr = get_addrs_from_slid(slid);
+  uint8_t to_addr = get_node_from_slid(slid);
 
   sent = manager->sendto(packet, packet_size, to_addr);
   free(packet);
@@ -115,9 +113,14 @@ void SteamLinkLoRa::register_bridge_handler(on_receive_handler_function on_recei
   _on_receive_bridge = on_receive;
 }
 
-uint8_t SteamLinkLora::get_addrs_from_slid(uint32_t slid) {
-  //TODO: returns last 8 bits of the slid
-  return 0;
+uint8_t SteamLinkLora::get_node_from_slid(uint32_t slid) {
+  // use 0xFF mask to get the last 8 bits
+  return (uint8_t) (slid & 0xFF);
+}
+
+uint32_t SteamLinkLora::get_mesh_from_slid(uint32_t slid) {
+  // drop the last 8 bits of slid
+  return (uint32_t) (slid >> 8);
 }
 
 void set_bridge() {
