@@ -1,14 +1,13 @@
 // SL_testclient0
+// new world 
 // send pkts to bridge at address 1
-// Mesh has much greater memory requirements, and you may need to limit the
-// max message length to prevent wierd crashes
-#define SL_TOKEN "3ca5de6fa904467e4e66f1fc8e6f54bd0500000000c064440005"
 
 #define MAX_MESSAGE_LEN 50
 
 #include <SteamLink.h>
+#include <SteamLinkLora.h>
 
-#define VER "4"
+#define VER "5"
 
 // for Feather M0
 #if 1
@@ -28,6 +27,8 @@
 #undef LORALED
 #endif
 
+// node 5 in mesh 
+#define SL_ID 0x105
 // Change to 434.0 or other frequency, must match RX's freq!
 #define RF95_FREQ 915.0
 
@@ -42,7 +43,7 @@
 #define  MIN(a,b) (((a)<(b))?(a):(b))
 #define  MAX(a,b) (((a)>(b))?(a):(b))
 
-SteamLink sl;
+SteamLinkLora sl(SL_ID);
 
 /* Packet building */
 uint8_t data[100];
@@ -71,8 +72,8 @@ void setup()
 #endif
 
   sl.set_pins(RFM95_CS, RFM95_RST, RFM95_INT);
-  sl.init(SL_TOKEN);
-  sl.register_handler(sl_on_receive);
+  sl.init();
+  sl.register_receive_handler(sl_on_receive);
 
   Serial.println("Steamlink init done");
   bLast = 2;
@@ -117,8 +118,8 @@ void loop()
 #ifdef LORALED
     digitalWrite(LORALED, LOW);
 #endif
-	rc = SL_SUCCESS;
-    if (rc == SL_SUCCESS)
+	rc = true;
+    if (rc)
     {
       afterTime = millis() - beforeTime;
       // It has been reliably delivered to the next node.

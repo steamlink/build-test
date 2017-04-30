@@ -1,6 +1,10 @@
 #ifndef STEAMLINKLORA_H
 #define STEAMLINKLORA_H
 
+#include <RHDatagram.h>
+#include <RH_RF95.h>
+#include <SteamLinkGeneric.h>
+
 #define SL_DEFAULT_SLID_SIZE 32 // in bits
 #define SL_LORA_DEFAULT_NODE_SIZE 8 // in bits
 #define SL_LORA_DEFAULT_MESH_SIZE  SL_DEFAULT_SLID_SIZE - SL_LORA_DEFAULT_NODE_SIZE
@@ -82,7 +86,7 @@ class SteamLinkLora : public SteamLinkGeneric {
   uint8_t _mod_conf = 0;
 
   // LORA driver stuff
-  uint8_t driverbuffer[SL_MAX_MESSAGE_LEN];
+  uint8_t driverbuffer[SL_LORA_MAX_MESSAGE_LEN];
 
   // Custom modem config
   RH_RF95::ModemConfig modem_config[1] = {
@@ -93,5 +97,5 @@ class SteamLinkLora : public SteamLinkGeneric {
     }
   };
 
-}
+};
 #endif
