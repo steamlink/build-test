@@ -1,8 +1,7 @@
 #ifndef STEAMLINKGENERIC_H
 #define STEAMLINKGENERIC_H
 
-typedef void (*on_receive_handler_function)(uint8_t* buffer, uint8_t size); // user
-typedef void (*on_receive_bridge_handler_function)(uint8_t* buffer, uint8_t size, uint32_t slid, uint8_t flags, uint8_t rssi); // bridge
+#include <SteamLink.h>
 
 class SteamLinkGeneric {
 
@@ -53,7 +52,7 @@ class SteamLinkGeneric {
   // bridge stuff
   bool _is_bridge = false;
   // handlers
-s on_receive_handler_function _on_receive = NULL;
+  on_receive_handler_function _on_receive = NULL;
   on_receive_bridge_handler_function _on_bridge_receive = NULL;
 
   // encryption mode
@@ -62,5 +61,5 @@ s on_receive_handler_function _on_receive = NULL;
 
  private:
 
-}
+};
 #endif

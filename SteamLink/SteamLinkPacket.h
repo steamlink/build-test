@@ -29,6 +29,7 @@ TODO: make functions static?
 #define STEAMLINK_PACKET_H
 
 #include "aes.h"
+#include <SteamLink.h>
 
 #define SL_SIZEOF_KEY 16
 
@@ -101,22 +102,22 @@ class SteamLinkPacket {
 
   static void decrypt(uint8_t* in, uint8_t inlen, uint8_t* key);
 
-}
+};
 
 #pragma pack(push,1)
 struct bridge_header {
   uint32_t slid;
   uint8_t flags;
   uint8_t rssi;
-}
+};
 #pragma pack(pop)
 
 #pragma pack(push,1)
-  struct node_header {
-    uint8_t to;
-    uint8_t from;
-    uint8_t flags;
-  }
+struct node_header {
+  uint8_t to;
+  uint8_t from;
+  uint8_t flags;
+};
 #pragma pack(pop)
 
 #endif

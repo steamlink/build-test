@@ -1,3 +1,5 @@
+#include <SteamLinkGeneric.h>
+
 SteamLinkGeneric::SteamLinkGeneric(uint32_t slid) {
   _slid = slid;
 }

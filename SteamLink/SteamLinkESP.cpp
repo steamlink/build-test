@@ -18,6 +18,9 @@ sub: SL/slid/control
 
 */
 
+#ifdef ESP8266
+#include <SteamLinkESP.h>
+
 SteamLinkESP::SteamLinkESP(uint32_t slid) : SteamLinkGeneric(slid) {
   _slid = slid;
   create_direct_publish_str(_direct_publish_str, slid);
@@ -62,6 +65,7 @@ bool SteamLinkESP::send(uint8_t* buf) {
   // buf must be a string
   uint8_t len = strlen(buf);
   return _direct_publish.publish(buf, len + 1); // len + 1 for trailing null
+  return true;
 }
 
 bool SteamLinkESP::bridge_send(uint8_t* buf, uint8_t len, uint32_t slid, uint8_t flags, uint8_t rssi) {
@@ -70,6 +74,16 @@ bool SteamLinkESP::bridge_send(uint8_t* buf, uint8_t len, uint32_t slid, uint8_t
   packet_length =  SteamLinkPacket::set_bridge_packet(packet, buf, len, slid, flags, rssi);
   _transport_publish.publish(packet, packet_length);
   free(packet);
+  return true;
+}
+
+bool SteamLinkESP::admin_send(uint8_t* buf, uint8_t len, uint32_t slid, uint8_t flags, uint8_t rssi) {
+  uint8_t* packet;
+  uint8_t packet_length;
+  packet_length =  SteamLinkPacket::set_bridge_packet(packet, buf, len, slid, flags, rssi);
+  _admin_publish.publish(packet, packet_length);
+  free(packet);
+  return true;
 }
 
 void SteamLinkESP::wifi_connect() {
@@ -171,7 +185,15 @@ void SteamLinkESP::transport_sub_callback(char* data, uint16_t len) {
 }
 
 void SteamLinkESP::admin_sub_callback(char* data, uint16_t len) {
-  // TODO!
-  return;
+  if (_is_bridge) {
+    uint32_t slid = slid;
+    uint8_t flags;
+    uint8_t rssi;
+    uint8_t* payload;
+    uint8_t payload_length;
+    payload_length = SteamLinkPacket::get_bridge_packet(data, (uint8_t) len, payload, slid, flags, rssi);
+    _on_admin_receive(payload, payload_length, slid, flags, rssi);
+  }
 }
 
+#endif

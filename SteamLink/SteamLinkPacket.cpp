@@ -11,7 +11,7 @@ uint8_t SteamLinkPacket::set_packet(uint8_t* packet, uint8_t* payload, uint8_t p
 uint8_t SteamLinkPacket::get_packet(uint8_t* packet, uint8_t packet_length, uint8_t* payload, uint8_t* header, uint8_t header_length) {
   uint8_t payload_length = packet_length - header_length;
   payload = (uint8_t*) malloc(payload_length);
-  memcpy(header, &packet[0], header_length)
+  memcpy(header, &packet[0], header_length);
   memcpy(payload, &packet[header_length], payload_length);
   return payload_length;
 }
@@ -41,7 +41,7 @@ uint8_t SteamLinkPacket::get_bridge_packet(uint8_t* packet, uint8_t packet_lengt
   bridge_header header;
   uint8_t payload_length = get_packet(packet, packet_length, payload, (uint8_t*) &header, sizeof(header));
   slid = header.slid;
-  flags = header.flags
+  flags = header.flags;
   rssi = header.rssi;
   return payload_length;
 }
@@ -55,9 +55,9 @@ uint8_t SteamLinkPacket::set_node_packet(uint8_t* packet, uint8_t* payload, uint
     uint8_t encrypted_payload_length;
     uint8_t* encrypted_payload;
     encrypted_payload = encrypt_alloc(&encrypted_payload_length, payload, payload_length, key);
-    return set_packet(packet, encrypted_payload, &header, sizeof(header));
+    return set_packet(packet, encrypted_payload, encrypted_payload_length, (uint8_t*) &header, sizeof(header));
   } else {
-    return set_packet(packet, payload, &header, sizeof(header));
+    return set_packet(packet, payload, payload_length, (uint8_t*) &header, sizeof(header));
   }
 }
 

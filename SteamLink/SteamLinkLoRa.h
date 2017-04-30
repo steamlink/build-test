@@ -59,9 +59,9 @@ class SteamLinkLora : public SteamLinkGeneric {
   ///  this function is to convert from slid to node_addr and mesh_id
   /// \param slid
   /// \returns node_addr
-  uint32_t get_node_from_slid(uint32_t slid);
+  uint8_t get_node_from_slid(uint32_t slid);
 
-  uint32_t get_net_from_slid(uint32_t slid);
+  uint32_t get_mesh_from_slid(uint32_t slid);
 
   void set_pins(uint8_t cs, uint8_t reset, uint8_t interrupt);
 

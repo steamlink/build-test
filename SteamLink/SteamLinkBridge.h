@@ -5,6 +5,8 @@
 
 // TODO: add queues?
 
+typedef
+
 class SteamLinkBridge {
 
 public:
@@ -30,10 +32,12 @@ private:
 
 SteamLinkBridge::SteamLinkBridge(SteamLinkGeneric *storeDriver) {
   _storeDriver = storeDriver;
+  _storeDriver->set_bridge();
 }
 
 void SteamLinkBridge::bridge(SteamLinkGeneric *nodeDriver) {
   _nodeDriver = nodeDriver;
+  _nodeDriver->set_bridge();
 }
 
 void SteamLinkBridge::update() {
@@ -56,5 +60,7 @@ void SteamLinkBridge::node_to_store(uint8_t* packet, uint8_t packet_length, uint
 void SteamLinkBridge::store_to_node(uint8_t* packet, uint8_t packet_length, uint32_t slid, uint8_t flags, uint8_t rssi) {
   _nodeDriver->bridge_send(packet, packet_length, slid, flags, rssi);
 }
+
+
 
 #endif

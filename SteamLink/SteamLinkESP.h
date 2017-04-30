@@ -1,6 +1,8 @@
 #ifndef STEAMLINKESP_H
 #define STEAMLINKESP_H
 
+#ifdef ESP8266
+
 #include <ESP8266WiFi.h>
 #include <Adafruit_MQTT.h>
 #include <Adafruit_MQTT_Client.h>
@@ -58,6 +60,7 @@ class SteamLinkESP : public SteamLinkGeneric {
   void create_admin_publish_str(char* topic, uint32_t slid);
   void create_admin_subscriber_str(char* topic, uint32_t slid);
 
-}
+};
 
+#endif
 #endif
