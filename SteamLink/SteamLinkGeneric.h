@@ -28,11 +28,15 @@ class SteamLinkGeneric {
   /// \param packet is a pointer for the packet to send
   /// \param packet_size is the size of the packet
   /// \param slid is the steamlink id of the receiver node
-  virtual bool bridge_send(uint8_t* packet, uint8_t packet_size, uint32_t slid, uint8_t flags, uint8_t rssi) = 0;
+  virtual bool bridge_send(uint8_t* packet, uint8_t packet_size, uint32_t slid, uint8_t flags, uint8_t rssi);
+
+  virtual bool admin_send(uint8_t* packet, uint8_t packet_size, uint32_t slid, uint8_t flags, uint8_t rssi);
 
   /// \register_bridge_handler
   /// \brief if the message is not for this node AND there is a bridge registered, send to bridge handler
   virtual void register_bridge_handler(on_receive_bridge_handler_function on_receive);
+
+  virtual void register_admin_handler(on_receive_bridge_handler_function on_receive);
 
   virtual void set_bridge();
 
@@ -51,9 +55,11 @@ class SteamLinkGeneric {
 
   // bridge stuff
   bool _is_bridge = false;
+
   // handlers
   on_receive_handler_function _on_receive = NULL;
   on_receive_bridge_handler_function _on_bridge_receive = NULL;
+  on_receive_bridge_handler_function _on_admin_receive = NULL;
 
   // encryption mode
   bool _encrypted;

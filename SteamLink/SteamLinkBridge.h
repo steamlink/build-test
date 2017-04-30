@@ -27,7 +27,7 @@ private:
 
   void node_to_store(uint8_t* packet, uint8_t packet_length, uint32_t slid, uint8_t flags, uint8_t rssi);
   void store_to_node(uint8_t* packet, uint8_t packet_length, uint32_t slid, uint8_t flags, uint8_t rssi);
-  void admin(uint8_t* packet, uint8_t packet_length, uint32_t slid, uint8_t flags, uint8_t rssi);
+  void handle_admin_packet(uint8_t* packet, uint8_t packet_length, uint32_t slid, uint8_t flags, uint8_t rssi);
 }
 
 SteamLinkBridge::SteamLinkBridge(SteamLinkGeneric *storeDriver) {
@@ -51,6 +51,7 @@ void SteamLinkBridge::update() {
 void SteamLinkBridge::init() {
   _storeDriver->register_bridge_handler(&store_to_node);
   _nodeDriver->register_bridge_handler(&node_to_store);
+  _storeDriver->register_admin_handler(&handle_admin_packet);
 }
 
 void SteamLinkBridge::node_to_store(uint8_t* packet, uint8_t packet_length, uint32_t slid, uint8_t flags, uint8_t rssi) {
@@ -61,6 +62,9 @@ void SteamLinkBridge::store_to_node(uint8_t* packet, uint8_t packet_length, uint
   _nodeDriver->bridge_send(packet, packet_length, slid, flags, rssi);
 }
 
+void SteamLinkBridge::handle_admin_packet(uint8_t* packet, uint8_t packet_length, uint32_t slid, uint8_t flags, uint8_t rssi) {
+  _storeDriver->admin_send(packet, packet_length, slid, flags, rssi);
+}
 
 
 #endif

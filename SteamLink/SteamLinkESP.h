@@ -6,6 +6,8 @@
 #include <ESP8266WiFi.h>
 #include <Adafruit_MQTT.h>
 #include <Adafruit_MQTT_Client.h>
+#include <SteamLinkGeneric.h>
+#include <SteamLink.h>
 
 #define SL_ESP_DEFAULT_TOPIC_LEN 100
 
@@ -17,13 +19,15 @@ class SteamLinkESP : public SteamLinkGeneric {
 
   virtual void init(bool encrypted=false, uint8_t* key=NULL);
 
-  /// \send
+  /// send
   virtual bool send(uint8_t* buf);
 
   virtual void update();
 
   /// bridge_send
   virtual bool bridge_send(uint8_t* packet, uint8_t packet_length, uint32_t slid, uint8_t flags, uint8_t rssi);
+
+  virtual bool admin_send(uint8_t* packet, uint8_t packet_length, uint32_t slid, uint8_t flags, uint8_t rssi);
 
  private:
 
@@ -46,9 +50,6 @@ class SteamLinkESP : public SteamLinkGeneric {
 
   Adafruit_MQTT_Publish* _admin_publish;
   Adafruit_MQTT_Subscribe* _admin_subscribe;
-
-  on_receive_handler_function _on_receive = NULL;
-  on_receive_handler_function _on_bridge_receive = NULL;
 
   void wifi_connect();
   void mqtt_connect();

@@ -10,7 +10,7 @@
 #define VER "5"
 
 // for Feather M0
-#if 1
+#if 0
 #define RFM95_CS 8
 #define RFM95_RST 4
 #define RFM95_INT 3
@@ -20,7 +20,7 @@
 #endif
 
 // for Adafruit Huzzah breakout
-#if 0
+#if 1
 #define RFM95_CS 15
 #define RFM95_RST 4
 #define RFM95_INT 5
