@@ -15,11 +15,15 @@ bool SteamLinkLoRa::send(uint8_t* buf) {
 
   // early exit if the message is to big!
   // TODO: change with actual determined error codes
-  if (len >= SL_MAX_MESSAGE_LEN) return false;
+  if (len + 1 >= SL_MAX_MESSAGE_LEN) return false;
 
-  packet_size = SteamLinkPacket::set_encrypted_packet(packet, buf, len,  _key);
-  sent = _manager->sendto(packet, packet_size, to_addr);
-  free(packet);
+  if (_encrypted) {
+    packet_size = SteamLinkPacket::set_encrypted_packet(packet, buf, len + 1,  _key);
+    sent = _manager->sendto(packet, packet_size, to_addr);
+    free(packet);
+  } else {
+    sent = _manager->sendto(buf, len + 1, to_addr)
+  }
 
   // TODO: figure out error codes
   if (sent == 0)  {

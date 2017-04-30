@@ -25,6 +25,7 @@ private:
 
   void node_to_store(uint8_t* packet, uint8_t packet_length, uint32_t slid, uint8_t flags, uint8_t rssi);
   void store_to_node(uint8_t* packet, uint8_t packet_length, uint32_t slid, uint8_t flags, uint8_t rssi);
+  void admin(uint8_t* packet, uint8_t packet_length, uint32_t slid, uint8_t flags, uint8_t rssi);
 }
 
 SteamLinkBridge::SteamLinkBridge(SteamLinkGeneric *storeDriver) {
