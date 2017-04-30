@@ -7,7 +7,7 @@
 
 class SteamLinkBridge {
 
- public:
+public:
 
   SteamLinkBridge(SteamLinkGeneric *storeDriver);
 
@@ -15,7 +15,7 @@ class SteamLinkBridge {
 
   void update();
 
- private:
+private:
 
   void init();
 
