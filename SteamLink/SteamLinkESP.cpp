@@ -8,24 +8,26 @@ pub: SteamLink/slid/data
 sub: SteamLink/slid/control
 
 admin - send / rcv for bridge control to store
-pub: SteamLink/slid/admin_data
-sub: SteamLink/slid/admin_control
+pub: SL/slid/admin_data
+sub: SL/slid/admin_control
 
 // transport
 bridge - send / rcv for another node via bridging function
+pub: SL/slid/data
+sub: SL/slid/control
 
 */
 
 SteamLinkESP::SteamLinkESP(uint32_t slid) : SteamLinkGeneric(slid) {
   _slid = slid;
-  create_native_publish_str(_node_publish_str, slid);
-  create_native_subscribe_str(_node_subscribe_str, slid);
+  create_direct_publish_str(_direct_publish_str, slid);
+  create_direct_subscribe_str(_direct_subscribe_str, slid);
 
-  create_bridge_publish_str(_bridge_publish_str, slid);
-  create_bridge_subscribe_str(_bridge_subscribe_str, slid);
+  create_transport_publish_str(_transport_publish_str, slid);
+  create_transport_subscribe_str(_transport_subscribe_str, slid);
 
-  create_status_publish_str(_status_publish_str, slid);
-  create_status_subscribe_str(_status_subscribe_str, slid);
+  create_admin_publish_str(_admin_publish_str, slid);
+  create_admin_subscribe_str(_admin_subscribe_str, slid);
 
   // ESP's can talk to the store directly!
   _is_primary = true;
@@ -35,37 +37,38 @@ void SteamLinkESP::init(bool encrypted, uint8_t* key) {
   wifi_connect();
 
   _mqtt = new Adafruit_MQTT_Client(&_client, SL_SERVER, SL_SERVERPORT, SL_CONID,  SL_USERNAME, SL_KEY);
-  _node_publish = new Adafruit_MQTT_Publish(&_mqtt, _node_publish_str);
-  _node_subscribe = new Adafruit_MQTT_Subscribe(&_mqtt, _node_subscribe_str);
-  _bridge_publish = new Adafruit_MQTT_Publish(&_mqtt, _bridge_publish_str);
-  _bridge_subscribe = new Adafruit_MQTT_Publish(&_mqtt, _bridge_subscribe_str);
-  _status_publish = new Adafruit_MQTT_Publish(&_mqtt, _status_publish_str);
-  _status_subscribe = new Adafruit_MQTT_Publish(&_mqtt, _status_subscribe_str);
+  _direct_publish = new Adafruit_MQTT_Publish(&_mqtt, _direct_publish_str);
+  _direct_subscribe = new Adafruit_MQTT_Subscribe(&_mqtt, _direct_subscribe_str);
+  _transport_publish = new Adafruit_MQTT_Publish(&_mqtt, _transport_publish_str);
+  _transport_subscribe = new Adafruit_MQTT_Publish(&_mqtt, _transport_subscribe_str);
+  _admin_publish = new Adafruit_MQTT_Publish(&_mqtt, _admin_publish_str);
+  _admin_subscribe = new Adafruit_MQTT_Publish(&_mqtt, _admin_subscribe_str);
 
   // set up callbacks
-  _node_subscribe.setCallback();
-  _bridge_subscribe.setCallback();
-  _status_subscribe.setCallback();
+  _direct_subscribe.setCallback(&direct_sub_callback);
+  _transport_subscribe.setCallback(&transport_sub_callback);
+  _admin_subscribe.setCallback(); // TODO: send admin packets to bridge and bridge responds
 }
 
 void SteamLinkESP::update() {
   wifi_connect();
-  mqtt_connect();
-  // process packets
-  _mqtt.processPackets(10);
+  if (mqtt_connect()) {
+    // process packets
+    _mqtt.processPackets(10);
+  }
 }
 
 bool SteamLinkESP::send(uint8_t* buf) {
   // buf must be a string
   uint8_t len = strlen(buf);
-  return _node_publish.publish(buf, len + 1); // len + 1 for trailing null
+  return _direct_publish.publish(buf, len + 1); // len + 1 for trailing null
 }
 
 bool SteamLinkESP::bridge_send(uint8_t* buf, uint8_t len, uint32_t slid, uint8_t flags, uint8_t rssi) {
   uint8_t* packet;
   uint8_t packet_length;
   packet_length =  SteamLinkPacket::set_bridge_packet(packet, buf, len, slid, flags, rssi);
-  _bridge_publish.publish(packet, packet_length);
+  _transport_publish.publish(packet, packet_length);
   free(packet);
 }
 
@@ -103,27 +106,27 @@ void SteamLinkESP::wifi_connect() {
   Serial.println(WiFi.localIP());
 }
 
-void SteamLinkESP::create_native_publish_str(char* topic, uint32_t slid) {
+void SteamLinkESP::create_direct_publish_str(char* topic, uint32_t slid) {
   snprintf(topic, SL_ESP_DEFAULT_TOPIC_LEN, "SteamLink/%u/data", slid);
 }
 
-void SteamLinkESP::create_native_subscriber_str(char* topic, uint32_t slid) {
+void SteamLinkESP::create_direct_subscriber_str(char* topic, uint32_t slid) {
   snprintf(topic, SL_ESP_DEFAULT_TOPIC_LEN, "SteamLink/%u/control", slid);
 }
 
-void SteamLinkESP::create_bridge_publish_str(char* topic, uint32_t slid) {
+void SteamLinkESP::create_transport_publish_str(char* topic, uint32_t slid) {
   snprintf(topic, SL_ESP_DEFAULT_TOPIC_LEN, "SL/%u/data", slid);
 }
 
-void SteamLinkESP::create_bridge_subscriber_str(char* topic, uint32_t slid) {
+void SteamLinkESP::create_transport_subscriber_str(char* topic, uint32_t slid) {
   snprintf(topic, SL_ESP_DEFAULT_TOPIC_LEN, "SL/%u/control", slid);
 }
 
-void SteamLinkESP::create_status_publish_str(char* topic, uint32_t slid) {
+void SteamLinkESP::create_admin_publish_str(char* topic, uint32_t slid) {
   snprintf(topic, SL_ESP_DEFAULT_TOPIC_LEN, "SL/%u/admin_data", slid);
 }
 
-void SteamLinkESP::create_status_subscriber_str(char* topic, uint32_t slid) {
+void SteamLinkESP::create_admin_subscriber_str(char* topic, uint32_t slid) {
   snprintf(topic, SL_ESP_DEFAULT_TOPIC_LEN, "SL/%u/admin_control", slid);
 }
 
@@ -131,7 +134,7 @@ void SteamLinkESP::mqtt_connect() {
   int8_t ret;
 
   if (_mqtt.connected()) {
-    return;
+    return true;
   }
 
   Serial.print(F("MQTT connect " SL_SERVER ":"));
@@ -143,29 +146,31 @@ void SteamLinkESP::mqtt_connect() {
   if ((ret = _mqtt.connect()) != 0) { // connect will return 0 for connected
     Serial.print(_mqtt.connectErrorString(ret));
     _mqtt.disconnect();
+    return false;
   } else {
     Serial.println("OK");
     //UpdStatus("Online");
   }
 
+  return true;
 }
 
-void SteamLinkESP::node_sub_callback(char* data, uint16_t len) {
+void SteamLinkESP::direct_sub_callback(char* data, uint16_t len) {
   _on_receive((uint8_t)* data, (uint8_t) len);
 }
 
-// this will be a bridge packet from the store
-void SteamLinkESP::bridge_sub_callback(char* data, uint16_t len) {
+// this will be a transport packet from the store
+void SteamLinkESP::transport_sub_callback(char* data, uint16_t len) {
   uint32_t slid = slid;
   uint8_t flags;
   uint8_t rssi;
   uint8_t* payload;
   uint8_t payload_length;
-  payload_length = get_bridge_packet(data, (uint8_t) len, payload, slid, flags, rssi);
+  payload_length = SteamLinkPacket::get_bridge_packet(data, (uint8_t) len, payload, slid, flags, rssi);
   _on_bridge_receive(payload, payload_length, slid, flags, rssi);
 }
 
-void SteamLinkESP::status_sub_callback(char* data, uint16_t len) {
+void SteamLinkESP::admin_sub_callback(char* data, uint16_t len) {
   // TODO!
   return;
 }

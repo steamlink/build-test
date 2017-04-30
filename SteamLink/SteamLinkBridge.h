@@ -31,11 +31,11 @@ SteamLinkBridge::SteamLinkBridge(SteamLinkGeneric *storeDriver) {
   _storeDriver = storeDriver;
 }
 
-SteamLinkBridge::bridge(SteamLinkGeneric *nodeDriver) {
+void SteamLinkBridge::bridge(SteamLinkGeneric *nodeDriver) {
   _nodeDriver = nodeDriver;
 }
 
-SteamLinkBridge::update() {
+void SteamLinkBridge::update() {
   if (!_init_done) {
     init();
   }
@@ -43,16 +43,16 @@ SteamLinkBridge::update() {
   *_nodeDriver->update();
 }
 
-SteamLinkBridge::init() {
+void SteamLinkBridge::init() {
   _storeDriver->register_bridge_handler(&store_to_node);
   _nodeDriver->register_bridge_handler(&node_to_store);
 }
 
-SteamLinkBridge::node_to_store(uint8_t* packet, uint8_t packet_length, uint32_t slid, uint8_t flags, uint8_t rssi) {
+void SteamLinkBridge::node_to_store(uint8_t* packet, uint8_t packet_length, uint32_t slid, uint8_t flags, uint8_t rssi) {
   _storeDriver->bridge_send(packet, packet_length, slid, flags, rssi);
 }
 
-SteamLinkBridge::store_to_node(uint8_t* packet, uint8_t packet_length, uint32_t slid, uint8_t flags, uint8_t rssi) {
+void SteamLinkBridge::store_to_node(uint8_t* packet, uint8_t packet_length, uint32_t slid, uint8_t flags, uint8_t rssi) {
   _nodeDriver->bridge_send(packet, packet_length, slid, flags, rssi);
 }
 

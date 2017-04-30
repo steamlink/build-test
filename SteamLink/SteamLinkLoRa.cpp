@@ -80,6 +80,7 @@ void SteamLinkLora::update() {
   uint8_t to;
   bool received = _manager->recvfrom(driverbuffer, &rcvlen, &from, &to);
   uint8_t *payload;
+  uint8_t flags = _driver->headerFlags();
   uint32_t slid;
   if (to == _node_addr) {
     // message is for me!
@@ -87,8 +88,8 @@ void SteamLinkLora::update() {
     _on_receive(payload, payload_len);
   } else if (_is_bridge && (to == SL_LORA_DEFAULT_BRIDGE_ADDR)) {
     // message is for bridge and we should forward it!
+    // TODO: or if testflag is set?
     uint8_t lastRssi = _driver->lastRssi();
-    uint8_t flags = _driver->headerFlags();
     _on_receive_bridge(driverbuffer, rcvlen, _slid, flags, lastRssi);
   } else {
     Serial.println("SL_INFO: dropping packet");
@@ -112,25 +113,14 @@ void SteamLinkLoRa::bridge_send(uint8_t* packet, uint8_t packet_size, uint32_t s
   }
 }
 
-void SteamLinkLoRa::register_receive_handler(on_receive_handler_function on_receive) {
-  _on_receive = on_receive;
-}
-
-// a bridge receive is for lora to pass a received message to bridge
-void SteamLinkLoRa::register_bridge_handler(on_receive_bridge_handler_function on_receive) {
-  _on_bridge_receive = on_receive;
-}
-
+// TODO: these are one-way functions
 uint8_t SteamLinkLora::get_node_from_slid(uint32_t slid) {
   // use 0xFF mask to get the last 8 bits
   return (uint8_t) (slid & 0xFF);
 }
 
+// TODO: these are one-way functions
 uint32_t SteamLinkLora::get_mesh_from_slid(uint32_t slid) {
   // drop the last 8 bits of slid
   return (uint32_t) (slid >> 8);
-}
-
-void set_bridge() {
-  _is_bridge = true;
 }

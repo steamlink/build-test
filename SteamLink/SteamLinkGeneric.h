@@ -1,8 +1,8 @@
 #ifndef STEAMLINKGENERIC_H
 #define STEAMLINKGENERIC_H
 
-typedef void (*on_receive_handler_function)(uint8_t* buffer, uint8_t size);
-typedef void (*on_receive_bridge_handler_function)(uint8_t* buffer, uint8_t size, uint32_t slid, uint8_t flags, uint8_t rssi);
+typedef void (*on_receive_handler_function)(uint8_t* buffer, uint8_t size); // user
+typedef void (*on_receive_bridge_handler_function)(uint8_t* buffer, uint8_t size, uint32_t slid, uint8_t flags, uint8_t rssi); // bridge
 
 class SteamLinkGeneric {
 
@@ -33,7 +33,7 @@ class SteamLinkGeneric {
 
   /// \register_bridge_handler
   /// \brief if the message is not for this node AND there is a bridge registered, send to bridge handler
-  virtual void register_bridge_handler(on_receive_handler_function on_receive);
+  virtual void register_bridge_handler(on_receive_bridge_handler_function on_receive);
 
   virtual void set_bridge();
 
@@ -53,7 +53,7 @@ class SteamLinkGeneric {
   // bridge stuff
   bool _is_bridge = false;
   // handlers
-  on_receive_handler_function _on_receive = NULL;
+s on_receive_handler_function _on_receive = NULL;
   on_receive_bridge_handler_function _on_bridge_receive = NULL;
 
   // encryption mode
