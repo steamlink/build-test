@@ -38,9 +38,9 @@ class SteamLinkGeneric {
 
   virtual void register_admin_handler(on_receive_bridge_handler_function on_receive);
 
-  virtual void set_bridge();
+  //static void set_bridge();
 
-  virtual void unset_bridge();
+  //virtual void unset_bridge();
 
   /// \is_primary
   /// \brief check if this node can talk directly to the store
@@ -54,7 +54,7 @@ class SteamLinkGeneric {
   bool _is_primary = 0;
 
   // bridge stuff
-  bool _is_bridge = false;
+  static const bool _is_bridge = false;
 
   // handlers
   on_receive_handler_function _on_receive = NULL;
