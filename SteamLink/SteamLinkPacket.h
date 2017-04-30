@@ -11,10 +11,12 @@ The header size + format is predetermined.
 +------------------------+
 
 // binary packet
-+-----+-----+-----+----+----------------------+
-|b_typ|slid |rssi |flag|  encrypted_payload...|
-+-----+-----+-----+----+----------------------+
-|<---BRIDGE_WRAP------>|<----NODE_PKT------>|
++------+-----+-----+----------------------+
+| slid |flags| rssi|  encrypted_payload...|
++------+-----+-----+----------------------+
+|<---BRIDGE_WRAP-->|<----NODE_PKT------>|
+
+// test bit is in flag, lora flags are in rh header
 
 store to bridge like bridge to store, with rssi = 0
 bridge to node like node to bridge
@@ -41,7 +43,7 @@ class SteamLinkPacket {
   /// \param header pointer to header
   /// \param header_length size of header
   /// \returns the size of the packet created
-  uint8_t set_packet(uint8_t* packet, uint8_t* payload, uint8_t payload_length, uint8_t* header, uint8_t header_length);
+  static uint8_t set_packet(uint8_t* packet, uint8_t* payload, uint8_t payload_length, uint8_t* header, uint8_t header_length);
 
   /// set_packet
   /// \param packet pointer to input packet
@@ -50,7 +52,7 @@ class SteamLinkPacket {
   /// \param header pointer to header
   /// \param header_length known size of header
   /// \returns the size of the payload
-  uint8_t get_packet(uint8_t* packet, uint8_t packet_length, uint8_t* payload, uint8_t* header, uint8_t header_length);
+  static uint8_t get_packet(uint8_t* packet, uint8_t packet_length, uint8_t* payload, uint8_t* header, uint8_t header_length);
 
   /// set_encrypted_packet
   /// \brief encrypt a payload with no additional header
@@ -59,7 +61,7 @@ class SteamLinkPacket {
   /// \param payload_length size of payload
   /// \param key 16 byte encryption key
   /// \returns the size of the packet created
-  uint8_t set_encrypted_packet(uint8_t* packet, uint8_t* payload, uint8_t payload_length, uint8_t* key);
+  static uint8_t set_encrypted_packet(uint8_t* packet, uint8_t* payload, uint8_t payload_length, uint8_t* key);
 
   /// get_encrypted_packet
   /// \brief decrypt a payload when packet has no additional header
@@ -68,46 +70,52 @@ class SteamLinkPacket {
   /// \param payload pointer to payload
   /// \param key 16 byte encryption key
   /// \returns the size of the payload extracted
-  uint8_t get_encrypted_packet(uint8_t* packet, uint8_t packet_length, uint8_t* payload, uint8_t* key);
+  static uint8_t get_encrypted_packet(uint8_t* packet, uint8_t packet_length, uint8_t* payload, uint8_t* key);
 
-  /// set_btype_packet
+  /// set_bridge_packet
   /// \param packet pointer to packet
   /// \param payload pointer to payload
   /// \param payload_length size of payload
-  /// \param node_addr
+  /// \param slid by reference
+  /// \param flags by reference
   /// \param rssi
   /// \returns the size of the packet created
-  uint8_t set_btype0_packet(uint8_t* packet, uint8_t* payload, uint8_t payload_length, uint8_t node_addr, uint8_t rssi);
+  static uint8_t set_bridge_packet(uint8_t* packet, uint8_t* payload, uint8_t payload_length, uint32_t slid, uint8_t flags, uint8_t rssi);
 
-  /// get_btype0_packet
+  /// get_bridge_packet
   /// \param packet pointer to packet
   /// \param packet_length size of packet
   /// \param payload pointer to payload
-  /// \param node_addr by reference
+  /// \param slid by reference
+  /// \param flags by reference
   /// \param rssi by reference
   /// \returns the size of payload extracted
-  uint8_t get_btype0_packet(uint8_t* packet, uint8_t packet_length, uint8_t* payload, uint8_t &node_addr, uint8_t &rssi);
+  static uint8_t get_bridge_packet(uint8_t* packet, uint8_t packet_length, uint8_t* payload, uint32_t &slid, uint8_t &flags, uint8_t &rssi);
+
+  static uint8_t set_node_packet(uint8_t* packet, uint8_t* payload, uint8_t payload_length, uint8_t to_addr, uint8_t from_addr, uint8_t flags, bool encrypt = false, uint8_t* key = NULL);
+  static uint8_t get_node_packet(uint8_t* packet, uint8_t packet_length, uint8_t* payload, uint8_t &to_addr, uint8_t &from_addr, uint8_t &flags, bool encrypt = false, uint8_t* key = NULL);
 
  private:
 
-  uint8_t* encrypt_alloc(uint8_t* outlen, uint8_t* in, uint8_t inlen, uint8_t* key);
+  static uint8_t* encrypt_alloc(uint8_t* outlen, uint8_t* in, uint8_t inlen, uint8_t* key);
 
-  void decrypt(uint8_t* in, uint8_t inlen, uint8_t* key);
+  static void decrypt(uint8_t* in, uint8_t inlen, uint8_t* key);
 
 }
 
 #pragma pack(push,1)
-struct btype_0_header {
-  unsigned  btype: 4;
-  unsigned  ntype: 4;
-  uint8_t  node_addr;
-  uint8_t  rssi;
+struct bridge_header {
+  uint32_t slid;
+  uint8_t flags;
+  uint8_t rssi;
 }
 #pragma pack(pop)
 
 #pragma pack(push,1)
-  struct ntype_0_header {
-    uint32_t  slid;
+  struct node_header {
+    uint8_t to;
+    uint8_t from;
+    uint8_t flags;
   }
 #pragma pack(pop)
 
