@@ -1,0 +1,83 @@
+gps_mqtt:
+    clientid: "ControlTest1"
+    username: "UUUUU"
+    password: "PPPPP"
+    server: "ser.ver.com"
+    port: 1883
+    subscription_list:  
+    - "owntracks/tesla1/v1"
+
+steamlink_mqtt:
+    clientid: "sl_store2"
+    username: "UUUUU"
+    password: "PPPPP"
+    server: "ser.ver.com"
+    cert: "/Users/andreas/git/build-test/store/ca.crt"
+    port: 8883
+
+steamlink:
+    prefix: "SL"
+    admin_data: "admin_data"
+    admin_control: "admin_control"
+#    data: "data"
+#    control: "control"
+
+logdata:
+    file: "sldata.log"
+    topic: "SL/+/data"
+
+nodes:
+    node1:
+        sl_id: 1
+        antenna: "quad-band"
+    node2:
+        sl_id: 2
+        antenna: "dipol"
+    node3:
+        sl_id: 3
+        antenna: "dipol"
+    node4:
+        sl_id: 4
+        antenna: "dipol"
+    node5:
+        sl_id: 5
+        antenna: "dipol"
+    node6:
+        sl_id: 6
+        antenna: "dipol"
+    node7:
+        sl_id: 7
+        antenna: "dipol"
+    node8:
+        sl_id: 8
+        antenna: "dipol"
+
+fixed:
+    location:
+        lon: -79.79
+        lat: 43.43
+    nodes:
+    - node1
+    - node3
+    - node5
+    - node7 
+mobile:
+    nodes:
+    - node2
+    - node4
+    - node6
+    - node8
+
+locations:
+    - fixed
+    - mobile
+
+radio_params:
+    0: 
+        wait: 1
+    1:
+        wait: 1
+    2:
+        wait: 3
+    4:
+        wait: 5
