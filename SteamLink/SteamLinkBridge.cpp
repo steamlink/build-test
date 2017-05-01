@@ -26,6 +26,7 @@ void SteamLinkBridge::init() {
   _nodeDriver->register_bridge_handler(&node_to_store);
   _storeDriver->register_admin_handler(&handle_admin_packet);
   SendAdminOp(SteamLinkBridge::SL_DATA_ON);  // report us Online
+  _init_done = true;
 }
 
 void SteamLinkBridge::node_to_store(uint8_t* packet, uint8_t packet_length, uint32_t slid, uint8_t flags, uint8_t rssi) {
@@ -58,7 +59,6 @@ void SteamLinkBridge::handle_admin_packet(uint8_t* packet, uint8_t packet_length
 
 // Admin Operations
 
-
 void SteamLinkBridge::SendAdminOp(uint8_t stat) {
     _storeDriver->admin_send(&stat, 1, 0, 0, 0);
 }
@@ -70,6 +70,7 @@ void SteamLinkBridge::UpdStatus(uint8_t* newstatus) {
   len = snprintf((char *)buf, sizeof(buf), "%c%s/%li/%li/%li/%li/%i/%i", \
                  //TODO:      SteamLinkBridge::SL_DATA_SS, newstatus, slsent, slreceived, mqttsent, mqttreceived, mqttQ.queuelevel(), loraQ.queuelevel());
                  SteamLinkBridge::SL_DATA_SS, newstatus, 0, 0, 0, 0, 0, 0);
+  // we only need to send the length we use in the buf
   len = MIN(len+1,sizeof(buf));
   _storeDriver->admin_send(buf, len+1, 0, 0, 0);
 }

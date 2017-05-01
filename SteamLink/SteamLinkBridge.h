@@ -16,7 +16,6 @@ public:
 
   void update();
 
-
 private:
 
   void init();
@@ -26,7 +25,7 @@ private:
   static const uint8_t SL_CTRL_TD = 0x32;   // transmit a test message via radio
   static const uint8_t SL_CTRL_SR = 0x33;   // set radio paramter to x, acknowlegde with AK or NK
   static const uint8_t SL_CTRL_BC = 0x34;   // restart node, no reply
-  static const uint8_t SL_CTRL_BR = 0x35;   //  reset the radio, acknowlegde with AK or NK
+  static const uint8_t SL_CTRL_BR = 0x35;   // reset the radio, acknowlegde with AK or NK
 
   // admin data messages type
   static const uint8_t SL_DATA_ON = 0x31;   // onlines, send on startup
@@ -45,7 +44,7 @@ private:
 
   static void SendAdminOp(uint8_t stat);
   static void UpdStatus(uint8_t* newstatus);
-  static void TransmitTestDataPacket(uint8_t* pkt, uint8_t len );
+  static void TransmitTestDataPacket(uint8_t* pkt, uint8_t len);
   static void SetRadioParam(uint8_t param );
 };
 
