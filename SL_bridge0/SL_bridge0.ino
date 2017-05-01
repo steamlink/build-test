@@ -5,10 +5,9 @@
 
 #define VER "8"
 
-#include <SteamLink.h>
-#include <SteamLinkBridge.h>
 #include <SteamLinkESP.h>
 #include <SteamLinkLora.h>
+#include <SteamLinkBridge.h>
 
 #if 0
 // for Feather M0
@@ -28,13 +27,11 @@
 
 
 void esp_on_receive(uint8_t* buffer, uint8_t size);
+void lora_on_receive(uint8_t* buffer, uint8_t size);
 
-SteamLinkESP slesp(0x110);
+SteamLinkESP slesp(0x111);
 SteamLinkLora sllora(0x110);
-SteamLinkBridge slbridge(slesp);
-
-slbridge.bridge(sllora);
-
+SteamLinkBridge slbridge(&slesp);
 
 /* Packet building */
 uint8_t data[100];
@@ -48,22 +45,24 @@ int8_t bLast, bCurrent = 2;
 //
 void setup()
 {
+
+  slbridge.bridge(&sllora);
+
   Serial.begin(115200);
   delay(1000);
   Serial.println(F("!ID SL_testclient0 " VER));
 
+  
+  
+  sllora.set_pins(RFM95_CS, RFM95_RST, RFM95_INT);
+  sllora.init();
   slesp.init();
+  
+  sllora.register_receive_handler(lora_on_receive);
   slesp.register_receive_handler(esp_on_receive);
 
-  Serial.println("Steamlink init done");
-  bLast = 2;
 }
 
-
-// Dont put this on the stack:
-uint8_t buf[100];
-int beforeTime = 0, afterTime = 0, nextSendTime = 0;
-int waitInterval = 20000;
 
 int getBatInfo() {
 #ifdef VBATPIN
@@ -72,13 +71,13 @@ int getBatInfo() {
     return 0.0;
 #endif
 }
+
 //
 // LOOP
 //
-void loop()
-{
-  uint8_t len = sizeof(buf);
-  slesp.update();
+
+void loop() {
+  slbridge.update();
 }
 
 void esp_on_receive(uint8_t *buf, uint8_t len) {
@@ -88,4 +87,11 @@ void esp_on_receive(uint8_t *buf, uint8_t len) {
     Serial.println((char*)buf);
 }
 
+// Handlers
 
+void lora_on_receive(uint8_t *buf, uint8_t len) {
+  Serial.print("sl_on_receive: len: ");
+  Serial.print(len);
+  Serial.print(" msg: ");
+  Serial.println((char*)buf);
+}

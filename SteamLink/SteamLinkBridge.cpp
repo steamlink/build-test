@@ -1,8 +1,9 @@
 #include <SteamLinkGeneric.h>
-#include <SteamLink.h>
-
+#include <SteamLinkBridge.h>
 
 bool SteamLinkBridge::_init_done = false;
+SteamLinkGeneric* SteamLinkBridge::_storeDriver;
+SteamLinkGeneric* SteamLinkBridge::_nodeDriver;
 
 SteamLinkBridge::SteamLinkBridge(SteamLinkGeneric *storeDriver) {
   _storeDriver = storeDriver;
@@ -24,7 +25,7 @@ void SteamLinkBridge::init() {
   _storeDriver->register_bridge_handler(&store_to_node);
   _nodeDriver->register_bridge_handler(&node_to_store);
   _storeDriver->register_admin_handler(&handle_admin_packet);
-  SendAdminOp(SteamLinkBridge::SL_DATA_ON);  // report us ONlin
+  SendAdminOp(SteamLinkBridge::SL_DATA_ON);  // report us Online
 }
 
 void SteamLinkBridge::node_to_store(uint8_t* packet, uint8_t packet_length, uint32_t slid, uint8_t flags, uint8_t rssi) {
@@ -59,9 +60,7 @@ void SteamLinkBridge::handle_admin_packet(uint8_t* packet, uint8_t packet_length
 
 
 void SteamLinkBridge::SendAdminOp(uint8_t stat) {
-	// NB: cannot use node_to_store because it's private?
-//    _storeDriver->bridge_send(&stat, 1, 0, 0, 0);
-    node_to_store(&stat, 1, 0, 0, 0);
+    _storeDriver->admin_send(&stat, 1, 0, 0, 0);
 }
 
 void SteamLinkBridge::UpdStatus(uint8_t* newstatus) {
@@ -69,20 +68,18 @@ void SteamLinkBridge::UpdStatus(uint8_t* newstatus) {
   uint8_t len;
 
   len = snprintf((char *)buf, sizeof(buf), "%c%s/%li/%li/%li/%li/%i/%i", \
-//TODO:      SteamLinkBridge::SL_DATA_SS, newstatus, slsent, slreceived, mqttsent, mqttreceived, mqttQ.queuelevel(), loraQ.queuelevel());
-     SteamLinkBridge::SL_DATA_SS, newstatus, 0, 0, 0, 0, 0, 0);
+                 //TODO:      SteamLinkBridge::SL_DATA_SS, newstatus, slsent, slreceived, mqttsent, mqttreceived, mqttQ.queuelevel(), loraQ.queuelevel());
+                 SteamLinkBridge::SL_DATA_SS, newstatus, 0, 0, 0, 0, 0, 0);
   len = MIN(len+1,sizeof(buf));
-  SteamLinkBridge::node_to_store(buf, len+1, 0, 0, 0);
+  _storeDriver->admin_send(buf, len+1, 0, 0, 0);
 }
 
 void SteamLinkBridge::TransmitTestDataPacket(uint8_t* pkt, uint8_t len ) {
-
   store_to_node((uint8_t*)pkt, len, 0/*slid*/, SL_LORA_FLAG_TEST, 0);
   SendAdminOp(SteamLinkBridge::SL_DATA_AK);
 }
 
 void SteamLinkBridge::SetRadioParam(uint8_t param ) {
-
  _nodeDriver->set_modem_config(param);
-  SendAdminOp(SteamLinkBridge::SL_DATA_AK);
+ SendAdminOp(SteamLinkBridge::SL_DATA_AK);
 }
