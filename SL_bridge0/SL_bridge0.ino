@@ -6,9 +6,9 @@
 #define VER "8"
 
 #include <SteamLink.h>
+#include <SteamLinkBridge.h>
 #include <SteamLinkESP.h>
 #include <SteamLinkLora.h>
-#include <SteamLinkBridge.h>
 
 #if 0
 // for Feather M0
@@ -30,6 +30,11 @@
 void esp_on_receive(uint8_t* buffer, uint8_t size);
 
 SteamLinkESP slesp(0x110);
+SteamLinkLora sllora(0x110);
+SteamLinkBridge slbridge(slesp);
+
+slbridge.bridge(sllora);
+
 
 /* Packet building */
 uint8_t data[100];
