@@ -51,6 +51,8 @@ class SteamLinkLora : public SteamLinkGeneric {
   /// \param slid is the steamlink id of the receiver node
   virtual bool bridge_send(uint8_t* packet, uint8_t packet_size, uint32_t slid, uint8_t flags, uint8_t rssi);
 
+  virtual void set_modem_config(uint8_t mod_conf);
+
   //TODO: lora specific?
 
   /// get_addrs_from_slid
@@ -65,7 +67,6 @@ class SteamLinkLora : public SteamLinkGeneric {
 
   void set_pins(uint8_t cs, uint8_t reset, uint8_t interrupt);
 
-  void set_modem_config(uint8_t mod_conf);
 
  private:
 

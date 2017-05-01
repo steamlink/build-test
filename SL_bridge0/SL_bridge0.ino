@@ -7,6 +7,8 @@
 
 #include <SteamLink.h>
 #include <SteamLinkESP.h>
+#include <SteamLinkLora.h>
+#include <SteamLinkBridge.h>
 
 #if 0
 // for Feather M0

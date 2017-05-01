@@ -46,3 +46,8 @@ bool SteamLinkGeneric::bridge_send(uint8_t* packet, uint8_t packet_size, uint32_
 bool SteamLinkGeneric::admin_send(uint8_t* packet, uint8_t packet_size, uint32_t slid, uint8_t flags, uint8_t rssi) {
   return false;
 }
+
+
+void SteamLinkGeneric::set_modem_config(uint8_t param) {
+  return;
+}

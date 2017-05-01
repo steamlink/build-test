@@ -38,6 +38,7 @@ class SteamLinkGeneric {
 
   virtual void register_admin_handler(on_receive_bridge_handler_function on_receive);
 
+  virtual void set_modem_config(uint8_t param);
   //static void set_bridge();
 
   //virtual void unset_bridge();
