@@ -43,24 +43,22 @@ int8_t bLast, bCurrent = 2;
 //
 // SETUP
 //
-void setup()
-{
+void setup() {
+
+  Serial.begin(115200);
 
   slbridge.bridge(&sllora);
 
-  Serial.begin(115200);
   delay(1000);
-  Serial.println(F("!ID SL_testclient0 " VER));
 
-  
-  
+  Serial.println(F("!ID SL_BRIDGE " VER));
+
   sllora.set_pins(RFM95_CS, RFM95_RST, RFM95_INT);
   sllora.init();
   slesp.init();
   
   sllora.register_receive_handler(lora_on_receive);
   slesp.register_receive_handler(esp_on_receive);
-
 }
 
 

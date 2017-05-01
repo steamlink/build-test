@@ -93,7 +93,7 @@ void SteamLinkLora::update() {
     // message is for me!
     payload_len = SteamLinkPacket::get_encrypted_packet(driverbuffer, rcvlen, payload, _key);
     _on_receive(payload, payload_len);
-  } else if (_is_bridge && (to == SL_LORA_DEFAULT_BRIDGE_ADDR)) {
+  } else if (to == SL_LORA_DEFAULT_BRIDGE_ADDR) {
     // message is for bridge and we should forward it!
     // TODO: or if testflag is set?
     uint8_t lastRssi = _driver->lastRssi();

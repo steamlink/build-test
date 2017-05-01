@@ -187,15 +187,13 @@ void SteamLinkESP::_transport_sub_callback(char* data, uint16_t len) {
 }
 
 void SteamLinkESP::_admin_sub_callback(char* data, uint16_t len) {
-  if (_is_bridge) {
-    uint32_t slid = slid;
-    uint8_t flags;
-    uint8_t rssi;
-    uint8_t* payload;
-    uint8_t payload_length;
-    payload_length = SteamLinkPacket::get_bridge_packet((uint8_t*) data, (uint8_t) len, payload, slid, flags, rssi);
-    _on_local_admin_receive(payload, payload_length, slid, flags, rssi);
-  }
+  uint32_t slid = slid;
+  uint8_t flags;
+  uint8_t rssi;
+  uint8_t* payload;
+  uint8_t payload_length;
+  payload_length = SteamLinkPacket::get_bridge_packet((uint8_t*) data, (uint8_t) len, payload, slid, flags, rssi);
+  _on_local_admin_receive(payload, payload_length, slid, flags, rssi);
 }
 
 void SteamLinkESP::register_receive_handler(on_receive_handler_function on_receive) {

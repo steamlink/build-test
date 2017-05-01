@@ -54,9 +54,6 @@ class SteamLinkGeneric {
   uint32_t _slid;
   bool _is_primary = 0;
 
-  // bridge stuff
-  static const bool _is_bridge = false;
-
   // handlers
   on_receive_handler_function _on_receive = NULL;
   on_receive_bridge_handler_function _on_bridge_receive = NULL;

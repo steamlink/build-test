@@ -25,16 +25,6 @@ void SteamLinkGeneric::register_admin_handler(on_receive_bridge_handler_function
   _on_admin_receive = on_receive;
 }
 
-/*
-void SteamLinkGeneric::set_bridge() {
-  _is_bridge = true;
-}
-
-void SteamLinkGeneric::unset_bridge() {
-  _is_bridge = false;
-}
-*/
-
 bool SteamLinkGeneric::is_primary() {
   return _is_primary;
 }
