@@ -43,22 +43,30 @@ int8_t bLast, bCurrent = 2;
 //
 // SETUP
 //
-void setup() {
-
-  Serial.begin(115200);
+void setup()
+{
 
   slbridge.bridge(&sllora);
 
+  Serial.begin(115200);
   delay(1000);
+  Serial.println(F("!ID SL_bridge0 " VER));
 
-  Serial.println(F("!ID SL_BRIDGE " VER));
-
+  
+  
   sllora.set_pins(RFM95_CS, RFM95_RST, RFM95_INT);
   sllora.init();
+  Serial.println(F("sllora.init done"));
   slesp.init();
+  Serial.println(F("slesp.init done" VER));
   
   sllora.register_receive_handler(lora_on_receive);
+  Serial.println(F("sllora.register_receive_handler done"));
   slesp.register_receive_handler(esp_on_receive);
+  Serial.println(F("sslesp.register_receive_handler done"));
+
+  delay(5000);
+
 }
 
 
@@ -75,7 +83,9 @@ int getBatInfo() {
 //
 
 void loop() {
+  Serial.println(F("slbridge.update start"));
   slbridge.update();
+  Serial.println(F("slbridge.update done"));
 }
 
 void esp_on_receive(uint8_t *buf, uint8_t len) {
