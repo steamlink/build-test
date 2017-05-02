@@ -13,10 +13,10 @@ typedef void (*on_receive_bridge_handler_function)(uint8_t* buffer, uint8_t size
 #define SL_DEBUG_ENABLED 
 
 #ifdef SL_DEBUG_ENABLED
-  #define INFO(text)  Serial.print("SL INFO:");     Serial.println(text)
-  #define WARN(text)  Serial.print("SL WARNING:");  Serial.println(text)
-  #define ERR(text)   Serial.print("SL ERROR:");    Serial.println(text)
-  #define FATAL(text) Serial.print("SL FATAL:");    Serial.println(text)
+  #define INFO(text)  Serial.print("SL_INFO   : ");    Serial.println(text)
+  #define WARN(text)  Serial.print("SL_WARNING: ");    Serial.println(text)
+  #define ERR(text)   Serial.print("SL_ERROR  : ");    Serial.println(text)
+  #define FATAL(text) Serial.print("SL_FATAL  : ");    Serial.println(text)
 #else
   #define INFO(text)  ((void)0)
   #define WARN(text)  ((void)0)
