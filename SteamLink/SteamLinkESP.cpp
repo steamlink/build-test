@@ -89,33 +89,37 @@ bool SteamLinkESP::admin_send(uint8_t* buf, uint8_t len, uint32_t slid, uint8_t 
 }
 
 void SteamLinkESP::wifi_connect() {
+  // early exit if we're connected
+  if (WiFi.status() == WL_CONNECTED) {
+    return;
+  }
   // try connecting to one of the WiFi networks
-  INFO("Connecting to WiFi");
   struct Credentials* endPtr = creds + sizeof(creds)/sizeof(creds[0]);
   while (WiFi.status() != WL_CONNECTED) {
-  struct Credentials* ptr = creds;
-  int cnt0 = 5;
-  while ((ptr<endPtr) && (WiFi.status() != WL_CONNECTED)) {
-    INFO("WiFi Network");
-    INFO(ptr->ssid);
-    WiFi.begin(ptr->ssid, ptr->pass);
-    int cnt = WIFI_WAITSECONDS;
-    while (WiFi.status() != WL_CONNECTED) {
-      delay(1000);
-      INFO("*");
-      if (cnt-- == 0) {
-        break;
+    INFO("Connecting to WiFi");
+    struct Credentials* ptr = creds;
+    int cnt0 = 5;
+    while ((ptr<endPtr) && (WiFi.status() != WL_CONNECTED)) {
+      INFO("WiFi Network");
+      INFO(ptr->ssid);
+      WiFi.begin(ptr->ssid, ptr->pass);
+      int cnt = WIFI_WAITSECONDS;
+      while (WiFi.status() != WL_CONNECTED) {
+        delay(1000);
+        INFO("*");
+        if (cnt-- == 0) {
+          break;
+        }
       }
+      if (WiFi.status() == WL_CONNECTED)
+        break;
+      if (cnt0-- == 0) {
+        FATAL("Could not connect to WiFi");
+        while (1);
+      }
+      INFO("Trying next network!");
+      ptr++;
     }
-    if (WiFi.status() == WL_CONNECTED)
-      break;
-    if (cnt0-- == 0) {
-      FATAL("Could not connect to WiFi");
-      while (1);
-    }
-    INFO("Trying next network!");
-    ptr++;
-  }
   }
   INFO("WiFi Connected, IP address: ");
   INFO(WiFi.localIP());
