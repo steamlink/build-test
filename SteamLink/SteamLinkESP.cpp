@@ -31,6 +31,9 @@ void SteamLinkESP::init(bool encrypted, uint8_t* key) {
   _direct_subscribe->setCallback(_direct_sub_callback);
   _transport_subscribe->setCallback(_transport_sub_callback);
   _admin_subscribe->setCallback(_admin_sub_callback);
+
+  // Connect to MQTT
+  mqtt_connect();
 }
 
 void SteamLinkESP::update() {
@@ -43,30 +46,46 @@ void SteamLinkESP::update() {
 
 bool SteamLinkESP::send(uint8_t* buf) {
   INFO("Sending user string over mqtt");
-  // buf must be a string
-  uint8_t len = strlen((char*) buf);
-  return _direct_publish->publish(buf, len + 1); // len + 1 for trailing null
-  return true;
+  if (_mqtt->connected()){
+    // buf must be a string
+    uint8_t len = strlen((char*) buf);
+    return _direct_publish->publish(buf, len + 1); // len + 1 for trailing null
+    return true;
+  } else {
+    ERR("MQTT not connected, Dropping user packet");
+  }
 }
 
 bool SteamLinkESP::bridge_send(uint8_t* buf, uint8_t len, uint32_t slid, uint8_t flags, uint8_t rssi) {
-  INFO("Bridge is forwarding a packet over mqtt");
-  uint8_t* packet;
-  uint8_t packet_length;
-  packet_length =  SteamLinkPacket::set_bridge_packet(packet, buf, len, slid, flags, rssi);
-  _transport_publish->publish(packet, packet_length);
-  free(packet);
-  return true;
+  INFO("In bridge send");
+  if (_mqtt->connected()) {
+    INFO("Bridge is forwarding a packet over mqtt");
+    uint8_t* packet;
+    uint8_t packet_length;
+    packet_length =  SteamLinkPacket::set_bridge_packet(packet, buf, len, slid, flags, rssi);
+    _transport_publish->publish(packet, packet_length);
+    free(packet);
+    return true;
+  } else {
+    ERR("MQTT not connected, Dropping bridge packet");
+    return false;
+  }
 }
 
 bool SteamLinkESP::admin_send(uint8_t* buf, uint8_t len, uint32_t slid, uint8_t flags, uint8_t rssi) {
-  INFO("Sending an admin packet over mqtt");
-  uint8_t* packet;
-  uint8_t packet_length;
-  packet_length =  SteamLinkPacket::set_bridge_packet(packet, buf, len, slid, flags, rssi);
-  _admin_publish->publish(packet, packet_length);
-  free(packet);
-  return true;
+  INFO("In admin send");
+  if (_mqtt->connected()) {
+    INFO("Sending an admin packet over mqtt");
+    uint8_t* packet;
+    uint8_t packet_length;
+    packet_length =  SteamLinkPacket::set_bridge_packet(packet, buf, len, slid, flags, rssi);
+    _admin_publish->publish(packet, packet_length);
+    free(packet);
+    return true;
+  } else {
+    ERR("MQTT not connected, Dropping admin packet");
+    return false;
+  }
 }
 
 void SteamLinkESP::wifi_connect() {
