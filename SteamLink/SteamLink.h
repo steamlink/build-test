@@ -1,8 +1,13 @@
-//
 #ifndef STEAMLINK_H
 #define STEAMLINK_H
 
 #include <Arduino.h>
+
+// DEBUG INSTRUCTIONS:
+//     Comment out below line to disable debugging
+//     Make sure Serial is defined if DEBUG is enabled
+//     Debugger uses Serial.println() to debug
+#define SL_DEBUG_ENABLED // ENABLE OR DISABLE DEBUGGING
 
 typedef void (*on_receive_handler_function)(uint8_t* buffer, uint8_t size); // user
 typedef void (*on_receive_bridge_handler_function)(uint8_t* buffer, uint8_t size, uint32_t slid, uint8_t flags, uint8_t rssi); // bridge
@@ -10,7 +15,6 @@ typedef void (*on_receive_bridge_handler_function)(uint8_t* buffer, uint8_t size
 #define  MIN(a,b) (((a)<(b))?(a):(b))
 #define  MAX(a,b) (((a)>(b))?(a):(b))
 
-#define SL_DEBUG_ENABLED 
 
 #ifdef SL_DEBUG_ENABLED
   #define INFO(text)  Serial.print("SL_INFO   : ");    Serial.println(text)
