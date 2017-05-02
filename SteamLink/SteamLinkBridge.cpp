@@ -1,5 +1,6 @@
 #include <SteamLinkGeneric.h>
 #include <SteamLinkBridge.h>
+#include <SteamLink.h>
 
 bool SteamLinkBridge::_init_done = false;
 SteamLinkGeneric* SteamLinkBridge::_storeDriver;
@@ -15,7 +16,9 @@ void SteamLinkBridge::bridge(SteamLinkGeneric *nodeDriver) {
 
 void SteamLinkBridge::update() {
   if (!_init_done) {
+    INFO("In Bridge Update, running init()");
     init();
+    INFO("init done");
   }
   _storeDriver->update();
   _nodeDriver->update();
@@ -38,19 +41,24 @@ void SteamLinkBridge::store_to_node(uint8_t* packet, uint8_t packet_length, uint
 }
 
 void SteamLinkBridge::handle_admin_packet(uint8_t* packet, uint8_t packet_length, uint32_t slid, uint8_t flags, uint8_t rssi) {
-
+  INFO("Received admin packet");
   if (packet_length < 1) {
     return;  // TODO: error handling
   }
   if (packet[0] == SteamLinkBridge::SL_CTRL_GS) {        // Get Status
+    INFO("Admin packet GS received");
     UpdStatus((uint8_t*) "online");
   } else if (packet[0] == SteamLinkBridge::SL_CTRL_TD) { // Transmit test Data packet
+    INFO("Admin packet TD received");
     TransmitTestDataPacket(&packet[1], packet_length - 1);
   } else if (packet[0] == SteamLinkBridge::SL_CTRL_SR) { // Set Radio paramater
+    INFO("Admin packet SR received");
     SetRadioParam(packet[1]);
   } else if (packet[0] == SteamLinkBridge::SL_CTRL_BC) { // Boot Cold
+    INFO("Admin packet BC received");
         // TODO
   } else if (packet[0] == SteamLinkBridge::SL_CTRL_BR) { // Boot Radio
+    INFO("Admin packet BR received");
         // TODO
   } else {
     return;
@@ -64,6 +72,7 @@ void SteamLinkBridge::SendAdminOp(uint8_t stat) {
 }
 
 void SteamLinkBridge::UpdStatus(uint8_t* newstatus) {
+  INFO("Updating Bridge Status for Store");
   uint8_t buf[40];
   uint8_t len;
 
@@ -75,12 +84,14 @@ void SteamLinkBridge::UpdStatus(uint8_t* newstatus) {
   _storeDriver->admin_send(buf, len+1, 0, 0, 0);
 }
 
-void SteamLinkBridge::TransmitTestDataPacket(uint8_t* pkt, uint8_t len ) {
-  store_to_node((uint8_t*)pkt, len, 0/*slid*/, SL_LORA_FLAG_TEST, 0);
+void SteamLinkBridge::TransmitTestDataPacket(uint8_t* pkt, uint8_t len) {
+  INFO("Transmitting Test Data Packet");
+  _nodeDriver->bridge_send((uint8_t*)pkt, len, 0/*slid*/, SL_LORA_FLAG_TEST, 0);
+  INFO("Sending ACK back to store");
   SendAdminOp(SteamLinkBridge::SL_DATA_AK);
 }
 
-void SteamLinkBridge::SetRadioParam(uint8_t param ) {
+void SteamLinkBridge::SetRadioParam(uint8_t param) {
  _nodeDriver->set_modem_config(param);
  SendAdminOp(SteamLinkBridge::SL_DATA_AK);
 }

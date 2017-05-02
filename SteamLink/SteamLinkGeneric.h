@@ -39,20 +39,10 @@ class SteamLinkGeneric {
   virtual void register_admin_handler(on_receive_bridge_handler_function on_receive);
 
   virtual void set_modem_config(uint8_t param);
-  //static void set_bridge();
-
-  //virtual void unset_bridge();
-
-  /// \is_primary
-  /// \brief check if this node can talk directly to the store
-  ///  all primary nodes can talk to the store
-  /// \returns true if primary
-  virtual bool is_primary();
 
  protected:
 
   uint32_t _slid;
-  bool _is_primary = 0;
 
   // handlers
   on_receive_handler_function _on_receive = NULL;

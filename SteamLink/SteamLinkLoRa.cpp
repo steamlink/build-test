@@ -1,12 +1,11 @@
 #include <SteamLinkLora.h>
 #include <SteamLinkPacket.h>
+#include <SteamLink.h>
 
 SteamLinkLora::SteamLinkLora(uint32_t slid) : SteamLinkGeneric(slid) {
   // initialize slid and set _node_addr
   _slid = slid;
   _node_addr = get_node_from_slid(slid);
-  // lora driver cannot connect to store
-  _is_primary = false;
 }
 
 bool SteamLinkLora::send(uint8_t* buf) {
@@ -21,17 +20,20 @@ bool SteamLinkLora::send(uint8_t* buf) {
   if (len + 1 >= SL_LORA_MAX_MESSAGE_LEN) return false;
 
   if (_encrypted) {
+    INFO("Sending encrypted packet");
     packet_size = SteamLinkPacket::set_encrypted_packet(packet, buf, len + 1,  _key);
     sent = _manager->sendto(packet, packet_size, to_addr);
     free(packet);
   } else {
+    INFO("Sending unencrypted packet");
     sent = _manager->sendto(buf, len + 1, to_addr);
   }
-
   // TODO: figure out error codes
   if (sent == 0)  {
+    INFO("Packet sent!");
     return true;
   }  else {
+    ERR("Packet send failure!");
     return false;
   }
 }
@@ -43,20 +45,24 @@ void SteamLinkLora::init(bool encrypted, uint8_t* key) {
   }
   _driver = new RH_RF95(_cs_pin, _interrupt_pin);
   _manager = new RHDatagram(*_driver, _node_addr);
+  INFO("RH Initialized");
 
   // Set frequency
   if (!_driver->setFrequency(SL_LORA_DEFAULT_FREQUENCY)) {
-    Serial.println("SL_FATAL: setFrequency failed");
+    FATAL("setFrequency failed");
     while (1);
   }
+  INFO("Frequency set done");
   if (!update_modem_config()){
-    Serial.println("SL_FATAL: modemConfig failed");
+    FATAL("modemConfig failed");
     while (1);
   }
-  Serial.println("Modem config done!");
+  INFO("Modem config done");
   randomSeed(analogRead(A0));
   _driver->setCADTimeout(10000);
+  INFO("set CAD timeout");
   _driver->setTxPower(SL_LORA_DEFAULT_TXPWR, false);
+  INFO("set lora tx power");
 }
 
 void SteamLinkLora::set_modem_config(uint8_t mod_conf) {
@@ -73,7 +79,7 @@ bool SteamLinkLora::update_modem_config() {
   else
     rc = _driver->setModemConfig((RH_RF95::ModemConfigChoice) _mod_conf);
   if (!rc) {
-    Serial.println("SL_FATAL: setModemConfig failed with invalid configuration");
+    FATAL("setModemConfig failed with invalid config choice");
     while (1);
   }
   return rc;
@@ -89,17 +95,21 @@ void SteamLinkLora::update() {
   uint8_t *payload;
   uint8_t flags = _driver->headerFlags();
   uint32_t slid;
-  if (to == _node_addr) {
-    // message is for me!
-    payload_len = SteamLinkPacket::get_encrypted_packet(driverbuffer, rcvlen, payload, _key);
-    _on_receive(payload, payload_len);
-  } else if (to == SL_LORA_DEFAULT_BRIDGE_ADDR) {
-    // message is for bridge and we should forward it!
-    // TODO: or if testflag is set?
-    uint8_t lastRssi = _driver->lastRssi();
-    _on_bridge_receive(driverbuffer, rcvlen, _slid, flags, lastRssi);
-  } else {
-    Serial.println("SL_INFO: dropping packet");
+  if (received) {
+    INFO("Received a packet");
+    if (to == _node_addr) {
+      INFO("Packet is for me!");
+      payload_len = SteamLinkPacket::get_encrypted_packet(driverbuffer, rcvlen, payload, _key);
+      _on_receive(payload, payload_len);
+    } else if (to == SL_LORA_DEFAULT_BRIDGE_ADDR) {
+      INFO("Packet is for bridge!");
+      // message is for bridge and we should forward it!
+      // TODO: or if testflag is set?
+      uint8_t lastRssi = _driver->lastRssi();
+      _on_bridge_receive(driverbuffer, rcvlen, _slid, flags, lastRssi);
+    } else {
+      WARN("Packet has unknown destination. Dropping");
+    }
   }
 }
 
@@ -114,8 +124,10 @@ bool SteamLinkLora::bridge_send(uint8_t* packet, uint8_t packet_size, uint32_t s
   free(packet);
   // TODO: figure out error codes
   if (sent == 0)  {
+    INFO("Sent bridge packet!");
     return true;
   }  else {
+    ERR("Sent bridge packet failed!");
     return false;
   }
 }

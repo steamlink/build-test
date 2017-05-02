@@ -116,7 +116,6 @@ class SteamLinkESP : public SteamLinkGeneric {
   static on_receive_bridge_handler_function  _on_local_bridge_receive;
   static on_receive_bridge_handler_function  _on_local_admin_receive;
 
-
 };
 
 #endif

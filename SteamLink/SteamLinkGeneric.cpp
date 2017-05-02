@@ -25,10 +25,6 @@ void SteamLinkGeneric::register_admin_handler(on_receive_bridge_handler_function
   _on_admin_receive = on_receive;
 }
 
-bool SteamLinkGeneric::is_primary() {
-  return _is_primary;
-}
-
 bool SteamLinkGeneric::bridge_send(uint8_t* packet, uint8_t packet_size, uint32_t slid, uint8_t flags, uint8_t rssi) {
   return false;
 }
