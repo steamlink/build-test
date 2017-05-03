@@ -65,8 +65,6 @@ void setup()
   slesp.register_receive_handler(esp_on_receive);
   Serial.println(F("sslesp.register_receive_handler done"));
 
-  delay(5000);
-
 }
 
 
@@ -83,9 +81,7 @@ int getBatInfo() {
 //
 
 void loop() {
-  Serial.println(F("slbridge.update start"));
   slbridge.update();
-  Serial.println(F("slbridge.update done"));
 }
 
 void esp_on_receive(uint8_t *buf, uint8_t len) {

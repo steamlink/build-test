@@ -69,7 +69,7 @@ void SteamLinkBridge::handle_admin_packet(uint8_t* packet, uint8_t packet_length
 
 void SteamLinkBridge::SendAdminOp(uint8_t stat) {
   uint8_t _stat = stat;
-  _storeDriver->admin_send(&_stat, 1, 0, 0, 0);
+  _storeDriver->admin_send(&_stat, 1, 0, stat, 0);
 }
 
 void SteamLinkBridge::UpdStatus(uint8_t* newstatus) {
