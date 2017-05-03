@@ -6,6 +6,7 @@
 import sys
 import logging
 from threading import Thread, Event
+import struct
 import queue
 import paho.mqtt.client as mqtt
 import json
@@ -14,8 +15,41 @@ import yaml
 import argparse
 
 
-# class running an MQTT connection is a thread
+
+# admin_control op codes
+class SL_CTRL:
+	BN = 0x30		# bridge data to node
+	GS = 0x31		# get status, reply with SS message
+	TD = 0x32		# transmit a test message via radio
+	SR = 0x33		# set radio paramter to x, acknowlegde with AK or NK
+	BC = 0x34		# restart node, no reply
+	BR = 0x35		# reset the radio, acknowlegde with AK or NK
+
+	def code(code):
+		try:
+			return list(SL_CTRL.__dict__.keys())[list(SL_CTRL.__dict__.values()).index(code)] 
+		except:
+			pass
+		return '??'
+
+# admin data op codes
+class SL_DATA:
+	BS = 0x30		# bridge data to store
+	ON = 0x31		# onlines, send on startup
+	AK = 0x32		# acknowlegde the last control message
+	NK = 0x33		# negative acknowlegde the last control message
+	TR = 0x34		# Received Test Data
+	SS = 0x35		# status info and counters
+
+	def code(code):
+		try:
+			return list(SL_DATA.__dict__.keys())[list(SL_DATA.__dict__.values()).index(code)] 
+		except:
+			pass
+		return '??'
+
 class Mqtt(Thread):
+	"""" run an MQTT connection in a thread """
 	def __init__(self, conf, name):
 		super(Mqtt, self).__init__()
 		self.name = name
@@ -79,7 +113,7 @@ class Mqtt(Thread):
 
 
 	def publish(self, topic, msg, qos=0, retain=False):
-		logging.debug("%s publish %s %s", self.name, topic, msg)
+		logging.debug("%s publish %s %s", self.name, topic, SteamLinkPacket(pkt=msg))
 		self.mq.publish(topic, payload=msg, qos=qos, retain=retain)
 
 
@@ -129,15 +163,15 @@ class SteamLinkMqtt(Mqtt):
 
 
 	def on_admin_data_msg(self, client, userdata, msg):
-		jmsg = self.mk_json_msg(msg)
 		topic_parts = msg.topic.split('/', 2)
 		sl_id = int(topic_parts[1])
 		if not sl_id in self.nodes:
 			logging.warning("SteamLinkMqtt on_message sl_id %s not in nodes", sl_id)
 			return
-		self.nodes[sl_id].post_admin_data(jmsg['payload'])
+		sl_pkt = SteamLinkPacket(pkt=msg.payload)
+		self.nodes[sl_id].post_admin_data(sl_pkt)
 				
-
+	
 
 class SteamLink:
 	""" config data for steamlink mqtt """
@@ -151,6 +185,33 @@ class SteamLink:
 		self.prefix = conf['prefix']
 		self.admin_control_topic = "%s/%%s/%s" % (self.prefix, conf['admin_control'])
 		self.admin_data_topic = "%s/+/%s" % (self.prefix, conf['admin_data'])
+
+
+class SteamLinkPacket:
+	bridge_header = '<LBB'
+
+	def __init__(self, slid = None, opcode = None, rssi = None, payload = None, pkt = None):
+		if pkt == None:						# construct pkt
+			self.slid = slid
+			self.opcode = opcode
+			self.rssi = rssi
+			self.payload = payload
+
+			bpayload = self.payload.encode('utf8')
+			sfmt = "%s%is" % (SteamLinkPacket.bridge_header, len(bpayload))
+			self.pkt = struct.pack(sfmt, \
+					self.slid, self.opcode, self.rssi, bpayload)
+		else:								# deconstruct pkt
+			self.pkt = pkt
+
+			dlen = len(pkt) - struct.calcsize(SteamLinkPacket.bridge_header)
+			sfmt = "%s%is" % (SteamLinkPacket.bridge_header, dlen)
+			self.slid, self.opcode, self.rssi, bpayload = struct.unpack(sfmt, self.pkt)
+			self.payload = bpayload.decode('utf8')
+
+
+	def __str__(self):
+		return "SL (id %s, op %s, rssi %s) %s" % (self.slid, SL_CTRL.code(self.opcode), self.rssi, self.payload)
 
 
 class TestPkt:
@@ -203,7 +264,7 @@ class Node:
 		self.response_q = queue.Queue(maxsize=1)
 		self.admin_control_topic = self.sl_conf.admin_control_topic % self.sl_id
 
-		self.state = "DOWN"
+		self.state = "DOWN"	
 		self.status = []
 
 
@@ -223,28 +284,28 @@ class Node:
 		self.steamlink = steamlink
 
 
-	def get_status(self):
-		if self.state != "UP": return "NC"
-		msg = "GS" 
-		self.steamlink.publish(self.admin_control_topic, msg)
+	def admin_send_get_status(self):
+		sl_pkt = SteamLinkPacket(self.sl_id, SL_CTRL.GS, 0, "")
+		self.steamlink.publish(self.admin_control_topic, sl_pkt.pkt)
 		rc = self.get_response(timeout=2)
 		return rc
 
 
-	def set_radio_param(self, radio):
+	def admin_send_set_radio_param(self, radio):
 		if self.state != "UP": return "NC"
-		msg = "SR%s" % radio
-		self.steamlink.publish(self.admin_control_topic, msg)
+		sl_pkt = SteamLinkPacket(self.sl_id, SL_CTRL.SR, 0, "%s" % radio)
+		self.steamlink.publish(self.admin_control_topic, sl_pkt.pkt)
+
 		rc = self.get_response(timeout=2)
 		return rc
 
 
-	def send_packet(self, pkt):
+	def admin_send_testpacket(self, pkt):
 		if self.state != "UP": return "NC"
-		msg = "TP%s" % pkt
-		self.steamlink.publish(self.admin_control_topic, msg)
+		sl_pkt = SteamLinkPacket(self.sl_id, SL_CTRL.TD, 0, pkt)
+		self.steamlink.publish(self.admin_control_topic, sl_pkt.pkt)
 		rc = self.get_response(timeout=2)
-		logging.debug("send_packet %s got %s", msg, rc)
+		logging.debug("send_packet %s got %s", sl_pkt, rc)
 		return rc
 
 
@@ -252,32 +313,30 @@ class Node:
 		return "%s: %s %s" % (self.name, self.sl_id, self.antenna)
 
 
-	def post_admin_data(self, data):
+	def post_admin_data(self, sl_pkt):
 		""" handle incoming messages on the ../admin_data topic """
-		logging.debug("post_admin_data %s", data)
-		if len(data) < 2:
-			logging.error('post_admin_data: msg to short: %s', data)
-			return
+		logging.debug("post_admin_data %s", sl_pkt)
+
 		# any pkt from node indicates it's up
 		self.set_state('UP')
 
-		opcode = data[:2]
-		opargs = data[2:]
+		opcode = sl_pkt.opcode
+		opargs = sl_pkt.payload
 
-		if opcode == 'ON':
+		if opcode == SL_DATA.ON:
 			logging.info('post_admin_data: node %s ONLINE', self.sl_id)
 
-		elif opcode == 'SS':
+		elif opcode == SL_DATA.SS:
 			logging.info('post_admin_data: node %s status', opargs)
 			self.status = opargs.split(',')
 
-		elif opcode in  ['AK', 'NK']:
+		elif opcode in  [SL_DATA.AK, SL_DATA.NK]:
 			logging.debug('post_admin_data: node %s answer', opcode)
 			try:
 				self.response_q.put(opcode, block=False)
 			except queue.Full:
-				logging.warning('post_admin_data: node %s queue, dropping: %s', self.sl_id, data)
-		elif opcode == 'TR':
+				logging.warning('post_admin_data: node %s queue, dropping: %s', self.sl_id, sl_pkt)
+		elif opcode == SL_DATA.TR:
 			logging.debg('post_admin_data: node %s test msg', opargs)
 			rssi, jmsg = opargs.split(',',1)
 
@@ -399,7 +458,7 @@ def runtest():
 	nodes_defined = 0
 	for loc in locations:
 		for node in locations[loc]['nodes']:
-			rc = nodes[node].get_status()
+			rc = nodes[node].admin_send_get_status()
 			nodes_defined += 1
 #			if rc != "AK":
 #				logging.warning("get_status for node %s failed: %s", node, rc)
@@ -416,7 +475,7 @@ def runtest():
 			for node in locations[loc]['nodes']:
 				if not nodes[node].is_up():
 					continue
-				rc = nodes[node].set_radio_param(radio)
+				rc = nodes[node].admin_send_set_radio_param(radio)
 				if rc != "AK":
 					logging.warning("set_radio to %s for %s failed: %s", radio, node, rc)
 
@@ -427,7 +486,7 @@ def runtest():
 					continue
 				pkt = TestPkt(nodes[node].get_gps(), "TEST", nodes[node].sl_id)
 				pktno = pkt.get_pktno()
-				rc = nodes[node].send_packet(pkt.pkt_string())
+				rc = nodes[node].admin_send_testpacket(pkt.pkt_string())
 				if rc != "AK":
 					logging.warning("send_packet for node %s failed: %s", node, rc)
 				else:
