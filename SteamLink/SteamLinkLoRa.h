@@ -4,6 +4,8 @@
 #include <RHDatagram.h>
 #include <RH_RF95.h>
 #include <SteamLinkGeneric.h>
+#include <SteamLinkPacket.h>
+#include <SteamLink.h>
 
 #define SL_DEFAULT_SLID_SIZE 32 // in bits
 #define SL_LORA_DEFAULT_NODE_SIZE 8 // in bits
@@ -17,6 +19,7 @@
 #define SL_LORA_DEFAULT_FREQUENCY 915
 
 #define SL_LORA_DEFAULT_FLAGS 0
+#define SL_LORA_TEST_FLAGS 1
 
 /*
 This library needs the following defines:
@@ -36,25 +39,9 @@ class SteamLinkLora : public SteamLinkGeneric {
 
   virtual void init(bool encrypted=true, uint8_t* key=NULL);
 
-  /// \send
-  /// \brief sends an ntype0_packet encapsulated string to default bridge address
-  /// \param buf a nul terminated string to send
-  /// \returns true if message sends succesfully
-  virtual bool send(uint8_t* buf);
+  virtual bool driver_send(uint8_t* packet, uint8_t packet_length, uint32_t slid, bool is_test);
 
-  virtual void update();
-
-  /// bridge_send
-  /// \brief sends an ntype0 packet to slid
-  /// \param packet is a pointer to ntype0 packet to send
-  /// \param packet_size is the size of the packet
-  /// \param slid is the steamlink id of the receiver node
-  virtual bool bridge_send(uint8_t* packet, uint8_t packet_size, uint32_t slid, uint8_t flags, uint8_t rssi);
-
-  virtual void set_modem_config(uint8_t mod_conf);
-
-  //TODO: lora specific?
-
+  virtual bool driver_receive(uint8_t* &packet, uint8_t &packet_size, uint32_t &slid, bool &is_test);
   /// get_addrs_from_slid
   /// \brief LoRa driver uses the 32 bit slid
   ///  24 bits are mesh_id and 8 bits are node_addr
@@ -68,12 +55,15 @@ class SteamLinkLora : public SteamLinkGeneric {
   void set_pins(uint8_t cs, uint8_t reset, uint8_t interrupt);
 
 
+
  private:
 
   RH_RF95 *_driver;
   RHDatagram *_manager;
 
   bool update_modem_config();
+
+  void set_modem_config(uint8_t mod_conf);
 
   // only the driver needs to be aware of node_addr
   uint8_t _node_addr;

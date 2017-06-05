@@ -3,8 +3,9 @@
 // bridge for a SteamLink base LoRa network
 // https://steamlink.net/
 
-#define VER "8"
+#define VER "9"
 
+#include <SteamLink.h>
 #include <SteamLinkESP.h>
 #include <SteamLinkLora.h>
 #include <SteamLinkBridge.h>
@@ -27,7 +28,7 @@
 
 
 void esp_on_receive(uint8_t* buffer, uint8_t size);
-void lora_on_receive(uint8_t* buffer, uint8_t size);
+//void lora_on_receive(uint8_t* buffer, uint8_t size);
 
 SteamLinkESP slesp(0x111);
 SteamLinkLora sllora(0x110);
@@ -82,7 +83,10 @@ int getBatInfo() {
 
 void loop() {
   slbridge.update();
+  //slesp.update();
 }
+
+// Handlers
 
 void esp_on_receive(uint8_t *buf, uint8_t len) {
     Serial.print("slesp_on_receive: len: ");
@@ -91,7 +95,6 @@ void esp_on_receive(uint8_t *buf, uint8_t len) {
     Serial.println((char*)buf);
 }
 
-// Handlers
 
 void lora_on_receive(uint8_t *buf, uint8_t len) {
   Serial.print("sl_on_receive: len: ");
@@ -99,3 +102,4 @@ void lora_on_receive(uint8_t *buf, uint8_t len) {
   Serial.print(" msg: ");
   Serial.println((char*)buf);
 }
+

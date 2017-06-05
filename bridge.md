@@ -14,7 +14,7 @@ All nodes send and receive packets with the following parameters:
 1. `slid`, 32 bits: `admin_data` (ie. publish) packets contain the slid of the publishing node. `admin_control` packets contain the slid of the destination node
 3. `rssi`, 8 bits: received signal strength indicator or `rssi` describes the signal strength at the previous hop
 2. `op`, 8 bits: opcode or `op` is the control instruction for the destination
-4. `QoC`, 8 (2 + 6) bits: 2 bits are QoC followed by 6 bit packet count per slid
+4. `QoS`, 8 (2 + 6) bits: 2 bits are QoS followed by 6 bit packet count per slid
 5. `payload`: payload of the packet
 
 ### Packets to and from primary nodes and bridges
@@ -23,7 +23,7 @@ Packets to primary nodes and bridges have the following packet format.
 
 ```
 +------+------+----+-----+----------------+
-| slid | rssi | op | qoc |      payload...|
+| slid | rssi | op | qoS |      payload...|
 +------+------+----+-----+----------------+
 ```
 In some cases when encryption is required, both the `op` and the `payload` is encrypted.

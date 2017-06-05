@@ -8,12 +8,14 @@
 #include <Adafruit_MQTT.h>
 #include <Adafruit_MQTT_Client.h>
 #include <SteamLinkGeneric.h>
+#include <SteamLinkPacket.h>
 #include <SteamLink.h>
 
 #define SL_ESP_DEFAULT_TOPIC_LEN 100
+#define SL_ESP_MAX_MESSAGE_LEN 200
 
 ///////////////////////////////////////////////////////////////////////////
-//   STEAMLINK CREDENTIALS
+//   TODO: STEAMLINK CREDENTIALS
 ///////////////////////////////////////////////////////////////////////////
 
 #ifndef VER
@@ -51,7 +53,6 @@ const char* sl_server_fingerprint = "E3 B9 24 8E 45 B1 D2 1B 4C EF 10 61 51 35 B
 //////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////
 
-
 class SteamLinkESP : public SteamLinkGeneric {
   public:
 
@@ -61,62 +62,36 @@ class SteamLinkESP : public SteamLinkGeneric {
   virtual void init(bool encrypted=false, uint8_t* key=NULL);
 
   /// send
-  virtual bool send(uint8_t* buf);
+  virtual bool driver_send(uint8_t* packet, uint8_t packet_length, uint32_t slid, bool is_test);
 
-  virtual void update();
+  /// receive
+  virtual bool driver_receive(uint8_t* &packet, uint8_t &packet_size, uint32_t &slid, bool &is_test);
 
-  /// bridge_send
-  virtual bool bridge_send(uint8_t* packet, uint8_t packet_length, uint32_t slid, uint8_t flags, uint8_t rssi);
-
-  virtual bool admin_send(uint8_t* packet, uint8_t packet_length, uint32_t slid, uint8_t flags, uint8_t rssi);
-
-  virtual void register_receive_handler(on_receive_handler_function on_receive);
-
-  virtual void register_bridge_handler(on_receive_bridge_handler_function on_receive);
-
-  virtual void register_admin_handler(on_receive_bridge_handler_function on_receive);
 
  private:
 
-  char _direct_publish_str[SL_ESP_DEFAULT_TOPIC_LEN];
-  char _direct_subscribe_str[SL_ESP_DEFAULT_TOPIC_LEN];
-  char _transport_publish_str[SL_ESP_DEFAULT_TOPIC_LEN];
-  char _transport_subscribe_str[SL_ESP_DEFAULT_TOPIC_LEN];
-
-  char _admin_publish_str[SL_ESP_DEFAULT_TOPIC_LEN];
-  char _admin_subscribe_str[SL_ESP_DEFAULT_TOPIC_LEN];
+  char _pub_str[SL_ESP_DEFAULT_TOPIC_LEN];
+  char _sub_str[SL_ESP_DEFAULT_TOPIC_LEN];
 
   WiFiClientSecure _client;
   Adafruit_MQTT_Client* _mqtt;
 
-  Adafruit_MQTT_Publish* _direct_publish;
-  Adafruit_MQTT_Subscribe* _direct_subscribe;
-
-  Adafruit_MQTT_Publish* _transport_publish;
-  Adafruit_MQTT_Subscribe* _transport_subscribe;
-
-  Adafruit_MQTT_Publish* _admin_publish;
-  Adafruit_MQTT_Subscribe* _admin_subscribe;
+  Adafruit_MQTT_Publish* _pub;
+  Adafruit_MQTT_Subscribe* _sub;
 
   void wifi_connect();
   bool mqtt_connect();
 
-  void create_direct_publish_str(char* topic, uint32_t slid);
-  void create_direct_subscriber_str(char* topic, uint32_t slid);
-  void create_transport_publish_str(char* topic, uint32_t slid);
-  void create_transport_subscriber_str(char* topic, uint32_t slid);
-  void create_admin_publish_str(char* topic, uint32_t slid);
-  void create_admin_subscriber_str(char* topic, uint32_t slid);
+  void create_pub_str(char* topic, uint32_t slid);
+  void create_sub_str(char* topic, uint32_t slid);
 
-  static void _direct_sub_callback(char* data, uint16_t len);
-  static void _transport_sub_callback(char* data, uint16_t len);
-  static void _admin_sub_callback(char* data, uint16_t len);
+  static void _sub_callback(char* data, uint16_t len);
 
-  static on_receive_handler_function  _on_local_receive;
-  static on_receive_bridge_handler_function  _on_local_bridge_receive;
-  static on_receive_bridge_handler_function  _on_local_admin_receive;
-
+  // TODO: use queue?
+  static uint8_t driverbuffer[SL_ESP_MAX_MESSAGE_LEN];
+  static uint8_t rcvlen;
+  static bool available;
 };
 
-#endif
-#endif
+#endif // ESP8266
+#endif // ifdef STEAMLINK_ESP_H

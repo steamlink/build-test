@@ -6,10 +6,14 @@ uint8_t SteamLinkPacket::set_packet(uint8_t* &packet, uint8_t* payload, uint8_t 
   uint8_t packet_length = payload_length + header_length;
   packet = (uint8_t*) malloc(packet_length);
   INFO("SteamLinkPacket - memory allocated for packet");
-  memcpy(&packet[0], header, header_length);
-  INFO("SteamLinkPacket - header copied in to packet");
-  memcpy(&packet[header_length], payload, payload_length);
-  INFO("SteamLinkPacket - payload copied in to packet");
+  if (header_length > 0) {
+    memcpy(&packet[0], header, header_length);
+    INFO("SteamLinkPacket - header copied in to packet");
+  }
+  if (payload_length > 0) {
+    memcpy(&packet[header_length], payload, payload_length);
+    INFO("SteamLinkPacket - payload copied in to packet");
+  }
   return packet_length;
 }
 
@@ -37,24 +41,48 @@ uint8_t SteamLinkPacket::get_encrypted_packet(uint8_t* packet, uint8_t packet_le
   return packet_length;
 }
 
-uint8_t SteamLinkPacket::set_bridge_packet(uint8_t* &packet, uint8_t* payload, uint8_t payload_length, uint32_t slid, uint8_t flags, uint8_t rssi) {
+uint8_t* SteamLinkPacket::encrypt_alloc(uint8_t* outlen, uint8_t* in, uint8_t inlen, uint8_t* key) {
+  uint8_t num_blocks = int((inlen+SL_SIZEOF_KEY-1)/SL_SIZEOF_KEY);
+  uint8_t* out = (uint8_t*) malloc(num_blocks*SL_SIZEOF_KEY);
+  *outlen = num_blocks*SL_SIZEOF_KEY;
+  memcpy(out, in, inlen);
+  memset(out + inlen, 0, *outlen - inlen);
+  for(int i = 0; i < num_blocks; ++i) {
+    AES128_ECB_encrypt(out + i*SL_SIZEOF_KEY, key, out + i*SL_SIZEOF_KEY);
+  }
+  return out;
+}
+
+void SteamLinkPacket::decrypt(uint8_t* in, uint8_t inlen, uint8_t* key) {
+  uint8_t num_blocks = inlen/SL_SIZEOF_KEY;
+  for(int i = 0; i < num_blocks; i++) {
+    AES128_ECB_decrypt(in+i*SL_SIZEOF_KEY, key, in + i*SL_SIZEOF_KEY);
+  }
+}
+
+// NOT REQUIRED FOR NOW
+///////////////
+/*
+uint8_t SteamLinkPacket::set_bridge_packet(uint8_t* &packet, uint8_t* payload, uint8_t payload_length, uint32_t slid, uint8_t rssi, uint8_t op, uint8_t qos) {
   INFO("SteamLinkPacket - setting bridge packet");
   bridge_header header;
   header.slid = slid;
-  header.flags = flags;
   header.rssi = rssi;
+  header.op = op;
+  header.qos = qos;
   INFO("SteamLinkPacket - calling set packet with bridge header and payload");
   uint8_t packet_size = set_packet(packet, payload, payload_length, (uint8_t*) &header, sizeof(header));
 }
 
-uint8_t SteamLinkPacket::get_bridge_packet(uint8_t* packet, uint8_t packet_length, uint8_t* &payload, uint32_t &slid, uint8_t &flags, uint8_t &rssi) {
+uint8_t SteamLinkPacket::get_bridge_packet(uint8_t* packet, uint8_t packet_length, uint8_t* &payload, uint32_t &slid, uint8_t &rssi, uint8_t &op, uint8_t &qos) {
   INFO("SteamLinkPacket - getting bridge packet");
   bridge_header header;
   INFO("SteamLinkPacket - getting packet with bridge header parameters");
   uint8_t payload_length = get_packet(packet, packet_length, payload, (uint8_t*) &header, sizeof(header));
   slid = header.slid;
-  flags = header.flags;
   rssi = header.rssi;
+  op = header.op;
+  qos = header.qos;
   return payload_length;
 }
 
@@ -86,21 +114,14 @@ uint8_t SteamLinkPacket::get_node_packet(uint8_t* packet, uint8_t packet_length,
   return payload_length;
 }
 
-uint8_t* SteamLinkPacket::encrypt_alloc(uint8_t* outlen, uint8_t* in, uint8_t inlen, uint8_t* key) {
-  uint8_t num_blocks = int((inlen+SL_SIZEOF_KEY-1)/SL_SIZEOF_KEY);
-  uint8_t* out = (uint8_t*) malloc(num_blocks*SL_SIZEOF_KEY);
-  *outlen = num_blocks*SL_SIZEOF_KEY;
-  memcpy(out, in, inlen);
-  memset(out + inlen, 0, *outlen - inlen);
-  for(int i = 0; i < num_blocks; ++i) {
-    AES128_ECB_encrypt(out + i*SL_SIZEOF_KEY, key, out + i*SL_SIZEOF_KEY);
-  }
-  return out;
+uint8_t SteamLinkPacket::set_op_packet(uint8_t* packet, uint8_t* payload, uint8_t payload_length, uint8_t op) {
+  return set_packet(packet, payload, payload_length, (uint8_t*) &op, sizeof(op));
 }
 
-void SteamLinkPacket::decrypt(uint8_t* in, uint8_t inlen, uint8_t* key) {
-  uint8_t num_blocks = inlen/SL_SIZEOF_KEY;
-  for(int i = 0; i < num_blocks; i++) {
-    AES128_ECB_decrypt(in+i*SL_SIZEOF_KEY, key, in + i*SL_SIZEOF_KEY);
-  }
+uint8_t SteamLinkPacket::get_op_packet(uint8_t* packet, uint8_t packet_length, uint8_t* &payload, uint8_t &op) {
+  uint8_t payload_length = get_packet(packet, packet_length, payload, op, sizeof(op));
 }
+*/
+
+
+

@@ -4,10 +4,28 @@
 #include <Arduino.h>
 
 typedef void (*on_receive_handler_function)(uint8_t* buffer, uint8_t size); // user
-typedef void (*on_receive_bridge_handler_function)(uint8_t* buffer, uint8_t size, uint32_t slid, uint8_t flags, uint8_t rssi); // bridge
+typedef void (*on_receive_bridge_handler_function)(uint8_t* packet, uint8_t packet_length, uint32_t to_slid); // admin
 
 #define  MIN(a,b) (((a)<(b))?(a):(b))
 #define  MAX(a,b) (((a)>(b))?(a):(b))
+
+// admin_control message types: EVEN, 0 bottom bit
+#define SL_OP_DN 0x30  // data to node, ACK for qos 2
+#define SL_OP_BN 0x32  // slid precedes payload, bridge forward to node
+#define SL_OP_GS 0x34  // get status, reply with SS message
+#define SL_OP_TD 0x36  // transmit a test message via radio
+#define SL_OP_SR 0x38  // set radio paramter to x, acknowlegde with AK or NK
+#define SL_OP_BC 0x3A  // restart node, no reply
+#define SL_OP_BR 0x3C  // reset the radio, acknowlegde with AK or NK
+
+// admin_data message types: ODD, 1 bottom bit
+#define SL_OP_DS 0x31  // data to store
+#define SL_OP_BS 0x33  // bridge to store
+#define SL_OP_ON 0x35  // send status on to store
+#define SL_OP_AK 0x37  // acknowledge the last control message
+#define SL_OP_NK 0x39  // negative acknowlegde the last control message
+#define SL_OP_TR 0x3B  // Received Test Data
+#define SL_OP_SS 0x3D  // status info and counters
 
 // DEBUG INSTRUCTIONS:
 //     Change below line or comment out to change the level of debugging
@@ -44,5 +62,132 @@ typedef void (*on_receive_bridge_handler_function)(uint8_t* buffer, uint8_t size
 #else 
  #define FATAL(text) ((void)0)
 #endif
+
+
+
+////////////////////////////////////////
+// HEADER STRUCTURES
+////////////////////////////////////////
+
+/// DATA PACKETS ///
+
+#pragma pack(push,1)
+struct ds_header {
+  uint8_t op;
+  uint32_t slid;
+  uint8_t qos;
+};
+#pragma pack(pop)
+
+#pragma pack(push,1)
+struct bs_header {
+  uint8_t op;
+  uint32_t slid;
+  uint8_t rssi;
+  uint8_t qos;
+};
+#pragma pack(pop)
+
+#pragma pack(push,1)
+struct on_header {
+  uint8_t op;
+  uint32_t slid;
+};
+#pragma pack(pop)
+
+#pragma pack(push,1)
+struct ak_header { // no payload required
+  uint8_t op;
+  uint32_t slid;
+};
+#pragma pack(pop)
+
+#pragma pack(push,1)
+struct nk_header { // no payload required
+  uint8_t op;
+  uint32_t slid;
+};
+#pragma pack(pop)
+
+#pragma pack(push,1)
+struct tr_header { // data received is payload
+  uint8_t op;
+  uint32_t slid;
+  uint8_t rssi;
+};
+#pragma pack(pop)
+
+#pragma pack(push,1)
+struct ss_header { // payload contains queue and fill information
+  uint8_t op;
+  uint32_t slid;
+};
+#pragma pack(pop)
+
+//////////////////////////////
+
+// CONTROL PACKETS
+
+#pragma pack(push,1)
+struct dn_header {
+  uint8_t op;
+  uint32_t slid;
+  uint8_t qos;
+};
+#pragma pack(pop)
+
+#pragma pack(push,1)
+struct bn_header {
+  uint8_t op;
+  uint32_t slid;
+};
+#pragma pack(pop)
+
+#pragma pack(push,1)
+struct gs_header { // no payload required
+  uint8_t op;
+};
+#pragma pack(pop)
+
+#pragma pack(push,1)
+struct td_header { // no payload required
+  uint8_t op;
+};
+#pragma pack(pop)
+
+#pragma pack(push,1)
+struct sr_header { // payload contains radio parameters
+  uint8_t op;
+};
+#pragma pack(pop)
+
+#pragma pack(push, 1)
+struct bc_header {  // no payload required
+  uint8_t op;
+};
+#pragma pack(pop)
+
+#pragma pack(push, 1)
+struct br_header { // no payload required
+  uint8_t op;
+};
+#pragma pack(pop)
+
+#pragma pack(push,1)
+struct bridge_header {
+  uint8_t rssi;
+  uint8_t qos;
+};
+#pragma pack(pop)
+
+#pragma pack(push,1)
+struct node_header {
+  uint8_t to;
+  uint8_t from;
+  uint8_t flags;
+};
+#pragma pack(pop)
+
+
 
 #endif

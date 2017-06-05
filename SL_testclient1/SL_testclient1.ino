@@ -1,13 +1,14 @@
 // SL_testclient0
-// new world 
 // send pkts to bridge at address 1
+// Mesh has much greater memory requirements, and you may need to limit the
+// max message length to prevent wierd crashes
+#define SL_TOKEN "3ca5de6fa904467e4e66f1fc8e6f54bd1500000000c064440206"
 
 #define MAX_MESSAGE_LEN 50
 
 #include <SteamLink.h>
-#include <SteamLinkLora.h>
 
-#define VER "6"
+#define VER "4"
 
 // for Feather M0
 #if 1
@@ -27,8 +28,6 @@
 #undef LORALED
 #endif
 
-// node 5 in mesh 
-#define SL_ID 0x105
 // Change to 434.0 or other frequency, must match RX's freq!
 #define RF95_FREQ 915.0
 
@@ -43,7 +42,7 @@
 #define  MIN(a,b) (((a)<(b))?(a):(b))
 #define  MAX(a,b) (((a)>(b))?(a):(b))
 
-SteamLinkLora sl(SL_ID);
+SteamLink sl;
 
 /* Packet building */
 uint8_t data[100];
@@ -72,8 +71,8 @@ void setup()
 #endif
 
   sl.set_pins(RFM95_CS, RFM95_RST, RFM95_INT);
-  sl.init();
-  sl.register_receive_handler(sl_on_receive);
+  sl.init(SL_TOKEN);
+  sl.register_handler(sl_on_receive);
 
   Serial.println("Steamlink init done");
   bLast = 2;
@@ -83,7 +82,7 @@ void setup()
 // Dont put this on the stack:
 uint8_t buf[MAX_MESSAGE_LEN];
 int beforeTime = 0, afterTime = 0, nextSendTime = 0;
-int waitInterval = 20000;
+int waitInterval = 4000;
 
 int getBatInfo() {
 #ifdef VBATPIN
@@ -97,11 +96,16 @@ int getBatInfo() {
 //
 void loop()
 {
+  Serial.println("restarting loop");
   uint8_t len = sizeof(buf);
 
   sl.update();
+
+  Serial.println("after update");
+
   bCurrent = digitalRead(BUTTON);
   if ((millis() > nextSendTime) || (bCurrent != bLast)) {
+    Serial.println("inside if statement");
     packet_num += 1;
     if (bCurrent != bLast) {
       int8_t value = (bCurrent == LOW ? 1 : 0);
@@ -114,13 +118,16 @@ void loop()
 #ifdef LORALED
     digitalWrite(LORALED, HIGH);
 #endif
+    Serial.println("before sl send");
     bool rc = sl.send(data);
+    Serial.println("returned sl send");
 #ifdef LORALED
     digitalWrite(LORALED, LOW);
 #endif
-	rc = true;
-    if (rc)
+	rc = SL_SUCCESS;
+    if (rc == SL_SUCCESS)
     {
+      Serial.println("success!");
       afterTime = millis() - beforeTime;
       // It has been reliably delivered to the next node.
       Serial.print("Sent \"");
@@ -133,6 +140,7 @@ void loop()
     }
     nextSendTime = millis() + waitInterval;
   }
+  Serial.println("eol");
 }
 
 void sl_on_receive(uint8_t *buf, uint8_t len) {

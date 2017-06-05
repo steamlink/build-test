@@ -10,18 +10,13 @@ The header size + format is predetermined.
 |   encrypted_payload....|
 +------------------------+
 
-// binary packet
-+------+-----+-----+----------------------+
-| slid |flags| rssi|  encrypted_payload...|
-+------+-----+-----+----------------------+
-|<---BRIDGE_WRAP-->|<----NODE_PKT------>|
-
-// test bit is in flag, lora flags are in rh header
++------+------+-----+-----+---------------------+
+| slid | rssi |  op | qos | encrypted_payload...|
++------+------+-----+-----+---------------------+
+|<------ HEADER --------->|
 
 store to bridge like bridge to store, with rssi = 0
 bridge to node like node to bridge
-
-TODO: make functions static?
 
 */
 
@@ -32,6 +27,13 @@ TODO: make functions static?
 #include <SteamLink.h>
 
 #define SL_SIZEOF_KEY 16
+
+#define SET_VAL2BIT(_var, _val) ( (_var) | (((_val) & 3) << 6) )
+#define SET_VAL6BIT(_var, _val) ( (_var) | ((_val) & 63) )
+
+#define GET_VAL2BIT(_var) ( ((_var) >> 6) & 3 )
+#define GET_VAL6BIT(_var) ( (_var) & 63 )
+
 
 class SteamLinkPacket {
 
@@ -73,6 +75,9 @@ class SteamLinkPacket {
   /// \returns the size of the payload extracted
   static uint8_t get_encrypted_packet(uint8_t* packet, uint8_t packet_length, uint8_t* &payload, uint8_t* key);
 
+
+  //////////// NOT REQUIRED //////////////
+  /*
   /// set_bridge_packet
   /// \param packet pointer to packet
   /// \param payload pointer to payload
@@ -81,7 +86,7 @@ class SteamLinkPacket {
   /// \param flags by reference
   /// \param rssi
   /// \returns the size of the packet created
-  static uint8_t set_bridge_packet(uint8_t* &packet, uint8_t* payload, uint8_t payload_length, uint32_t slid, uint8_t flags, uint8_t rssi);
+  static uint8_t set_bridge_packet(uint8_t* &packet, uint8_t* payload, uint8_t payload_length, uint8_t rssi, uint8_t qos);
 
   /// get_bridge_packet
   /// \param packet pointer to packet
@@ -91,10 +96,14 @@ class SteamLinkPacket {
   /// \param flags by reference
   /// \param rssi by reference
   /// \returns the size of payload extracted
-  static uint8_t get_bridge_packet(uint8_t* packet, uint8_t packet_length, uint8_t* &payload, uint32_t &slid, uint8_t &flags, uint8_t &rssi);
+  static uint8_t get_bridge_packet(uint8_t* packet, uint8_t packet_length, uint8_t* &payload, uint8_t &rssi, uint8_t &qos);
+
+  static uint8_t set_op_packet(uint8_t* packet, uint8_t* payload, uint8_t payload_length, uint8_t op);
+  static uint8_t get_op_packet(uint8_t* packet, uint8_t packet_length, uint8_t* &payload, uint8_t &op);
 
   static uint8_t set_node_packet(uint8_t* &packet, uint8_t* payload, uint8_t payload_length, uint8_t to_addr, uint8_t from_addr, uint8_t flags, bool encrypt = false, uint8_t* key = NULL);
   static uint8_t get_node_packet(uint8_t* packet, uint8_t packet_length, uint8_t* &payload, uint8_t &to_addr, uint8_t &from_addr, uint8_t &flags, bool encrypt = false, uint8_t* key = NULL);
+  */
 
  private:
 
@@ -103,21 +112,5 @@ class SteamLinkPacket {
   static void decrypt(uint8_t* in, uint8_t inlen, uint8_t* key);
 
 };
-
-#pragma pack(push,1)
-struct bridge_header {
-  uint32_t slid;
-  uint8_t flags;
-  uint8_t rssi;
-};
-#pragma pack(pop)
-
-#pragma pack(push,1)
-struct node_header {
-  uint8_t to;
-  uint8_t from;
-  uint8_t flags;
-};
-#pragma pack(pop)
 
 #endif

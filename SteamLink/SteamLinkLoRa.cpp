@@ -1,6 +1,6 @@
 #include <SteamLinkLora.h>
-#include <SteamLinkPacket.h>
-#include <SteamLink.h>
+//#include <SteamLinkPacket.h>
+//#include <SteamLink.h>
 
 SteamLinkLora::SteamLinkLora(uint32_t slid) : SteamLinkGeneric(slid) {
   // initialize slid and set _node_addr
@@ -8,35 +8,6 @@ SteamLinkLora::SteamLinkLora(uint32_t slid) : SteamLinkGeneric(slid) {
   _node_addr = get_node_from_slid(slid);
 }
 
-bool SteamLinkLora::send(uint8_t* buf) {
-  // TODO: short circuit if I'm a bridge!
-  uint8_t* packet;
-  uint8_t packet_size;
-  uint8_t len = strlen((char*) buf);
-  uint8_t to_addr = SL_LORA_DEFAULT_BRIDGE_ADDR;
-  bool sent = 1;
-  // early exit if the message is to big!
-  // TODO: change with actual determined error codes
-  if (len + 1 >= SL_LORA_MAX_MESSAGE_LEN) return false;
-
-  if (_encrypted) {
-    INFO("Sending encrypted packet");
-    packet_size = SteamLinkPacket::set_encrypted_packet(packet, buf, len + 1,  _key);
-    sent = _manager->sendto(packet, packet_size, to_addr);
-    free(packet);
-  } else {
-    INFO("Sending unencrypted packet");
-    sent = _manager->sendto(buf, len + 1, to_addr);
-  }
-  // TODO: figure out error codes
-  if (sent == 0)  {
-    INFO("Packet sent!");
-    return true;
-  }  else {
-    ERR("Packet send failure!");
-    return false;
-  }
-}
 
 void SteamLinkLora::init(bool encrypted, uint8_t* key) {
   if (encrypted) {
@@ -85,49 +56,41 @@ bool SteamLinkLora::update_modem_config() {
   return rc;
 }
 
-void SteamLinkLora::update() {
-  // allocate max size
+bool SteamLinkLora::driver_receive(uint8_t* &packet, uint8_t &packet_size, uint32_t &slid, bool &is_test) {
   uint8_t rcvlen = sizeof(driverbuffer);
-  uint8_t payload_len;
-  uint8_t from; // TODO: might need to "validate" sender!
+  uint8_t from;
   uint8_t to;
   bool received = _manager->recvfrom(driverbuffer, &rcvlen, &from, &to);
-  uint8_t *payload;
-  uint8_t flags = _driver->headerFlags();
-  uint32_t slid;
   if (received) {
-    INFO("Received a packet");
-    if (to == _node_addr) {
-      INFO("Packet is for me!");
-      payload_len = SteamLinkPacket::get_encrypted_packet(driverbuffer, rcvlen, payload, _key);
-      _on_receive(payload, payload_len);
-    } else if (to == SL_LORA_DEFAULT_BRIDGE_ADDR) {
-      INFO("Packet is for bridge!");
-      // message is for bridge and we should forward it!
-      // TODO: or if testflag is set?
-      uint8_t lastRssi = _driver->lastRssi();
-      _on_bridge_receive(driverbuffer, rcvlen, _slid, flags, lastRssi);
+    packet = driverbuffer;
+    packet_size = rcvlen;
+    slid = (uint32_t) to;
+    if (_driver->headerFlags() == SL_LORA_TEST_FLAGS) {
+      is_test = true;
     } else {
-      WARN("Packet has unknown destination. Dropping");
+      is_test = false;
     }
+    return true;
+  } else {
+    return false;
   }
 }
 
-// bridge send is used to send from bridge to node
-bool SteamLinkLora::bridge_send(uint8_t* packet, uint8_t packet_size, uint32_t slid, uint8_t flags, uint8_t rssi) {
-  // ignore rssi
-  bool sent;
-  _manager->setHeaderFlags(flags);
+bool SteamLinkLora::driver_send(uint8_t* packet, uint8_t packet_size, uint32_t slid, bool is_test) {
   uint8_t to_addr = get_node_from_slid(slid);
-  sent = _manager->sendto(packet, packet_size, to_addr);
-  _manager->setHeaderFlags(SL_LORA_DEFAULT_FLAGS);
-  free(packet);
-  // TODO: figure out error codes
+  bool sent;
+  if (is_test) {
+    _manager->setHeaderFlags(SL_LORA_TEST_FLAGS);
+    sent = _manager->sendto(packet, packet_size, to_addr);
+    _manager->setHeaderFlags(SL_LORA_DEFAULT_FLAGS);
+  } else {
+    sent = _manager->sendto(packet, packet_size, to_addr);
+  }
   if (sent == 0)  {
-    INFO("Sent bridge packet!");
+    INFO("Sent packet!");
     return true;
   }  else {
-    ERR("Sent bridge packet failed!");
+    ERR("Sent packet failed!");
     return false;
   }
 }
