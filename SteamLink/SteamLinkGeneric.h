@@ -62,6 +62,8 @@ class SteamLinkGeneric {
 
   virtual uint32_t get_slid();
 
+  virtual void set_bridge();
+
  protected:
 
   uint32_t _slid;

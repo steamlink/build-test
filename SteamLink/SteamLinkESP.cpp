@@ -5,7 +5,6 @@ SteamLinkESP::SteamLinkESP(uint32_t slid) : SteamLinkGeneric(slid) {
   _slid = slid;
   create_pub_str(_pub_str, slid);
   create_sub_str(_sub_str, slid);
-
 }
 
 void SteamLinkESP::init(bool encrypted, uint8_t* key) {

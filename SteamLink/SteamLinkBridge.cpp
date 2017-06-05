@@ -24,6 +24,8 @@ void SteamLinkBridge::update() {
 void SteamLinkBridge::init() {
   _storeSideDriver->register_bridge_handler(&router);
   _nodeSideDriver->register_bridge_handler(&router);
+  _storeSideDriver->set_bridge();
+  _nodeSideDriver->set_bridge();
   _init_done = true;
 }
 

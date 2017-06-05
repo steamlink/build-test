@@ -21,11 +21,16 @@ void SteamLinkGeneric::update() {
   bool is_test;
   bool received = driver_receive(packet, packet_length, slid, is_test);
   if (received) {
-    if ((slid == _slid) || ((slid == SL_DEFAULT_STORE_ADDR) && _is_bridge )) {
-      handle_admin_packet(packet, packet_length, true);
+    if (!is_test) {
+      if ((slid == _slid) || ((slid == SL_DEFAULT_STORE_ADDR) && _is_bridge )) {
+        handle_admin_packet(packet, packet_length, true);
+      }
+    } else { // is test packet
+      if (slid == _slid) {
+        send_tr(packet, packet_length);
+      }
     }
   }
-  return;
 }
 
 void SteamLinkGeneric::register_receive_handler(on_receive_handler_function on_receive) {
@@ -173,6 +178,10 @@ void SteamLinkGeneric::handle_admin_packet(uint8_t* packet, uint8_t packet_lengt
       _bridge_handler(enc_packet, enc_packet_length, SL_DEFAULT_STORE_ADDR);
     }
   }
+}
+
+void SteamLinkGeneric::set_bridge() {
+  _is_bridge = true;
 }
 
 uint32_t SteamLinkGeneric::get_slid() {

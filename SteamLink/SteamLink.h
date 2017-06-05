@@ -173,21 +173,4 @@ struct br_header { // no payload required
 };
 #pragma pack(pop)
 
-#pragma pack(push,1)
-struct bridge_header {
-  uint8_t rssi;
-  uint8_t qos;
-};
-#pragma pack(pop)
-
-#pragma pack(push,1)
-struct node_header {
-  uint8_t to;
-  uint8_t from;
-  uint8_t flags;
-};
-#pragma pack(pop)
-
-
-
 #endif
