@@ -16,6 +16,11 @@ void SteamLinkLora::init(bool encrypted, uint8_t* key) {
   }
   _driver = new RH_RF95(_cs_pin, _interrupt_pin);
   _manager = new RHDatagram(*_driver, _node_addr);
+
+  if (!_manager->init()) {
+    FATAL("RH manager init failed");
+	while (1);
+  }
   INFO("RH Initialized");
 
   // Set frequency

@@ -27,6 +27,7 @@ void SteamLinkBridge::init() {
   _storeSideDriver->set_bridge();
   _nodeSideDriver->set_bridge();
   _init_done = true;
+  _storeSideDriver->send_on();
 }
 
 void SteamLinkBridge::router(uint8_t* packet, uint8_t packet_length, uint32_t slid) {

@@ -16,34 +16,32 @@ import argparse
 
 
 
-# admin_control op codes
-class SL_CTRL:
-	BN = 0x30		# bridge data to node
-	GS = 0x31		# get status, reply with SS message
-	TD = 0x32		# transmit a test message via radio
-	SR = 0x33		# set radio paramter to x, acknowlegde with AK or NK
-	BC = 0x34		# restart node, no reply
-	BR = 0x35		# reset the radio, acknowlegde with AK or NK
+# op codes
+class SL_OP:
+	'''
+	admin_control message types: EVEN, 0 bottom bit 
+	admin_data message types: ODD, 1 bottom bit
+	'''
+
+	DN = 0x30		# data to node, ACK for qos 2
+	BN = 0x32		# slid precedes payload, bridge forward to node
+	GS = 0x34		# get status, reply with SS message
+	TD = 0x36		# transmit a test message via radio
+	SR = 0x38		# set radio paramter to x, acknowlegde with AK or NK
+	BC = 0x3A		# restart node, no reply
+	BR = 0x3C		# reset the radio, acknowlegde with AK or NK
+
+	DS = 0x31		# data to store
+	BS = 0x33		# bridge to store
+	ON = 0x35		# send status on to store, send on startup
+	AK = 0x37		# acknowlegde the last control message
+	NK = 0x39		# negative acknowlegde the last control message
+	TR = 0x3B		# Received Test Data
+	SS = 0x3D		# status info and counters
 
 	def code(code):
 		try:
-			return list(SL_CTRL.__dict__.keys())[list(SL_CTRL.__dict__.values()).index(code)] 
-		except:
-			pass
-		return '??'
-
-# admin data op codes
-class SL_DATA:
-	BS = 0x30		# bridge data to store
-	ON = 0x31		# onlines, send on startup
-	AK = 0x32		# acknowlegde the last control message
-	NK = 0x33		# negative acknowlegde the last control message
-	TR = 0x34		# Received Test Data
-	SS = 0x35		# status info and counters
-
-	def code(code):
-		try:
-			return list(SL_DATA.__dict__.keys())[list(SL_DATA.__dict__.values()).index(code)] 
+			return list(SL_OP.__dict__.keys())[list(SL_OP.__dict__.values()).index(code)] 
 		except:
 			pass
 		return '??'
@@ -188,30 +186,111 @@ class SteamLink:
 
 
 class SteamLinkPacket:
-	bridge_header = '<LBB'
+
 
 	def __init__(self, slid = None, opcode = None, rssi = None, payload = None, pkt = None):
+		self.opcode = None
+		self.slid = None
+		self.rssi = None
+		self.qos = None
+		self.pkt = None
+
 		if pkt == None:						# construct pkt
 			self.slid = slid
 			self.opcode = opcode
 			self.rssi = rssi
 			self.payload = payload
 
-			bpayload = self.payload.encode('utf8')
-			sfmt = "%s%is" % (SteamLinkPacket.bridge_header, len(bpayload))
-			self.pkt = struct.pack(sfmt, \
-					self.slid, self.opcode, self.rssi, bpayload)
+			if self.payload:
+				bpayload = self.payload.encode('utf8')
+
+			if opcode == SL_OP.DS:
+				sfmt = '<BLB%is' % len(bpayload)
+				self.pkt = struct.pack(sfmt, self.opcode, self.slid, self.qos, bpayload)
+			elif opcode == SL_OP.BS:
+				sfmt = '<BLBB%is' % len(bpayload)
+				self.pkt = struct.pack(sfmt, self.opcode, self.slid, self.rssi, self.qos, bpayload)
+			elif opcode == SL_OP.ON:
+				sfmt = '<BL%is' % len(bpayload)
+				self.pkt = struct.pack(sfmt, self.opcode, self.slid, bpayload)
+			elif opcode in [SL_OP.AK, SL_OP.NK]:
+				sfmt = '<BL' 
+				self.pkt = struct.pack(sfmt, self.opcode, self.slid)
+			elif opcode == SL_OP.TR:
+				sfmt = '<BLB%is' % len(bpayload)
+				self.pkt = struct.pack(sfmt, self.opcode, self.slid, self.rssi, bpayload)
+			elif opcode == SL_OP.SS:
+				sfmt = '<BL%is' % len(bpayload)
+				self.opcode, self.slid, bpayload = struct.unpack(sfmt, self.pkt)
+				self.payload = bpayload.decode('utf8')
+
+			elif opcode == SL_OP.DN:
+				sfmt = '<BLB%is' % len(bpayload)
+				self.pkt = struct.pack(sfmt, self.opcode, self.slid, self.qos, self.rssi, bpayload)
+			elif opcode == SL_OP.BN:
+				sfmt = '<BLB%is' % len(bpayload)
+				self.pkt = struct.pack(sfmt, self.opcode, self.slid, bpayload)
+			elif opcode in [SL_OP.GS, SL_OP.TD, SL_OP.BC, SL_OP.BR]:
+				sfmt = '<B' 
+				self.pkt = struct.pack(sfmt, self.opcode)
+			elif opcode == SL_OP.SR:
+				sfmt = '<B%is' % len(bpayload)
+				self.pkt = struct.pack(sfmt, self.opcode, bpayload)
+
+			else:
+				logging.error("SteamLinkPacket unknown opcode in pkt %s", self.pkt)
+			
 		else:								# deconstruct pkt
 			self.pkt = pkt
+#			logging.debug("SteamLinkPacket.init pkt %s", pkt)
 
-			dlen = len(pkt) - struct.calcsize(SteamLinkPacket.bridge_header)
-			sfmt = "%s%is" % (SteamLinkPacket.bridge_header, dlen)
-			self.slid, self.opcode, self.rssi, bpayload = struct.unpack(sfmt, self.pkt)
-			self.payload = bpayload.decode('utf8')
+			if pkt[0] == SL_OP.DS:
+				sfmt = '<BLB%is' % (len(pkt) - 6)
+				self.opcode, self.slid, self.qos, bpayload = struct.unpack(sfmt, self.pkt)
+				self.payload = bpayload.decode('utf8')
+			elif pkt[0] == SL_OP.BS:
+				sfmt = '<BLBB%is' % (len(pkt) - 7)
+				self.opcode, self.slid, self.rssi,  self.qos, bpayload = struct.unpack(sfmt, self.pkt)
+				self.payload = bpayload.decode('utf8')
+			elif pkt[0] == SL_OP.ON:
+				sfmt = '<BL%is' % (len(pkt) - 5)
+				self.opcode, self.slid, bpayload = struct.unpack(sfmt, self.pkt)
+				self.payload = bpayload.decode('utf8')
+			elif pkt[0] in [SL_OP.AK, SL_OP.NK]:
+				sfmt = '<BL' 
+				self.opcode, self.slid = struct.unpack(sfmt, self.pkt)
+				self.payload = None
+			elif pkt[0] == SL_OP.TR:
+				sfmt = '<BLB%is' % (len(pkt) - 6)
+				self.opcode, self.slid, self.rssi, bpayload = struct.unpack(sfmt, self.pkt)
+				self.payload = bpayload.decode('utf8')
+			elif pkt[0] == SL_OP.SS:
+				sfmt = '<BL%is' % (len(pkt) - 5)
+				self.opcode, self.slid, bpayload = struct.unpack(sfmt, self.pkt)
+				self.payload = bpayload.decode('utf8')
 
+			elif pkt[0] == SL_OP.DN:
+				sfmt = '<BLB%is' % (len(pkt) - 6)
+				self.opcode, self.slid, self.qos, bpayload = struct.unpack(sfmt, self.pkt)
+				self.payload = bpayload.decode('utf8')
+			elif pkt[0] == SL_OP.BN:
+				sfmt = '<BLB%is' % (len(pkt) - 5)
+				self.opcode, self.slid, bpayload = struct.unpack(sfmt, self.pkt)
+				self.payload = bpayload.decode('utf8')
+			elif pkt[0] in [SL_OP.GS, SL_OP.TD, SL_OP.BC, SL_OP.BR]:
+				sfmt = '<B' 
+				self.opcode = struct.unpack(sfmt, self.pkt)
+				self.payload = None
+			elif pkt[0] == SL_OP.SR:
+				sfmt = '<B%is' % (len(pkt) - 1)
+				self.opcode, bpayload = struct.unpack(sfmt, self.pkt)
+				self.payload = bpayload.decode('utf8')
+			else:
+				logging.error("SteamLinkPacket unknowm opcode in pkt %s", self.pkt)
+			
 
 	def __str__(self):
-		return "SL (id %s, op %s, rssi %s) %s" % (self.slid, SL_CTRL.code(self.opcode), self.rssi, self.payload)
+		return "SL(op %s, id %s, rssi %s) %s" % (SL_OP.code(self.opcode), self.slid, self.rssi, self.payload)
 
 
 class TestPkt:
@@ -285,7 +364,7 @@ class Node:
 
 
 	def admin_send_get_status(self):
-		sl_pkt = SteamLinkPacket(self.sl_id, SL_CTRL.GS, 0, "")
+		sl_pkt = SteamLinkPacket(self.sl_id, SL_OP.GS)
 		self.steamlink.publish(self.admin_control_topic, sl_pkt.pkt)
 		rc = self.get_response(timeout=2)
 		return rc
@@ -293,7 +372,7 @@ class Node:
 
 	def admin_send_set_radio_param(self, radio):
 		if self.state != "UP": return "NC"
-		sl_pkt = SteamLinkPacket(self.sl_id, SL_CTRL.SR, 0, "%s" % radio)
+		sl_pkt = SteamLinkPacket(self.sl_id, SL_OP.SR, "%s" % radio)
 		self.steamlink.publish(self.admin_control_topic, sl_pkt.pkt)
 
 		rc = self.get_response(timeout=2)
@@ -302,7 +381,7 @@ class Node:
 
 	def admin_send_testpacket(self, pkt):
 		if self.state != "UP": return "NC"
-		sl_pkt = SteamLinkPacket(self.sl_id, SL_CTRL.TD, 0, pkt)
+		sl_pkt = SteamLinkPacket(self.sl_id, SL_OP.TD, pkt)
 		self.steamlink.publish(self.admin_control_topic, sl_pkt.pkt)
 		rc = self.get_response(timeout=2)
 		logging.debug("send_packet %s got %s", sl_pkt, rc)
@@ -323,20 +402,20 @@ class Node:
 		opcode = sl_pkt.opcode
 		opargs = sl_pkt.payload
 
-		if opcode == SL_DATA.ON:
+		if opcode == SL_OP.ON:
 			logging.info('post_admin_data: node %s ONLINE', self.sl_id)
 
-		elif opcode == SL_DATA.SS:
+		elif opcode == SL_OP.SS:
 			logging.info('post_admin_data: node %s status', opargs)
 			self.status = opargs.split(',')
 
-		elif opcode in  [SL_DATA.AK, SL_DATA.NK]:
+		elif opcode in  [SL_OP.AK, SL_OP.NK]:
 			logging.debug('post_admin_data: node %s answer', opcode)
 			try:
 				self.response_q.put(opcode, block=False)
 			except queue.Full:
 				logging.warning('post_admin_data: node %s queue, dropping: %s', self.sl_id, sl_pkt)
-		elif opcode == SL_DATA.TR:
+		elif opcode == SL_OP.TR:
 			logging.debg('post_admin_data: node %s test msg', opargs)
 			rssi, jmsg = opargs.split(',',1)
 

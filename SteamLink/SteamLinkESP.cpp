@@ -1,3 +1,4 @@
+#include <SL_Credentials.h>
 #include <SteamLinkESP.h>
 #ifdef ESP8266
 
