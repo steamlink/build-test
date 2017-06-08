@@ -83,7 +83,7 @@ void setup()
 // Dont put this on the stack:
 uint8_t buf[MAX_MESSAGE_LEN];
 int beforeTime = 0, afterTime = 0, nextSendTime = 0;
-int waitInterval = 20000;
+int waitInterval = 4000;
 
 int getBatInfo() {
 #ifdef VBATPIN
@@ -98,6 +98,7 @@ int getBatInfo() {
 void loop()
 {
   uint8_t len = sizeof(buf);
+
 
   sl.update();
   bCurrent = digitalRead(BUTTON);
@@ -114,22 +115,19 @@ void loop()
 #ifdef LORALED
     digitalWrite(LORALED, HIGH);
 #endif
+    Serial.print("Sending \"");
+    Serial.print((char *)data);
     bool rc = sl.send(data);
 #ifdef LORALED
     digitalWrite(LORALED, LOW);
 #endif
-	rc = true;
-    if (rc)
-    {
+    if (rc) {
       afterTime = millis() - beforeTime;
       // It has been reliably delivered to the next node.
-      Serial.print("Sent \"");
-      Serial.print((char *)data);
       Serial.print( "\" time: ");
       Serial.println(afterTime);
-    }
-    else {
-      Serial.println("sl.send failed. Bridge down?");
+    } else {
+      Serial.println("sl.send failed");
     }
     nextSendTime = millis() + waitInterval;
   }

@@ -35,7 +35,7 @@ void SteamLinkLora::init(bool encrypted, uint8_t* key) {
   }
   INFO("Modem config done");
   randomSeed(analogRead(A0));
-  _driver->setCADTimeout(10000);
+//  _driver->setCADTimeout(10000);
   INFO("set CAD timeout");
   _driver->setTxPower(SL_LORA_DEFAULT_TXPWR, false);
   INFO("set lora tx power");
@@ -84,6 +84,11 @@ bool SteamLinkLora::driver_receive(uint8_t* &packet, uint8_t &packet_size, uint3
 bool SteamLinkLora::driver_send(uint8_t* packet, uint8_t packet_size, uint32_t slid, bool is_test) {
   uint8_t to_addr = get_node_from_slid(slid);
   bool sent;
+  INFO("Sending packet len: ");
+  INFO(packet_size);
+  INFO("packet: ");
+  INFO((char *)packet);
+
   if (is_test) {
     _manager->setHeaderFlags(SL_LORA_TEST_FLAGS);
     sent = _manager->sendto(packet, packet_size, to_addr);
@@ -91,7 +96,7 @@ bool SteamLinkLora::driver_send(uint8_t* packet, uint8_t packet_size, uint32_t s
   } else {
     sent = _manager->sendto(packet, packet_size, to_addr);
   }
-  if (sent == 0)  {
+  if (sent)  {
     INFO("Sent packet!");
     return true;
   }  else {

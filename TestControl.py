@@ -203,6 +203,8 @@ class SteamLinkPacket:
 
 			if self.payload:
 				bpayload = self.payload.encode('utf8')
+			else:
+				bpayload = b''
 
 			if opcode == SL_OP.DS:
 				sfmt = '<BLB%is' % len(bpayload)
