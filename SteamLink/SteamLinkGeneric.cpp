@@ -165,21 +165,21 @@ void SteamLinkGeneric::handle_admin_packet(uint8_t* packet, uint8_t packet_lengt
     free(payload);
   }  // TODO FINISH CONTROL PACKETS
   else if ((op % 2) == 1) {     // we've received a DATA PACKET
-    uint8_t* enc_packet;
-    uint8_t enc_packet_length;
-    bs_header header;
-    header.op = SL_OP_BS;
-    header.slid = _slid;
-    header.rssi = _last_rssi;
-    header.qos = SL_DEFAULT_QOS;
-    enc_packet_length = SteamLinkPacket::set_packet(enc_packet, packet, packet_length, (uint8_t*) &header, sizeof(header));
     // build encapsulated packet and pass it up
     if (is_physical) {
       if (_bridge_handler != NULL) {
+        uint8_t* enc_packet;
+        uint8_t enc_packet_length;
+        bs_header header;
+        header.op = SL_OP_BS;
+        header.slid = _slid;
+        header.rssi = _last_rssi;
+        header.qos = SL_DEFAULT_QOS;
+        enc_packet_length = SteamLinkPacket::set_packet(enc_packet, packet, packet_length, (uint8_t*) &header, sizeof(header));
         _bridge_handler(enc_packet, enc_packet_length, SL_DEFAULT_STORE_ADDR);
       }
     } else { // we got it from the bridge
-      send_bs(enc_packet, enc_packet_length);
+      send_bs(packet, packet_length);
     }
   }
 }
