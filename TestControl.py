@@ -188,15 +188,16 @@ class SteamLink:
 class SteamLinkPacket:
 
 
-	def __init__(self, slid = None, opcode = None, rssi = None, payload = None, pkt = None):
+	def __init__(self, slnode = None, opcode = None, rssi = None, payload = None, pkt = None):
 		self.opcode = None
 		self.slid = None
 		self.rssi = None
 		self.qos = None
 		self.pkt = None
+		self.via = []		# sl_ids of route
 
 		if pkt == None:						# construct pkt
-			self.slid = slid
+			self.slid = slnode.sl_id
 			self.opcode = opcode
 			self.rssi = rssi
 			self.payload = payload
@@ -229,70 +230,85 @@ class SteamLinkPacket:
 			elif opcode == SL_OP.DN:
 				sfmt = '<BLB%is' % len(bpayload)
 				self.pkt = struct.pack(sfmt, self.opcode, self.slid, self.qos, self.rssi, bpayload)
-			elif opcode == SL_OP.BN:
-				sfmt = '<BLB%is' % len(bpayload)
-				self.pkt = struct.pack(sfmt, self.opcode, self.slid, bpayload)
 			elif opcode in [SL_OP.GS, SL_OP.TD, SL_OP.BC, SL_OP.BR]:
-				sfmt = '<B' 
-				self.pkt = struct.pack(sfmt, self.opcode)
+				sfmt = '<BL' 
+				self.pkt = struct.pack(sfmt, self.opcode, self.slid)
 			elif opcode == SL_OP.SR:
-				sfmt = '<B%is' % len(bpayload)
-				self.pkt = struct.pack(sfmt, self.opcode, bpayload)
+				sfmt = '<BL%is' % len(bpayload)
+				self.pkt = struct.pack(sfmt, self.opcode, self.slid, bpayload)
 
 			else:
 				logging.error("SteamLinkPacket unknown opcode in pkt %s", self.pkt)
+
+			for via in slnode.via[::-1]:
+				bpayload = self.pkt
+				sfmt = '<BL%is' % len(bpayload)
+				self.pkt = struct.pack(sfmt, SL_OP.BN, via, bpayload)
+				self.slid = via
+				
+
+			logging.debug("pkt out\n%s", "\n".join(phex(self.pkt, 4)))
 			
 		else:								# deconstruct pkt
 			self.pkt = pkt
-#			logging.debug("SteamLinkPacket.init pkt %s", pkt)
+			logging.debug("pkt\n%s", "\n".join(phex(pkt, 4)))
+
+			if pkt[0] == SL_OP.BS:		# un-ecap all
+				while pkt[0] == SL_OP.BS:
+					sfmt = '<BLBB%is' % (len(pkt) - 7)
+					self.opcode, self.slid, self.rssi,  self.qos, bpayload = struct.unpack(sfmt, pkt)
+					self.via.append(self.slid)
+					pkt = bpayload
+					logging.debug("pkg encap BS, len %s\n%s", len(pkt), "\n".join(phex(pkt, 4)))
+#				self.payload = bpayload.decode('utf8')
 
 			if pkt[0] == SL_OP.DS:
 				sfmt = '<BLB%is' % (len(pkt) - 6)
-				self.opcode, self.slid, self.qos, bpayload = struct.unpack(sfmt, self.pkt)
-				self.payload = bpayload.decode('utf8')
-			elif pkt[0] == SL_OP.BS:
-				sfmt = '<BLBB%is' % (len(pkt) - 7)
-				self.opcode, self.slid, self.rssi,  self.qos, bpayload = struct.unpack(sfmt, self.pkt)
+				self.opcode, self.slid, self.qos, bpayload = struct.unpack(sfmt, pkt)
 				self.payload = bpayload.decode('utf8')
 			elif pkt[0] == SL_OP.ON:
 				sfmt = '<BL%is' % (len(pkt) - 5)
-				self.opcode, self.slid, bpayload = struct.unpack(sfmt, self.pkt)
+				self.opcode, self.slid, bpayload = struct.unpack(sfmt, pkt)
 				self.payload = bpayload.decode('utf8')
 			elif pkt[0] in [SL_OP.AK, SL_OP.NK]:
 				sfmt = '<BL' 
-				self.opcode, self.slid = struct.unpack(sfmt, self.pkt)
+				self.opcode, self.slid = struct.unpack(sfmt, pkt)
 				self.payload = None
 			elif pkt[0] == SL_OP.TR:
 				sfmt = '<BLB%is' % (len(pkt) - 6)
-				self.opcode, self.slid, self.rssi, bpayload = struct.unpack(sfmt, self.pkt)
+				self.opcode, self.slid, self.rssi, bpayload = struct.unpack(sfmt, pkt)
 				self.payload = bpayload.decode('utf8')
 			elif pkt[0] == SL_OP.SS:
 				sfmt = '<BL%is' % (len(pkt) - 5)
-				self.opcode, self.slid, bpayload = struct.unpack(sfmt, self.pkt)
+				self.opcode, self.slid, bpayload = struct.unpack(sfmt, pkt)
 				self.payload = bpayload.decode('utf8')
 
 			elif pkt[0] == SL_OP.DN:
 				sfmt = '<BLB%is' % (len(pkt) - 6)
-				self.opcode, self.slid, self.qos, bpayload = struct.unpack(sfmt, self.pkt)
+				self.opcode, self.slid, self.qos, bpayload = struct.unpack(sfmt, pkt)
 				self.payload = bpayload.decode('utf8')
 			elif pkt[0] == SL_OP.BN:
-				sfmt = '<BLB%is' % (len(pkt) - 5)
-				self.opcode, self.slid, bpayload = struct.unpack(sfmt, self.pkt)
+				sfmt = '<BL%is' % (len(pkt) - 5)
+				self.opcode, self.slid, bpayload = struct.unpack(sfmt, pkt)
 				self.payload = bpayload.decode('utf8')
 			elif pkt[0] in [SL_OP.GS, SL_OP.TD, SL_OP.BC, SL_OP.BR]:
-				sfmt = '<B' 
-				self.opcode = struct.unpack(sfmt, self.pkt)
+				sfmt = '<BL' 
+				self.opcode, self.slid = struct.unpack(sfmt, pkt)
 				self.payload = None
 			elif pkt[0] == SL_OP.SR:
-				sfmt = '<B%is' % (len(pkt) - 1)
-				self.opcode, bpayload = struct.unpack(sfmt, self.pkt)
+				sfmt = '<BL%is' % (len(pkt) - 1)
+				self.opcode, self.slid,  bpayload = struct.unpack(sfmt, pkt)
 				self.payload = bpayload.decode('utf8')
 			else:
-				logging.error("SteamLinkPacket unknowm opcode in pkt %s", self.pkt)
+				logging.error("SteamLinkPacket unknowm opcode in pkt %s", pkt)
+
 			
 
 	def __str__(self):
-		return "SL(op %s, id %s, rssi %s) %s" % (SL_OP.code(self.opcode), self.slid, self.rssi, self.payload)
+		via = "%s" % self.slid
+		if len(self.via) > 0:
+			for v in self.via[::-1]: via += "->%s" % v
+		return "SL(op %s, id %s, rssi %s %s)" % (SL_OP.code(self.opcode), via,  self.rssi, self.payload)
 
 
 class TestPkt:
@@ -336,14 +352,19 @@ class TestPkt:
 
 
 class Node:
-	""" a bridhe node in the test set """
-	def __init__(self, sl_conf, name, sl_id, antenna):
+	""" a node in the test set """
+	def __init__(self, sl_conf, name, sl_id, antenna, via):
 		self.name = name
 		self.sl_conf = sl_conf
 		self.sl_id = sl_id
+		self.via = via		# routing to get to this node
 		self.antenna = antenna
 		self.response_q = queue.Queue(maxsize=1)
-		self.admin_control_topic = self.sl_conf.admin_control_topic % self.sl_id
+		if len(via) == 0:
+			firsthop = self.sl_id
+		else:
+			firsthop = self.via[0]
+		self.admin_control_topic = self.sl_conf.admin_control_topic % firsthop
 
 		self.state = "DOWN"	
 		self.status = []
@@ -366,7 +387,7 @@ class Node:
 
 
 	def admin_send_get_status(self):
-		sl_pkt = SteamLinkPacket(self.sl_id, SL_OP.GS)
+		sl_pkt = SteamLinkPacket(slnode=self, opcode=SL_OP.GS)
 		self.steamlink.publish(self.admin_control_topic, sl_pkt.pkt)
 		rc = self.get_response(timeout=2)
 		return rc
@@ -374,7 +395,7 @@ class Node:
 
 	def admin_send_set_radio_param(self, radio):
 		if self.state != "UP": return "NC"
-		sl_pkt = SteamLinkPacket(self.sl_id, SL_OP.SR, "%s" % radio)
+		sl_pkt = SteamLinkPacket(self, SL_OP.SR, "%s" % radio)
 		self.steamlink.publish(self.admin_control_topic, sl_pkt.pkt)
 
 		rc = self.get_response(timeout=2)
@@ -383,7 +404,7 @@ class Node:
 
 	def admin_send_testpacket(self, pkt):
 		if self.state != "UP": return "NC"
-		sl_pkt = SteamLinkPacket(self.sl_id, SL_OP.TD, pkt)
+		sl_pkt = SteamLinkPacket(self, SL_OP.TD, pkt)
 		self.steamlink.publish(self.admin_control_topic, sl_pkt.pkt)
 		rc = self.get_response(timeout=2)
 		logging.debug("send_packet %s got %s", sl_pkt, rc)
@@ -488,6 +509,33 @@ class LogData:
 #
 # Utility
 #
+
+def phex(p, l=0):
+	if type(p) == type(""):
+		pp = p.encode()
+	else:
+		pp = p
+	hh = ""
+	cc = ""
+	head = " " * l
+	lines = []
+	i = 0
+	for c in pp:
+		hh += "%02x " % c
+		if c >= ord(' ') and pp[i] <= ord('~'):
+			cc += chr(c)
+		else:
+			cc += '.'
+		if i % 16 == 15:
+			lines.append("%s%s %s" % (head, hh, cc))
+			hh = ""
+			cc = ""
+		i += 1
+	if cc != "":
+		lines.append("%s%-48s %s" % (head, hh, cc))
+	return lines
+
+
 def getargs():
 	parser = argparse.ArgumentParser()
 	parser.add_argument("-c", "--config", help="config file, default TestControl.yaml")
@@ -609,7 +657,8 @@ sl_conf = SteamLink(conf['steamlink'])
 
 for node_name in conf['nodes']:
 	nconf = conf['nodes'][node_name]
-	nodes_by_id[nconf['sl_id']] = nodes[node_name] = Node(sl_conf, node_name, nconf['sl_id'], nconf['antenna'])
+	nvia = nconf.get('via', [])
+	nodes_by_id[nconf['sl_id']] = nodes[node_name] = Node(sl_conf, node_name, nconf['sl_id'], nconf['antenna'], nvia)
 
 logging.info("%s nodes loaded" % len(nodes))
 

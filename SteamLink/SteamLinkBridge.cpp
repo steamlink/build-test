@@ -12,9 +12,9 @@ void SteamLinkBridge::bridge(SteamLinkGeneric *nodeSideDriver) {
 
 void SteamLinkBridge::update() {
   if (!_init_done) {
-    INFO("In Bridge Update, running init()");
+    INFO("In Bridge Update, running init()\n");
     init();
-    INFO("init done");
+    INFO("init done\nl");
   }
   _storeSideDriver->update();
   _nodeSideDriver->update();
@@ -31,6 +31,8 @@ void SteamLinkBridge::init() {
 }
 
 void SteamLinkBridge::router(uint8_t* packet, uint8_t packet_length, uint32_t slid) {
+  INFO("Bridge router: slid ");
+  INFONL(slid);
   if (slid == SL_DEFAULT_STORE_ADDR) {
     _storeSideDriver->handle_admin_packet(packet, packet_length, false); // last arg because we are not coming from phys layer
   } if (slid == _storeSideDriver->get_slid()) {

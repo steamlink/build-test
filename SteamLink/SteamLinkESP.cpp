@@ -135,6 +135,8 @@ bool SteamLinkESP::mqtt_connect() {
 }
 
 void SteamLinkESP::_sub_callback(char* data, uint16_t len) {
+  INFO("_sub_callback len: ");
+  INFONL(len);
   memcpy(driverbuffer, data, len);
   rcvlen = len;
   available = true;

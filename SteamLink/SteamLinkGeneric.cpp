@@ -21,6 +21,14 @@ void SteamLinkGeneric::update() {
   bool is_test;
   bool received = driver_receive(packet, packet_length, slid, is_test);
   if (received) {
+	struct ss_header *pkt = (struct ss_header *) packet;
+	if  ((pkt->op & 0x1) == 0) {
+      slid = pkt->slid;
+      INFO("receive control for: ");
+    } else {
+      INFO("receive data for: ");
+    }
+    INFONL(slid);
     if (!is_test) {
       if ((slid == _slid) || ((slid == SL_DEFAULT_STORE_ADDR) && _is_bridge )) {
         handle_admin_packet(packet, packet_length, true);
@@ -150,6 +158,7 @@ void SteamLinkGeneric::handle_admin_packet(uint8_t* packet, uint8_t packet_lengt
       _on_receive(payload, payload_length);
     }
     free(payload);
+
   } else if (op == SL_OP_BN) {
     INFONL("BN Packet Received");
     bn_header header;
@@ -163,7 +172,17 @@ void SteamLinkGeneric::handle_admin_packet(uint8_t* packet, uint8_t packet_lengt
       driver_send(payload, payload_length, header.slid, false);
     }
     free(payload);
+
+  } else if (op == SL_OP_GS) {
+    INFONL("GetStatus Received");
+	send_on();
+
+  } else if (op == SL_OP_SR) {
+    INFONL("SetRadio Received");
+	// TODO: actuuall set Radio
+	send_ak();
   }  // TODO FINISH CONTROL PACKETS
+
   else if ((op % 2) == 1) {     // we've received a DATA PACKET
     // build encapsulated packet and pass it up
     if (is_physical) {
