@@ -30,6 +30,14 @@ MSB...........................LSB
 [24 bit mesh_id][8 bit node_addr]
 */
 
+
+struct SteamLinkLoraConfig {
+  bool encrypted;
+  uint8_t *key;
+  uint8_t mod_conf;
+};
+    
+
 class SteamLinkLora : public SteamLinkGeneric {
 
  public:
@@ -37,7 +45,7 @@ class SteamLinkLora : public SteamLinkGeneric {
   // constructor
   SteamLinkLora(uint32_t slid);
 
-  virtual void init(bool encrypted=true, uint8_t* key=NULL);
+  virtual void init(void *conf);
 
   virtual bool driver_send(uint8_t* packet, uint8_t packet_length, uint32_t slid, bool is_test);
 
@@ -58,6 +66,11 @@ class SteamLinkLora : public SteamLinkGeneric {
 
  private:
 
+  // config info
+  struct SteamLinkLoraConfig *_conf;
+  uint8_t *_key = NULL;
+  uint8_t _encrypted = false;
+  
   RH_RF95 *_driver;
   RHDatagram *_manager;
 

@@ -10,6 +10,12 @@
 #include <SteamLinkLora.h>
 #include <SteamLinkBridge.h>
 
+#include "SL_Credentials.h"
+
+#define SL_ID_ESP 0x111
+#define SL_ID_LORA 0x110
+
+
 #if 0
 // for Feather M0
 #define RFM95_CS 8
@@ -28,10 +34,10 @@
 
 
 void esp_on_receive(uint8_t* buffer, uint8_t size);
-//void lora_on_receive(uint8_t* buffer, uint8_t size);
+void lora_on_receive(uint8_t* buffer, uint8_t size);
 
-SteamLinkESP slesp(0x111);
-SteamLinkLora sllora(0x110);
+SteamLinkESP slesp(SL_ID_ESP);
+SteamLinkLora sllora(SL_ID_LORA);
 SteamLinkBridge slbridge(&slesp);
 
 /* Packet building */
@@ -46,19 +52,16 @@ int8_t bLast, bCurrent = 2;
 //
 void setup()
 {
-
-  slbridge.bridge(&sllora);
-
   Serial.begin(115200);
   delay(1000);
   Serial.println(F("!ID SL_bridge0 " VER));
 
-  
+  slbridge.bridge(&sllora);
   
   sllora.set_pins(RFM95_CS, RFM95_RST, RFM95_INT);
-  sllora.init();
+  sllora.init((void *) &sl_Lora_config);
   Serial.println(F("sllora.init done"));
-  slesp.init();
+  slesp.init((void *) &sl_ESP_config);
   Serial.println(F("slesp.init done" VER));
   
   sllora.register_receive_handler(lora_on_receive);

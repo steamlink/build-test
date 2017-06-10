@@ -1,4 +1,4 @@
-#include <SteamLinkLora.h>
+#include <SteamLinkLoRa.h>
 //#include <SteamLinkPacket.h>
 //#include <SteamLink.h>
 
@@ -9,11 +9,11 @@ SteamLinkLora::SteamLinkLora(uint32_t slid) : SteamLinkGeneric(slid) {
 }
 
 
-void SteamLinkLora::init(bool encrypted, uint8_t* key) {
-  if (encrypted) {
-    _encrypted = true;
-    _key = key;
-  }
+void SteamLinkLora::init(void *vconf) {
+  struct SteamLinkLoraConfig *_conf = (struct SteamLinkLoraConfig *) vconf;
+  _encrypted = _conf->encrypted;
+  _key = _conf->key;
+  _mod_conf = _conf->mod_conf;
   _driver = new RH_RF95(_cs_pin, _interrupt_pin);
   _manager = new RHDatagram(*_driver, _node_addr);
 
@@ -21,24 +21,24 @@ void SteamLinkLora::init(bool encrypted, uint8_t* key) {
     FATAL("RH manager init failed");
 	while (1);
   }
-  INFO("RH Initialized");
+  INFO("RH Initialized\n");
 
   // Set frequency
   if (!_driver->setFrequency(SL_LORA_DEFAULT_FREQUENCY)) {
     FATAL("setFrequency failed");
     while (1);
   }
-  INFO("Frequency set done");
+  INFO("Frequency set done\n");
   if (!update_modem_config()){
     FATAL("modemConfig failed");
     while (1);
   }
-  INFO("Modem config done");
+  INFO("Modem config done\n");
   randomSeed(analogRead(A0));
 //  _driver->setCADTimeout(10000);
-  INFO("set CAD timeout");
+  INFO("set CAD timeout\n");
   _driver->setTxPower(SL_LORA_DEFAULT_TXPWR, false);
-  INFO("set lora tx power");
+  INFO("set lora tx power\n");
 }
 
 void SteamLinkLora::set_modem_config(uint8_t mod_conf) {
@@ -67,6 +67,7 @@ bool SteamLinkLora::driver_receive(uint8_t* &packet, uint8_t &packet_size, uint3
   uint8_t to;
   bool received = _manager->recvfrom(driverbuffer, &rcvlen, &from, &to);
   if (received) {
+    _last_rssi = _driver->lastRssi();
     packet = driverbuffer;
     packet_size = rcvlen;
     slid = (uint32_t) to;
@@ -86,8 +87,8 @@ bool SteamLinkLora::driver_send(uint8_t* packet, uint8_t packet_size, uint32_t s
   bool sent;
   INFO("Sending packet len: ");
   INFO(packet_size);
-  INFO("packet: ");
-  INFO((char *)packet);
+  INFO(" packet: ");
+  INFONL((char *)packet);
 
   if (is_test) {
     _manager->setHeaderFlags(SL_LORA_TEST_FLAGS);
@@ -97,7 +98,7 @@ bool SteamLinkLora::driver_send(uint8_t* packet, uint8_t packet_size, uint32_t s
     sent = _manager->sendto(packet, packet_size, to_addr);
   }
   if (sent)  {
-    INFO("Sent packet!");
+    INFO("Sent packet!\n");
     return true;
   }  else {
     ERR("Sent packet failed!");

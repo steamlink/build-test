@@ -2,11 +2,11 @@
 
 SteamLinkGeneric::SteamLinkGeneric(uint32_t slid) {
   _slid = slid;
+  _encrypted = false;
+  _key = NULL;
 }
 
-void SteamLinkGeneric::init(bool encrypted, uint8_t* key) {
-  _encrypted = encrypted;
-  _key = key;
+void SteamLinkGeneric::init(void *conf) {
 }
 
 bool SteamLinkGeneric::send(uint8_t* buf) {
@@ -141,7 +141,7 @@ uint8_t packet_length;
 void SteamLinkGeneric::handle_admin_packet(uint8_t* packet, uint8_t packet_length, bool is_physical) {
   uint8_t op = packet[0];
   if (op == SL_OP_DN) {          // CONTROL PACKETS
-    INFO("DN Packet Received");
+    INFONL("DN Packet Received");
     dn_header header;
     uint8_t* payload;
     uint8_t payload_length = SteamLinkPacket::get_packet(packet, packet_length, payload, (uint8_t*) &header, sizeof(header));
@@ -151,7 +151,7 @@ void SteamLinkGeneric::handle_admin_packet(uint8_t* packet, uint8_t packet_lengt
     }
     free(payload);
   } else if (op == SL_OP_BN) {
-    INFO("BN Packet Received");
+    INFONL("BN Packet Received");
     bn_header header;
     uint8_t* payload;
     uint8_t payload_length = SteamLinkPacket::get_packet(packet, packet_length, payload, (uint8_t*) &header, sizeof(header));

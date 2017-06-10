@@ -43,7 +43,10 @@
 #define  MIN(a,b) (((a)<(b))?(a):(b))
 #define  MAX(a,b) (((a)>(b))?(a):(b))
 
+
 SteamLinkLora sl(SL_ID);
+struct SteamLinkLoraConfig slconfig = { false, NULL, 0 };
+
 
 /* Packet building */
 uint8_t data[100];
@@ -72,7 +75,7 @@ void setup()
 #endif
 
   sl.set_pins(RFM95_CS, RFM95_RST, RFM95_INT);
-  sl.init();
+  sl.init((void *)&slconfig);
   sl.register_receive_handler(sl_on_receive);
 
   Serial.println("Steamlink init done");

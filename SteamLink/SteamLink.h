@@ -40,7 +40,8 @@ typedef void (*on_receive_bridge_handler_function)(uint8_t* packet, uint8_t pack
 #define DEBUG_LEVEL_NONE   0
 
 #if DEBUG_ENABLED >= DEBUG_LEVEL_INFO
- #define INFO(text) Serial.print("SL_INFO   : ");Serial.println(text)
+ #define INFONL(text) Serial.println(text)
+ #define INFO(text) Serial.print(text)
 #else 
  #define INFO(text) ((void)0)
 #endif

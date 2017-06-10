@@ -1,4 +1,3 @@
-#include <SL_Credentials.h>
 #include <SteamLinkESP.h>
 #ifdef ESP8266
 
@@ -8,16 +7,20 @@ SteamLinkESP::SteamLinkESP(uint32_t slid) : SteamLinkGeneric(slid) {
   create_sub_str(_sub_str, slid);
 }
 
-void SteamLinkESP::init(bool encrypted, uint8_t* key) {
-  INFO("Initializing SteamLinkESP");
-  wifi_connect();
+void SteamLinkESP::init(void *vconf) {
+  INFO("Initializing SteamLinkESP\n");
+  _conf = (struct SteamLinkESPConfig *) vconf;
+  _creds = _conf->creds;
 
-  _mqtt = new Adafruit_MQTT_Client(&_client, SL_SERVER, SL_SERVERPORT, SL_CONID,  SL_USERNAME, SL_KEY);
+  _mqtt = new Adafruit_MQTT_Client(&_client, _conf->sl_server, _conf->sl_serverport, _conf->sl_conid,  _conf->sl_username, _conf->sl_key);
   _pub = new Adafruit_MQTT_Publish(_mqtt, _pub_str);
   _sub = new Adafruit_MQTT_Subscribe(_mqtt, _sub_str);
 
   // set up callbacks
   _sub->setCallback(_sub_callback);
+
+  // Connect Network
+  wifi_connect();
 
   // Connect to MQTT
   mqtt_connect();
@@ -28,9 +31,10 @@ bool SteamLinkESP::driver_receive(uint8_t* &packet, uint8_t &packet_size, uint32
   wifi_connect();
   if (mqtt_connect()) {
   // process packets
-  _mqtt->processPackets(10);
+   _mqtt->processPackets(10);
   }
   if (available) {
+   _last_rssi = WiFi.RSSI();
    packet = driverbuffer;
    packet_size = rcvlen;
    // TODO: see comment above re: MQTT nodes can only speak to store for now
@@ -45,7 +49,7 @@ bool SteamLinkESP::driver_receive(uint8_t* &packet, uint8_t &packet_size, uint32
 }
 
 bool SteamLinkESP::driver_send(uint8_t* packet, uint8_t packet_size, uint32_t slid, bool is_test) {
-  INFO("Sending user string over mqtt");
+  INFO("Sending user string over mqtt\n");
   // TODO: for now, MQTT nodes can only send to one SLID, ie store_slid
   // this can be exanded in the future. We ignore the input SLID
 
@@ -65,35 +69,38 @@ void SteamLinkESP::wifi_connect() {
     return;
   }
   // try connecting to one of the WiFi networks
-  struct Credentials* endPtr = creds + sizeof(creds)/sizeof(creds[0]);
+//  struct Credentials* endPtr = _creds + sizeof(_creds)/sizeof(_creds[0]);
   while (WiFi.status() != WL_CONNECTED) {
-    INFO("Connecting to WiFi");
-    struct Credentials* ptr = creds;
+    INFO("Connecting to WiFi\n");
+    struct SteamLinkWiFi *ptr = _creds;
     int cnt0 = 5;
-    while ((ptr<endPtr) && (WiFi.status() != WL_CONNECTED)) {
-      INFO("WiFi Network");
-      INFO(ptr->ssid);
+    while ((ptr->ssid) && (WiFi.status() != WL_CONNECTED)) {
+      INFO("WiFi Network: ");
+      INFONL(ptr->ssid);
       WiFi.begin(ptr->ssid, ptr->pass);
       int cnt = WIFI_WAITSECONDS;
       while (WiFi.status() != WL_CONNECTED) {
         delay(1000);
-        INFO("*");
+        INFO(".");
         if (cnt-- == 0) {
           break;
         }
       }
+      INFO("\n");
       if (WiFi.status() == WL_CONNECTED)
         break;
       if (cnt0-- == 0) {
         FATAL("Could not connect to WiFi");
         while (1);
       }
-      INFO("Trying next network!");
+      INFO("Trying next network!\n");
       ptr++;
     }
   }
   INFO("WiFi Connected, IP address: ");
   INFO(WiFi.localIP());
+  INFO(" rssi: ");
+  INFONL(WiFi.RSSI());
 }
 
 void SteamLinkESP::create_pub_str(char* topic, uint32_t slid) {
@@ -109,20 +116,20 @@ bool SteamLinkESP::mqtt_connect() {
   if (_mqtt->connected()) {
     return true;
   }
-  INFO("MQTT CONNECTING TO:");
+  INFO("MQTT connecting to:\n");
   INFO("Server: ");
-  INFO(SL_SERVER);
-  INFO("Port: ");
-  INFO(SL_SERVERPORT);
+  INFO(_conf->sl_server);
+  INFO(":");
+  INFONL(_conf->sl_serverport);
   INFO("At millis: ");
-  INFO(millis());
+  INFONL(millis());
 
   if ((ret = _mqtt->connect()) != 0) { // connect will return 0 for connected
     WARN(_mqtt->connectErrorString(ret));
     _mqtt->disconnect();
     return false;
   } else {
-    INFO("Connected to MQTT");
+    INFO("Connected to MQTT\n");
   }
   return true;
 }

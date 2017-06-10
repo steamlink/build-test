@@ -14,6 +14,27 @@
 #define SL_ESP_DEFAULT_TOPIC_LEN 100
 #define SL_ESP_MAX_MESSAGE_LEN 200
 
+
+#define WIFI_WAITSECONDS 15
+
+struct SteamLinkWiFi {
+  const char *ssid;
+  const char *pass;
+};
+
+struct SteamLinkESPConfig {
+  bool encrypted;
+  uint8_t *key; 
+  struct SteamLinkWiFi  *creds;
+  const char *sl_server;
+  uint16_t sl_serverport;
+  const char *sl_username;
+  const char *sl_conid;
+  const char *sl_key;
+  const char *sl_server_fingerprint;
+};
+
+
 ///////////////////////////////////////////////////////////////////////////
 //   TODO: STEAMLINK CREDENTIALS
 ///////////////////////////////////////////////////////////////////////////
@@ -60,7 +81,7 @@ class SteamLinkESP : public SteamLinkGeneric {
   /// constructor
   SteamLinkESP(uint32_t slid);
 
-  virtual void init(bool encrypted=false, uint8_t* key=NULL);
+  virtual void init(void *vconf);
 
   /// send
   virtual bool driver_send(uint8_t* packet, uint8_t packet_length, uint32_t slid, bool is_test);
@@ -71,6 +92,10 @@ class SteamLinkESP : public SteamLinkGeneric {
 
  private:
 
+  // config info
+  struct SteamLinkESPConfig *_conf;
+  struct SteamLinkWiFi *_creds;
+  
   char _pub_str[SL_ESP_DEFAULT_TOPIC_LEN];
   char _sub_str[SL_ESP_DEFAULT_TOPIC_LEN];
 

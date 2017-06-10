@@ -14,7 +14,7 @@ class SteamLinkGeneric {
   // constructor
   SteamLinkGeneric(uint32_t slid);
 
-  virtual void init(bool encrypted=false, uint8_t* key=NULL);
+  virtual void init(void *conf);
 
   /// \send
   /// \brief for user to send string to store
