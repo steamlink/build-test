@@ -39,6 +39,7 @@ void SteamLinkBridge::router(uint8_t* packet, uint8_t packet_length, uint32_t sl
     _nodeSideDriver->handle_admin_packet(packet, packet_length, false); // last arg because we are not coming from phys layer
   }
   // else something went wrong! we don't have a routing table to handle this!
+  free(packet);
 }
 
 bool SteamLinkBridge::_init_done = false;
