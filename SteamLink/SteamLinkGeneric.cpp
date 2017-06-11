@@ -160,15 +160,15 @@ void SteamLinkGeneric::handle_admin_packet(uint8_t* packet, uint8_t packet_lengt
     INFONL("BN Packet Received");
     uint8_t* pkt_header;
     uint8_t* payload;
-    uint8_t payload_length = SteamLinkPacket::get_packet(packet, packet_length, payload, pkt_header, (uint8_t) sizeof(dn_header));
+    uint8_t payload_length = SteamLinkPacket::get_packet(packet, packet_length, payload, pkt_header, (uint8_t) sizeof(bn_header));
     INFO("Printing header: ");
     INFONL(*pkt_header);
     // if possible, send it up to the bridge level
     if (is_physical) {
-      _bridge_handler(payload, payload_length, ((dn_header*) pkt_header)->slid);
+      _bridge_handler(payload, payload_length, ((bn_header*) pkt_header)->slid);
     } else {
       // we need to forward it out the physical layer
-      driver_send(payload, payload_length, ((dn_header*) pkt_header)->slid, false);
+      driver_send(payload, payload_length, ((bn_header*) pkt_header)->slid, false);
     }
     INFONL("Handled packet, freeing memory");
     free(pkt_header);
