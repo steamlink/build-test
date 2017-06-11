@@ -183,7 +183,7 @@ void SteamLinkGeneric::handle_admin_packet(uint8_t* packet, uint8_t packet_lengt
 	send_ak();
   }  // TODO FINISH CONTROL PACKETS
 
-  else if ((op % 2) == 1) {     // we've received a DATA PACKET
+  else if ((op & 0xff) == 1) {     // we've received a DATA PACKET
     // build encapsulated packet and pass it up
     if (is_physical) {
       if (_bridge_handler != NULL) {
@@ -198,6 +198,7 @@ void SteamLinkGeneric::handle_admin_packet(uint8_t* packet, uint8_t packet_lengt
         _bridge_handler(enc_packet, enc_packet_length, SL_DEFAULT_STORE_ADDR);
       }
     } else { // we got it from the bridge
+      INFONL("calling send_bs ");
       send_bs(packet, packet_length);
     }
   }

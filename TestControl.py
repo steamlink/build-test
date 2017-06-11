@@ -231,20 +231,21 @@ class SteamLinkPacket:
 				sfmt = '<BLB%is' % len(bpayload)
 				self.pkt = struct.pack(sfmt, self.opcode, self.slid, self.qos, self.rssi, bpayload)
 			elif opcode in [SL_OP.GS, SL_OP.TD, SL_OP.BC, SL_OP.BR]:
-				sfmt = '<BL' 
-				self.pkt = struct.pack(sfmt, self.opcode, self.slid)
+				sfmt = '<B' 
+				self.pkt = struct.pack(sfmt, self.opcode)
 			elif opcode == SL_OP.SR:
-				sfmt = '<BL%is' % len(bpayload)
-				self.pkt = struct.pack(sfmt, self.opcode, self.slid, bpayload)
+				sfmt = '<B%is' % len(bpayload)
+				self.pkt = struct.pack(sfmt, self.opcode, bpayload)
 
 			else:
 				logging.error("SteamLinkPacket unknown opcode in pkt %s", self.pkt)
 
-			for via in slnode.via[::-1]:
-				bpayload = self.pkt
-				sfmt = '<BL%is' % len(bpayload)
-				self.pkt = struct.pack(sfmt, SL_OP.BN, via, bpayload)
-				self.slid = via
+			if len(slnode.via) > 0:
+				for via in [self.slid]+slnode.via[::-1][:-1]:
+					bpayload = self.pkt
+					sfmt = '<BL%is' % len(bpayload)
+					self.pkt = struct.pack(sfmt, SL_OP.BN, via, bpayload)
+				self.slid = slnode.via[0]
 				
 
 			logging.debug("pkt out\n%s", "\n".join(phex(self.pkt, 4)))
@@ -292,12 +293,12 @@ class SteamLinkPacket:
 				self.opcode, self.slid, bpayload = struct.unpack(sfmt, pkt)
 				self.payload = bpayload.decode('utf8')
 			elif pkt[0] in [SL_OP.GS, SL_OP.TD, SL_OP.BC, SL_OP.BR]:
-				sfmt = '<BL' 
-				self.opcode, self.slid = struct.unpack(sfmt, pkt)
+				sfmt = '<B' 
+				self.opcode = struct.unpack(sfmt, pkt)
 				self.payload = None
 			elif pkt[0] == SL_OP.SR:
-				sfmt = '<BL%is' % (len(pkt) - 1)
-				self.opcode, self.slid,  bpayload = struct.unpack(sfmt, pkt)
+				sfmt = '<B%is' % (len(pkt) - 1)
+				self.opcode, bpayload = struct.unpack(sfmt, pkt)
 				self.payload = bpayload.decode('utf8')
 			else:
 				logging.error("SteamLinkPacket unknowm opcode in pkt %s", pkt)
