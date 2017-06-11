@@ -146,28 +146,28 @@ void SteamLinkGeneric::handle_admin_packet(uint8_t* packet, uint8_t packet_lengt
   uint8_t op = packet[0];
   if (op == SL_OP_DN) {          // CONTROL PACKETS
     INFONL("DN Packet Received");
-    dn_header header;
+    dn_header* pkt_header;
     uint8_t* payload;
-    uint8_t payload_length = SteamLinkPacket::get_packet(packet, packet_length, payload, (uint8_t*) &header, sizeof(header));
+    uint8_t payload_length = SteamLinkPacket::get_packet(packet, packet_length, payload, (uint8_t*&) pkt_header, (uint8_t) sizeof(*pkt_header));
     // TODO Suppress Duplicates
     if (_on_receive != NULL) {
       _on_receive(payload, payload_length);
     }
-    free(payload);
+    free(pkt_header);
 
   } else if (op == SL_OP_BN) {
     INFONL("BN Packet Received");
-    bn_header header;
+    bn_header* pkt_header;
     uint8_t* payload;
-    uint8_t payload_length = SteamLinkPacket::get_packet(packet, packet_length, payload, (uint8_t*) &header, sizeof(header));
+    uint8_t payload_length = SteamLinkPacket::get_packet(packet, packet_length, payload, (uint8_t*&) pkt_header, (uint8_t) sizeof(*pkt_header));
     // if possible, send it up to the bridge level
     if (is_physical) {
-      _bridge_handler(payload, payload_length, header.slid);
+      _bridge_handler(payload, payload_length, pkt_header->slid);
     } else {
       // we need to forward it out the physical layer
-      driver_send(payload, payload_length, header.slid, false);
+      driver_send(payload, payload_length, pkt_header->slid, false);
     }
-    free(payload);
+    free(pkt_header);
 
   } else if (op == SL_OP_GS) {
     INFONL("GetStatus Received");

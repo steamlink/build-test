@@ -55,7 +55,7 @@ class SteamLinkPacket {
   /// \param header pointer to header
   /// \param header_length known size of header
   /// \returns the size of the payload
-  static uint8_t get_packet(uint8_t* packet, uint8_t packet_length, uint8_t* &payload, uint8_t* header, uint8_t header_length);
+  static uint8_t get_packet(uint8_t* packet, uint8_t packet_length, uint8_t* &payload, uint8_t* &header, uint8_t header_length);
 
   /// set_encrypted_packet
   /// \brief encrypt a payload with no additional header

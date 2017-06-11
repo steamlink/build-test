@@ -82,6 +82,10 @@ class SteamLinkGeneric {
   uint8_t _last_rssi = 0;
 
   // bridge mode
+  // _bridge_mode
+  // 0 not connected to bridge
+  // 1 is store_side
+  // 2 is node_side
   bool _is_bridge = false;
 
   bool sign_on_complete = false;
