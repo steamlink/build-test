@@ -49,6 +49,8 @@ class SteamLinkGeneric {
   /// \brief if the message is not for this node AND there is a bridge registered, send to bridge handler
   virtual void register_bridge_handler(on_receive_bridge_handler_function on_receive);
 
+  virtual void sign_on_procedure();
+
   /// DRIVER LEVEL CALLS
 
   /// driver_send
@@ -63,6 +65,7 @@ class SteamLinkGeneric {
   virtual uint32_t get_slid();
 
   virtual void set_bridge();
+
 
  protected:
 
@@ -80,6 +83,8 @@ class SteamLinkGeneric {
 
   // bridge mode
   bool _is_bridge = false;
+
+  bool sign_on_complete = false;
 
  private:
 

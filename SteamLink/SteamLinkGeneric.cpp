@@ -15,6 +15,10 @@ bool SteamLinkGeneric::send(uint8_t* buf) {
 }
 
 void SteamLinkGeneric::update() {
+  if (!sign_on_complete) {
+    sign_on_procedure();
+    sign_on_complete = true;
+  }
   uint8_t* packet;
   uint8_t packet_length;
   uint32_t slid;
@@ -193,6 +197,10 @@ void SteamLinkGeneric::handle_admin_packet(uint8_t* packet, uint8_t packet_lengt
       send_bs(packet, packet_length);
     }
   }
+}
+
+void SteamLinkGeneric::sign_on_procedure() {
+  send_on();
 }
 
 void SteamLinkGeneric::set_bridge() {
