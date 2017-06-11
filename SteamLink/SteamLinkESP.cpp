@@ -16,6 +16,8 @@ void SteamLinkESP::init(void *vconf) {
   _pub = new Adafruit_MQTT_Publish(_mqtt, _pub_str);
   _sub = new Adafruit_MQTT_Subscribe(_mqtt, _sub_str);
 
+  _mqtt->subscribe(_sub);
+
   // set up callbacks
   _sub->setCallback(_sub_callback);
 
@@ -43,6 +45,7 @@ bool SteamLinkESP::driver_receive(uint8_t* &packet, uint8_t &packet_size, uint32
    is_test = false;
    // flip available
    available = false;
+   return true;
   } else {
     return false;
   }
