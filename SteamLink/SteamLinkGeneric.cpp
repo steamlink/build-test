@@ -21,14 +21,6 @@ void SteamLinkGeneric::update() {
   bool is_test;
   bool received = driver_receive(packet, packet_length, slid, is_test);
   if (received) {
-	struct ss_header *pkt = (struct ss_header *) packet;
-	if  ((pkt->op & 0x1) == 0) {
-      slid = pkt->slid;
-      INFO("receive control for: ");
-    } else {
-      INFO("receive data for: ");
-    }
-    INFONL(slid);
     if (!is_test) {
       if ((slid == _slid) || ((slid == SL_DEFAULT_STORE_ADDR) && _is_bridge )) {
         handle_admin_packet(packet, packet_length, true);

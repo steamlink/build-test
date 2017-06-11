@@ -147,35 +147,30 @@ struct bn_header {
 #pragma pack(push,1)
 struct gs_header { // no payload required
   uint8_t op;
-  uint32_t slid;
 };
 #pragma pack(pop)
 
 #pragma pack(push,1)
 struct td_header { // no payload required
   uint8_t op;
-  uint32_t slid;
 };
 #pragma pack(pop)
 
 #pragma pack(push,1)
 struct sr_header { // payload contains radio parameters
   uint8_t op;
-  uint32_t slid;
 };
 #pragma pack(pop)
 
 #pragma pack(push, 1)
 struct bc_header {  // no payload required
   uint8_t op;
-  uint32_t slid;
 };
 #pragma pack(pop)
 
 #pragma pack(push, 1)
 struct br_header { // no payload required
   uint8_t op;
-  uint32_t slid;
 };
 #pragma pack(pop)
 
