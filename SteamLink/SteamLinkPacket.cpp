@@ -2,12 +2,14 @@
 #include <SteamLink.h>
 
 uint8_t SteamLinkPacket::set_packet(uint8_t* &packet, uint8_t* payload, uint8_t payload_length, uint8_t* header, uint8_t header_length) {
-  INFONL("SteamLinkPacket - setting packet");
+  INFO("SteamLinkPacket - setting packet len ");
   uint8_t packet_length = payload_length + header_length;
+  INFONL(packet_length);
+
   packet = (uint8_t*) malloc(packet_length);
   INFONL("SteamLinkPacket - memory allocated for packet");
   if (header_length > 0) {
-    memcpy(&packet[0], header, header_length);
+    memcpy(packet, header, header_length);
     INFONL("SteamLinkPacket - header copied in to packet");
   }
   if (payload_length > 0) {
@@ -21,8 +23,15 @@ uint8_t SteamLinkPacket::get_packet(uint8_t* packet, uint8_t packet_length, uint
   INFONL("SteamLinkPacket - getting packet");
   uint8_t payload_length = packet_length - header_length;
   header = (uint8_t*) malloc(packet_length);
-  memcpy(header, &packet[0], packet_length);
+  memcpy(header, packet, packet_length);
   payload = header + header_length;
+  INFO("header ");
+  Serial.print((uint32_t) header, HEX);
+  INFO(" len ");
+  Serial.print((uint32_t) packet_length);
+  INFO(" payload ");
+  Serial.print((uint32_t) payload, HEX);
+  INFONL();
   return payload_length;
 }
 

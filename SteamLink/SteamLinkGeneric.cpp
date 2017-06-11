@@ -25,14 +25,17 @@ void SteamLinkGeneric::update() {
   bool is_test;
   bool received = driver_receive(packet, packet_length, slid, is_test);
   if (received) {
+    INFO("received slid: ");
+    INFONL(slid);
     if (!is_test) {
       if ((slid == _slid) || ((slid == SL_DEFAULT_STORE_ADDR) && _is_bridge )) {
+        INFONL("update->handle_admin_packet");
         handle_admin_packet(packet, packet_length, true);
-      }
+      } else {
+        INFONL("SteamLinkGeneric::update dropping packet 1");
+	  }
     } else { // is test packet
-      if (slid == _slid) {
-        send_tr(packet, packet_length);
-      }
+      send_tr(packet, packet_length);
     }
   }
 }
@@ -210,7 +213,7 @@ void SteamLinkGeneric::handle_admin_packet(uint8_t* packet, uint8_t packet_lengt
 	send_ak();
   }  // TODO FINISH CONTROL PACKETS
 
-  else if ((op & 0xff) == 1) {     // we've received a DATA PACKET
+  else if ((op & 0x1) == 1) {     // we've received a DATA PACKET
     // build encapsulated packet and pass it up
     if (is_physical) {
       if (_bridge_handler != NULL) {

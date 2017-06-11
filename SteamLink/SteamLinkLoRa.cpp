@@ -67,10 +67,21 @@ bool SteamLinkLora::driver_receive(uint8_t* &packet, uint8_t &packet_size, uint3
   uint8_t to;
   bool received = _manager->recvfrom(driverbuffer, &rcvlen, &from, &to);
   if (received) {
+    INFO("SteamLinkLora::driver_receive len: ");
+    INFO(rcvlen);
+    INFO(" to: ");
+    INFO(to);
+    INFO(" packet: ");
+    phex(driverbuffer, rcvlen);
+    INFONL();
     _last_rssi = _driver->lastRssi();
     packet = driverbuffer;
     packet_size = rcvlen;
-    slid = (uint32_t) to;
+	if (to == get_node_from_slid(SL_DEFAULT_STORE_ADDR)) {
+	    slid = SL_DEFAULT_STORE_ADDR;
+    } else {
+	    slid = (uint32_t) to | (get_mesh_from_slid(_slid) << 8);
+    }
     if (_driver->headerFlags() == SL_LORA_TEST_FLAGS) {
       is_test = true;
     } else {
@@ -85,12 +96,13 @@ bool SteamLinkLora::driver_receive(uint8_t* &packet, uint8_t &packet_size, uint3
 bool SteamLinkLora::driver_send(uint8_t* packet, uint8_t packet_size, uint32_t slid, bool is_test) {
   uint8_t to_addr = get_node_from_slid(slid);
   bool sent;
-  INFO("Sending packet len: ");
+  INFO("SteamLinkLora::driver_send len: ");
   INFO(packet_size);
   INFO(" to: ");
   INFO(slid);
   INFO(" packet: ");
-  INFONL((char *)packet);
+  phex(packet, packet_size);
+  INFONL();
 
   if (is_test) {
     _manager->setHeaderFlags(SL_LORA_TEST_FLAGS);
