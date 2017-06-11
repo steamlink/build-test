@@ -153,6 +153,7 @@ void SteamLinkGeneric::handle_admin_packet(uint8_t* packet, uint8_t packet_lengt
     if (_on_receive != NULL) {
       _on_receive(payload, payload_length);
     }
+    INFONL("Handled packet, freeing memory");
     free(pkt_header);
 
   } else if (op == SL_OP_BN) {
@@ -167,6 +168,7 @@ void SteamLinkGeneric::handle_admin_packet(uint8_t* packet, uint8_t packet_lengt
       // we need to forward it out the physical layer
       driver_send(payload, payload_length, pkt_header->slid, false);
     }
+    INFONL("Handled packet, freeing memory");
     free(pkt_header);
 
   } else if (op == SL_OP_GS) {

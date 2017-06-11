@@ -87,6 +87,8 @@ bool SteamLinkLora::driver_send(uint8_t* packet, uint8_t packet_size, uint32_t s
   bool sent;
   INFO("Sending packet len: ");
   INFO(packet_size);
+  INFO(" to: ");
+  INFO(slid);
   INFO(" packet: ");
   INFONL((char *)packet);
 

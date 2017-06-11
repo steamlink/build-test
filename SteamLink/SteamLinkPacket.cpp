@@ -2,23 +2,23 @@
 #include <SteamLink.h>
 
 uint8_t SteamLinkPacket::set_packet(uint8_t* &packet, uint8_t* payload, uint8_t payload_length, uint8_t* header, uint8_t header_length) {
-  INFO("SteamLinkPacket - setting packet");
+  INFONL("SteamLinkPacket - setting packet");
   uint8_t packet_length = payload_length + header_length;
   packet = (uint8_t*) malloc(packet_length);
-  INFO("SteamLinkPacket - memory allocated for packet");
+  INFONL("SteamLinkPacket - memory allocated for packet");
   if (header_length > 0) {
     memcpy(&packet[0], header, header_length);
-    INFO("SteamLinkPacket - header copied in to packet");
+    INFONL("SteamLinkPacket - header copied in to packet");
   }
   if (payload_length > 0) {
     memcpy(&packet[header_length], payload, payload_length);
-    INFO("SteamLinkPacket - payload copied in to packet");
+    INFONL("SteamLinkPacket - payload copied in to packet");
   }
   return packet_length;
 }
 
 uint8_t SteamLinkPacket::get_packet(uint8_t* packet, uint8_t packet_length, uint8_t* &payload, uint8_t* &header, uint8_t header_length) {
-  INFO("SteamLinkPacket - getting packet");
+  INFONL("SteamLinkPacket - getting packet");
   uint8_t payload_length = packet_length - header_length;
   header = (uint8_t*) malloc(packet_length);
   memcpy(header, &packet[0], packet_length);
@@ -27,7 +27,7 @@ uint8_t SteamLinkPacket::get_packet(uint8_t* packet, uint8_t packet_length, uint
 }
 
 uint8_t SteamLinkPacket::set_encrypted_packet(uint8_t* &packet, uint8_t* payload, uint8_t payload_length, uint8_t* key) {
-  INFO("SteamLinkPacket - setting encrypted packet");
+  INFONL("SteamLinkPacket - setting encrypted packet");
   uint8_t* encrypted_payload = NULL;
   uint8_t encrypted_payload_length;
   packet = encrypt_alloc(&encrypted_payload_length, payload, payload_length, key);
@@ -35,7 +35,7 @@ uint8_t SteamLinkPacket::set_encrypted_packet(uint8_t* &packet, uint8_t* payload
 }
 
 uint8_t SteamLinkPacket::get_encrypted_packet(uint8_t* packet, uint8_t packet_length, uint8_t* &payload, uint8_t* key) {
-  INFO("SteamLinkPacket - decrypting packet");
+  INFONL("SteamLinkPacket - decrypting packet");
   decrypt(packet, packet_length, key);
   payload = packet;
   return packet_length;
@@ -64,20 +64,20 @@ void SteamLinkPacket::decrypt(uint8_t* in, uint8_t inlen, uint8_t* key) {
 ///////////////
 /*
 uint8_t SteamLinkPacket::set_bridge_packet(uint8_t* &packet, uint8_t* payload, uint8_t payload_length, uint32_t slid, uint8_t rssi, uint8_t op, uint8_t qos) {
-  INFO("SteamLinkPacket - setting bridge packet");
+  INFONL("SteamLinkPacket - setting bridge packet");
   bridge_header header;
   header.slid = slid;
   header.rssi = rssi;
   header.op = op;
   header.qos = qos;
-  INFO("SteamLinkPacket - calling set packet with bridge header and payload");
+  INFONL("SteamLinkPacket - calling set packet with bridge header and payload");
   uint8_t packet_size = set_packet(packet, payload, payload_length, (uint8_t*) &header, sizeof(header));
 }
 
 uint8_t SteamLinkPacket::get_bridge_packet(uint8_t* packet, uint8_t packet_length, uint8_t* &payload, uint32_t &slid, uint8_t &rssi, uint8_t &op, uint8_t &qos) {
-  INFO("SteamLinkPacket - getting bridge packet");
+  INFONL("SteamLinkPacket - getting bridge packet");
   bridge_header header;
-  INFO("SteamLinkPacket - getting packet with bridge header parameters");
+  INFONL("SteamLinkPacket - getting packet with bridge header parameters");
   uint8_t payload_length = get_packet(packet, packet_length, payload, (uint8_t*) &header, sizeof(header));
   slid = header.slid;
   rssi = header.rssi;
