@@ -32,6 +32,9 @@ void SteamLinkBridge::init() {
 void SteamLinkBridge::router(uint8_t* packet, uint8_t packet_length, uint32_t slid) {
   INFO("Bridge router: slid ");
   INFONL(slid);
+  INFONL("Bridge Packet is: ");
+  phex(packet, packet_length);
+
   if (slid == SL_DEFAULT_STORE_ADDR) {
     _storeSideDriver->handle_admin_packet(packet, packet_length, false); // last arg because we are not coming from phys layer
   } if (slid == _storeSideDriver->get_slid()) {
