@@ -75,7 +75,7 @@ void setup()
 #endif
 
   sl.set_pins(RFM95_CS, RFM95_RST, RFM95_INT);
-  sl.init((void *)&slconfig);
+  sl.init((void *)&slconfig, sizeof(slconfig));
   sl.register_receive_handler(sl_on_receive);
 
   Serial.println("Steamlink init done");

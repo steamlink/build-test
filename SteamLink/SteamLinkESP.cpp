@@ -7,8 +7,12 @@ SteamLinkESP::SteamLinkESP(uint32_t slid) : SteamLinkGeneric(slid) {
   create_sub_str(_sub_str, slid);
 }
 
-void SteamLinkESP::init(void *vconf) {
+void SteamLinkESP::init(void *vconf, uint8_t config_length) {
   INFO("Initializing SteamLinkESP\n");
+  if ( config_length != sizeof(SteamLinkESPConfig)) {
+    FATAL("Received bad config struct");
+    while(1);
+  }
   _conf = (struct SteamLinkESPConfig *) vconf;
   _creds = _conf->creds;
 

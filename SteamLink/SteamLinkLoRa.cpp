@@ -9,7 +9,11 @@ SteamLinkLora::SteamLinkLora(uint32_t slid) : SteamLinkGeneric(slid) {
 }
 
 
-void SteamLinkLora::init(void *vconf) {
+void SteamLinkLora::init(void *vconf, uint8_t config_length) {
+  if (config_length != sizeof(SteamLinkLoraConfig)) {
+    FATAL("Received bad config struct");
+    while(1);
+  }
   struct SteamLinkLoraConfig *_conf = (struct SteamLinkLoraConfig *) vconf;
   _encrypted = _conf->encrypted;
   _key = _conf->key;

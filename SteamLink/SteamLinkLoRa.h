@@ -45,7 +45,7 @@ class SteamLinkLora : public SteamLinkGeneric {
   // constructor
   SteamLinkLora(uint32_t slid);
 
-  virtual void init(void *conf);
+  virtual void init(void *conf, uint8_t config_length);
 
   virtual bool driver_send(uint8_t* packet, uint8_t packet_length, uint32_t slid, bool is_test);
 

@@ -6,7 +6,7 @@ SteamLinkGeneric::SteamLinkGeneric(uint32_t slid) {
   _key = NULL;
 }
 
-void SteamLinkGeneric::init(void *conf) {
+void SteamLinkGeneric::init(void *conf, uint8_t config_length) {
 }
 
 bool SteamLinkGeneric::send(uint8_t* buf) {
@@ -186,21 +186,21 @@ void SteamLinkGeneric::handle_admin_packet(uint8_t* packet, uint8_t packet_lengt
     uint8_t* pkt_header;
     uint8_t* payload;
     uint8_t payload_length = SteamLinkPacket::get_packet(packet, packet_length, payload, pkt_header, (uint8_t) sizeof(bn_header));
-    INFO("Printing pkg_header: ");
-    Serial.println((uint32_t) pkt_header, HEX);
     generic_send(payload, payload_length, ((bn_header*) pkt_header)->slid);
     INFO("SteamLinkGeneric::handle_admin_packet BN  packet: ");
-    phex(pkt_header, packet_length);
     INFONL();
-    INFO("Printing pkg_header again: ");
-    Serial.println((uint32_t) pkt_header, HEX);
     free(pkt_header);
   } else if (op == SL_OP_GS) {
     INFONL("GetStatus Received");
     send_on();
   } else if (op == SL_OP_SR) {
     INFONL("SetRadio Received");
-    // TODO: actual set Radio
+    uint8_t* pkt_header;
+    uint8_t* payload;
+    uint8_t payload_length = SteamLinkPacket::get_packet(packet, packet_length, payload, pkt_header, (uint8_t) sizeof(sr_header));
+    INFO("Passing payload as config to init");
+    init(payload, payload_length);
+    free(pkt_header);
     send_ak();
   }  // TODO FINISH CONTROL PACKETS
   else if ((op & 0x1) == 1) {     // we've received a DATA PACKET
