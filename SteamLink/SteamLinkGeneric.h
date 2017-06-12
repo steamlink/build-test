@@ -5,6 +5,7 @@
 #include <SteamLinkPacket.h>
 
 #define SL_DEFAULT_STORE_ADDR 1
+#define SL_DEFAULT_TEST_ADDR  0
 #define SL_DEFAULT_QOS 0
 
 class SteamLinkGeneric {

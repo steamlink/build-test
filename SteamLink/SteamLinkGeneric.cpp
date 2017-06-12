@@ -193,6 +193,12 @@ void SteamLinkGeneric::handle_admin_packet(uint8_t* packet, uint8_t packet_lengt
   } else if (op == SL_OP_GS) {
     INFONL("GetStatus Received");
     send_on();
+  } else if (op == SL_OP_TD) {
+    INFONL("Transmit Test Received");
+    uint8_t* pkt_header;
+    uint8_t* payload;
+    uint8_t payload_length = SteamLinkPacket::get_packet(packet, packet_length, payload, pkt_header, (uint8_t) sizeof(td_header));
+    driver_send(payload, payload_length, SL_DEFAULT_TEST_ADDR, true);
   } else if (op == SL_OP_SR) {
     INFONL("SetRadio Received");
     uint8_t* pkt_header;
