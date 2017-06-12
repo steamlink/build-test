@@ -40,7 +40,7 @@ class SteamLinkGeneric {
 
   virtual void update();
 
-  virtual void handle_admin_packet(uint8_t* packet, uint8_t packet_length, bool is_physical);
+  virtual void handle_admin_packet(uint8_t* packet, uint8_t packet_length);
 
   /// HANDLER REGISTRATIONS
 
@@ -64,7 +64,9 @@ class SteamLinkGeneric {
 
   virtual uint32_t get_slid();
 
-  virtual void set_bridge();
+  virtual void set_bridge(BridgeMode mode);
+
+  virtual bool generic_send(uint8_t* packet, uint8_t packet_length, uint32_t slid);
 
 
  protected:
@@ -86,7 +88,7 @@ class SteamLinkGeneric {
   // 0 not connected to bridge
   // 1 is store_side
   // 2 is node_side
-  bool _is_bridge = false;
+  BridgeMode _bridge_mode = unbridged;
 
   bool sign_on_complete = false;
 

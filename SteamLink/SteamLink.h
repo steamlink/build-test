@@ -174,7 +174,8 @@ struct br_header { // no payload required
 };
 #pragma pack(pop)
 
-
 void phex(uint8_t *data, unsigned int length);
+
+enum BridgeMode { unbridged, storeside, nodeside };
 
 #endif
