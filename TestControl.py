@@ -162,11 +162,12 @@ class SteamLinkMqtt(Mqtt):
 
 	def on_admin_data_msg(self, client, userdata, msg):
 		topic_parts = msg.topic.split('/', 2)
-		sl_id = int(topic_parts[1])
-		if not sl_id in self.nodes:
-			logging.warning("SteamLinkMqtt on_message sl_id %s not in nodes", sl_id)
-			return
+#		sl_id = int(topic_parts[1])
 		sl_pkt = SteamLinkPacket(pkt=msg.payload)
+		sl_id = sl_pkt.slid
+		if not sl_id in self.nodes:
+			logging.warning("SteamLinkMqtt on_message sl_id 0x%0x not in nodes", sl_id)
+			return
 		self.nodes[sl_id].post_admin_data(sl_pkt)
 				
 	
@@ -187,7 +188,6 @@ class SteamLink:
 
 class SteamLinkPacket:
 
-
 	def __init__(self, slnode = None, opcode = None, rssi = None, payload = None, pkt = None):
 		self.opcode = None
 		self.slid = None
@@ -201,9 +201,12 @@ class SteamLinkPacket:
 			self.opcode = opcode
 			self.rssi = rssi
 			self.payload = payload
-
+			logging.debug("SteamLinkPaktet payload = %s", payload);
 			if self.payload:
-				bpayload = self.payload.encode('utf8')
+				if type(self.payload) == type(b''):
+					bpayload = self.payload
+				else:
+					bpayload = self.payload.encode('utf8')
 			else:
 				bpayload = b''
 
@@ -306,10 +309,10 @@ class SteamLinkPacket:
 			
 
 	def __str__(self):
-		via = "%s" % self.slid
+		via = "0x%0x" % self.slid
 		if len(self.via) > 0:
-			for v in self.via[::-1]: via += "->%s" % v
-		return "SL(op %s, id %s, rssi %s %s)" % (SL_OP.code(self.opcode), via,  self.rssi, self.payload)
+			for v in self.via[::-1]: via += "->0x%0x" % v
+		return "SL(op %s, id %s rssi %s %s)" % (SL_OP.code(self.opcode), via,  self.rssi, self.payload)
 
 
 class TestPkt:
@@ -354,12 +357,16 @@ class TestPkt:
 
 class Node:
 	""" a node in the test set """
-	def __init__(self, sl_conf, name, sl_id, antenna, via):
+	def __init__(self, sl_conf, name, sl_id, antenna, ntype, via):
 		self.name = name
 		self.sl_conf = sl_conf
 		self.sl_id = sl_id
 		self.via = via		# routing to get to this node
 		self.antenna = antenna
+		self.ntype = ntype
+		if not ntype in ["LoRa", "ESP"]:
+			logging.error("unknown node type %s for node %s", ntype, name);
+			return
 		self.response_q = queue.Queue(maxsize=1)
 		if len(via) == 0:
 			firsthop = self.sl_id
@@ -396,7 +403,9 @@ class Node:
 
 	def admin_send_set_radio_param(self, radio):
 		if self.state != "UP": return "NC"
-		sl_pkt = SteamLinkPacket(self, SL_OP.SR, "%s" % radio)
+		lorainit = struct.pack('<BLB', 0, 0, radio)
+		logging.debug("admin_send_set_radio_param: len %s, pkt %s", len(lorainit), lorainit)
+		sl_pkt = SteamLinkPacket(slnode=self, opcode=SL_OP.SR, payload=lorainit)
 		self.steamlink.publish(self.admin_control_topic, sl_pkt.pkt)
 
 		rc = self.get_response(timeout=2)
@@ -405,7 +414,7 @@ class Node:
 
 	def admin_send_testpacket(self, pkt):
 		if self.state != "UP": return "NC"
-		sl_pkt = SteamLinkPacket(self, SL_OP.TD, pkt)
+		sl_pkt = SteamLinkPacket(slnode=self, opcode=SL_OP.TD, payload=pkt)
 		self.steamlink.publish(self.admin_control_topic, sl_pkt.pkt)
 		rc = self.get_response(timeout=2)
 		logging.debug("send_packet %s got %s", sl_pkt, rc)
@@ -427,20 +436,20 @@ class Node:
 		opargs = sl_pkt.payload
 
 		if opcode == SL_OP.ON:
-			logging.info('post_admin_data: node %s ONLINE', self.sl_id)
+			logging.debug('post_admin_data: slid 0x%0x ONLINE', self.sl_id)
 
 		elif opcode == SL_OP.SS:
-			logging.info('post_admin_data: node %s status', opargs)
+			logging.debug('post_admin_data: slid 0x%0x status %s', self.sl_id,opargs)
 			self.status = opargs.split(',')
 
 		elif opcode in  [SL_OP.AK, SL_OP.NK]:
-			logging.debug('post_admin_data: node %s answer', opcode)
+			logging.debug('post_admin_data: slid 0x%0x answer %s', self.sl_id, opcode)
 			try:
 				self.response_q.put(opcode, block=False)
 			except queue.Full:
 				logging.warning('post_admin_data: node %s queue, dropping: %s', self.sl_id, sl_pkt)
 		elif opcode == SL_OP.TR:
-			logging.debg('post_admin_data: node %s test msg', opargs)
+			logging.debug('post_admin_data: node %s test msg', opargs)
 			rssi, jmsg = opargs.split(',',1)
 
 			try:
@@ -457,7 +466,6 @@ class Node:
 			data = self.response_q.get(block=True, timeout=timeout)
 		except queue.Empty:
 			data = "NR"
-			self.set_state('DOWN')
 		return data
 		
 
@@ -471,7 +479,7 @@ class LogData:
 		
 
 	def log_state(self, sl_id, new_state):
-		logging.info("logdata node %s %s", sl_id, new_state)
+		logging.debug("logdata node 0x%0x %s", sl_id, new_state)
 		self.nodes_online += 1 if new_state == "ONLINE" else -1
 
 
@@ -591,7 +599,7 @@ def runtest():
 			rc = nodes[node].admin_send_get_status()
 			nodes_defined += 1
 #			if rc != "AK":
-#				logging.warning("get_status for node %s failed: %s", node, rc)
+#				logging.warning("get_status for node 0x%0x failed: %s", node, rc)
 #			self.set_state('UP')
 
 	# wait for all nodes to send their status updates
@@ -659,7 +667,7 @@ sl_conf = SteamLink(conf['steamlink'])
 for node_name in conf['nodes']:
 	nconf = conf['nodes'][node_name]
 	nvia = nconf.get('via', [])
-	nodes_by_id[nconf['sl_id']] = nodes[node_name] = Node(sl_conf, node_name, nconf['sl_id'], nconf['antenna'], nvia)
+	nodes_by_id[nconf['sl_id']] = nodes[node_name] = Node(sl_conf, node_name, nconf['sl_id'], nconf.get('antenna',None), nconf['type'], nvia)
 
 logging.info("%s nodes loaded" % len(nodes))
 
