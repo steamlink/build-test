@@ -63,7 +63,8 @@ void setup()
 {
   Serial.begin(115200);
   delay(1000);
-  Serial.println(F("!ID SL_testclient0 " VER));
+  Serial.print(F("!ID SL_testclient " VER "slid "));
+  Serial.println(SL_ID, HEX);
 
   pinMode(LED, OUTPUT);
   pinMode(BUTTON, INPUT_PULLUP);
