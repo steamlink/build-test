@@ -121,6 +121,7 @@ void loop()
 #endif
     Serial.print("Sending \"");
     Serial.print((char *)data);
+    Serial.println("\"");
     bool rc = sl.send(data);
 #ifdef LORALED
     digitalWrite(LORALED, LOW);
@@ -128,10 +129,10 @@ void loop()
     if (rc) {
       afterTime = millis() - beforeTime;
       // It has been reliably delivered to the next node.
-      Serial.print( "\" time: ");
+      Serial.print(" sent, time: ");
       Serial.println(afterTime);
     } else {
-      Serial.println("sl.send failed");
+      Serial.println("send failed");
     }
     nextSendTime = millis() + waitInterval;
   }
