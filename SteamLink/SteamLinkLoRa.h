@@ -72,8 +72,8 @@ class SteamLinkLora : public SteamLinkGeneric {
   uint8_t *_key = NULL;
   uint8_t _encrypted = false;
   
-  RH_RF95 *_driver;
-  RHDatagram *_manager;
+  RH_RF95 *_driver = NULL;
+  RHDatagram *_manager = NULL;
 
   bool update_modem_config();
 

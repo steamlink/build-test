@@ -186,6 +186,7 @@ void SteamLinkGeneric::handle_admin_packet(uint8_t* packet, uint8_t packet_lengt
 
   } else if (op == SL_OP_GS) {
     INFONL("GetStatus Received");
+    delay(100);
     send_on();
 
   } else if (op == SL_OP_TD) {

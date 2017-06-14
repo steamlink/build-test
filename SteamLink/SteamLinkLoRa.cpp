@@ -14,25 +14,41 @@ SteamLinkLora::SteamLinkLora(uint32_t slid) : SteamLinkGeneric(slid) {
 
 
 void SteamLinkLora::init(void *vconf, uint8_t config_length) {
-  if (config_length != sizeof(SteamLinkLoraConfig)) {
-    FATAL("Received bad config struct, len should be: ");
-    FATAL(sizeof(SteamLinkLoraConfig));
-    FATAL(" is: ");
-    FATALNL(config_length);
-    while(1);
-  }
+
   struct SteamLinkLoraConfig *_conf = (struct SteamLinkLoraConfig *) vconf;
   _encrypted = _conf->encrypted;
   _key = _conf->key;
   _mod_conf = _conf->mod_conf;
-  _driver = new RH_RF95(_cs_pin, _interrupt_pin);
-  _manager = new RHDatagram(*_driver, _node_addr);
 
-  if (!_manager->init()) {
-    FATAL("RH manager init failed");
-    while (1);
+  if (!_driver) {
+    /*
+    // TODO: Not used, full initialization hangs on 3rd
+    // Memory leak?
+    pinMode(_reset_pin, OUTPUT);
+    digitalWrite(_reset_pin, LOW);
+    delay(200); // TODO
+    digitalWrite(_reset_pin, HIGH);
+    */
+
+    if (config_length != sizeof(SteamLinkLoraConfig)) {
+      FATAL("Received bad config struct, len should be: ");
+      FATAL(sizeof(SteamLinkLoraConfig));
+      FATAL(" is: ");
+      FATALNL(config_length);
+      while(1);
+    }
+
+    _driver = new RH_RF95(_cs_pin, _interrupt_pin);
+    _manager = new RHDatagram(*_driver, _node_addr);
+
+    if (!_manager->init()) {
+      FATAL("RH manager init failed");
+      while (1);
+    }
+    INFO("RH Initialized\n");
   }
-  INFO("RH Initialized\n");
+
+  INFONL("Setting Radio Parameters...");
 
   // Set frequency
   if (!_driver->setFrequency(SL_LORA_DEFAULT_FREQUENCY)) {
@@ -46,7 +62,7 @@ void SteamLinkLora::init(void *vconf, uint8_t config_length) {
   }
   INFO("Modem config done\n");
   randomSeed(analogRead(A0));
-//  _driver->setCADTimeout(10000);
+  //_driver->setCADTimeout(10000);
   INFO("set CAD timeout\n");
   _driver->setTxPower(SL_LORA_DEFAULT_TXPWR, false);
   INFO("set lora tx power\n");

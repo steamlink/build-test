@@ -28,7 +28,7 @@
 #endif
 
 // node 5 in mesh 
-#define SL_ID 0x105
+#define SL_ID 0x106
 // Change to 434.0 or other frequency, must match RX's freq!
 #define RF95_FREQ 915.0
 
