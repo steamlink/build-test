@@ -6,6 +6,10 @@ SteamLinkLora::SteamLinkLora(uint32_t slid) : SteamLinkGeneric(slid) {
   // initialize slid and set _node_addr
   _slid = slid;
   _node_addr = get_node_from_slid(slid);
+  if (_node_addr == get_node_from_slid(SL_DEFAULT_STORE_ADDR)) {
+	FATAL("slid cannot be SL_DEFAULT_STORE_ADDR addr! ");
+	while (1);
+  }
 }
 
 
@@ -82,17 +86,13 @@ bool SteamLinkLora::driver_receive(uint8_t* &packet, uint8_t &packet_size, uint3
     phex(driverbuffer, rcvlen);
     INFONL();
     _last_rssi = _driver->lastRssi();
+    is_test = (_driver->headerFlags() & SL_LORA_TEST_FLAGS);
     packet = driverbuffer;
     packet_size = rcvlen;
 	if (to == get_node_from_slid(SL_DEFAULT_STORE_ADDR)) {
 	    slid = SL_DEFAULT_STORE_ADDR;
     } else {
 	    slid = (uint32_t) to | (get_mesh_from_slid(_slid) << 8);
-    }
-    if (_driver->headerFlags() == SL_LORA_TEST_FLAGS) {
-      is_test = true;
-    } else {
-      is_test = false;
     }
     return true;
   } else {
@@ -107,14 +107,16 @@ bool SteamLinkLora::driver_send(uint8_t* packet, uint8_t packet_size, uint32_t s
   INFO(packet_size);
   INFO(" to: ");
   INFO(slid);
+  INFO(" test: ");
+  INFO((unit8_t) is_test);
   INFO(" packet: ");
   phex(packet, packet_size);
   INFONL();
 
   if (is_test) {
-    _manager->setHeaderFlags(SL_LORA_TEST_FLAGS);
+    _manager->setHeaderFlags(SL_LORA_TEST_FLAGS, 0);
     sent = _manager->sendto(packet, packet_size, to_addr);
-    _manager->setHeaderFlags(SL_LORA_DEFAULT_FLAGS);
+    _manager->setHeaderFlags(0, SL_LORA_TEST_FLAGS);
   } else {
     sent = _manager->sendto(packet, packet_size, to_addr);
   }
