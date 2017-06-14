@@ -202,10 +202,11 @@ void SteamLinkGeneric::handle_admin_packet(uint8_t* packet, uint8_t packet_lengt
     uint8_t* pkt_header;
     uint8_t* payload;
     uint8_t payload_length = SteamLinkPacket::get_packet(packet, packet_length, payload, pkt_header, (uint8_t) sizeof(sr_header));
+    send_ak();
+    delay(100); // TODO: assure ack is transmitted before changing radio params
     INFONL("Passing payload as config to init");
     init(payload, payload_length);
     free(pkt_header);
-    send_ak();
 
   } else if (op == SL_OP_BC) {
     INFONL("BootCold Received");
