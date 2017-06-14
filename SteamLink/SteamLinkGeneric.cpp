@@ -188,6 +188,7 @@ void SteamLinkGeneric::handle_admin_packet(uint8_t* packet, uint8_t packet_lengt
     uint8_t payload_length = SteamLinkPacket::get_packet(packet, packet_length, payload, pkt_header, (uint8_t) sizeof(bn_header));
     generic_send(payload, payload_length, ((bn_header*) pkt_header)->slid);
     INFO("SteamLinkGeneric::handle_admin_packet BN  packet: ");
+    phex(pkt_header, packet_length);
     INFONL();
     free(pkt_header);
   } else if (op == SL_OP_GS) {
@@ -228,18 +229,25 @@ uint32_t SteamLinkGeneric::get_slid() {
 
 bool SteamLinkGeneric::generic_send(uint8_t* packet, uint8_t packet_length, uint32_t slid) {
   bool is_data = ((packet[0] & 0x1) == 1); // data or control?
-  if        ( is_data  && (_bridge_mode == storeside )) {
-    return driver_send(packet, packet_length, slid, false);
-  } else if ( is_data  && (_bridge_mode == nodeside  )) {
-    _bridge_handler(packet, packet_length, slid);
-  } else if ( is_data  && (_bridge_mode == unbridged )) {
-    return driver_send(packet, packet_length, slid, false);
-  } else if ( !is_data && (_bridge_mode == storeside )) {
-    _bridge_handler(packet, packet_length, slid);
-  } else if ( !is_data && (_bridge_mode == nodeside  )) {
-    return driver_send(packet, packet_length, slid, false);
-  } else if ( !is_data && (_bridge_mode == unbridged )) {
-    return driver_send(packet, packet_length, slid, false); // TODO: is this even a valid case?
+
+  if ( is_data ) {
+    if  (_bridge_mode == storeside ) {
+      return driver_send(packet, packet_length, slid, false);
+    } else if ( _bridge_mode == nodeside  ) {
+      _bridge_handler(packet, packet_length, slid);
+    } else if ( _bridge_mode == unbridged ) {
+      return driver_send(packet, packet_length, slid, false);
+    } else if ( _bridge_mode == storeside ) {
+      _bridge_handler(packet, packet_length, slid);
+    }
+  } else {
+    if ( _bridge_mode == nodeside  ) {
+      return driver_send(packet, packet_length, slid, false);
+    } else if ( _bridge_mode == unbridged ) {
+      return driver_send(packet, packet_length, slid, false); // TODO: is this even a valid case?
+    } else  if ( _bridge_mode == storeside ) {
+      _bridge_handler(packet, packet_length, slid);
+    }
   }
   return true;
 }
