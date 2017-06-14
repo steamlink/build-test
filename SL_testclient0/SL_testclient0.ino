@@ -86,7 +86,7 @@ void setup()
 // Dont put this on the stack:
 uint8_t buf[MAX_MESSAGE_LEN];
 int beforeTime = 0, afterTime = 0, nextSendTime = 0;
-int waitInterval = 4000;
+int waitInterval = 60000;
 
 int getBatInfo() {
 #ifdef VBATPIN
