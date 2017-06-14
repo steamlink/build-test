@@ -129,7 +129,7 @@ void loop()
     if (rc) {
       afterTime = millis() - beforeTime;
       // It has been reliably delivered to the next node.
-      Serial.print(" sent, time: ");
+      Serial.print("tx time: ");
       Serial.println(afterTime);
     } else {
       Serial.println("send failed");

@@ -7,15 +7,15 @@ SteamLinkLora::SteamLinkLora(uint32_t slid) : SteamLinkGeneric(slid) {
   _slid = slid;
   _node_addr = get_node_from_slid(slid);
   if (_node_addr == get_node_from_slid(SL_DEFAULT_STORE_ADDR)) {
-	FATAL("slid cannot be SL_DEFAULT_STORE_ADDR addr! ");
-	while (1);
+    FATAL("slid cannot be SL_DEFAULT_STORE_ADDR addr! ");
+    while (1);
   }
 }
 
 
 void SteamLinkLora::init(void *vconf, uint8_t config_length) {
   if (config_length != sizeof(SteamLinkLoraConfig)) {
-	FATAL("Received bad config struct, len should be: ");
+    FATAL("Received bad config struct, len should be: ");
     FATAL(sizeof(SteamLinkLoraConfig));
     FATAL(" is: ");
     FATALNL(config_length);
@@ -30,7 +30,7 @@ void SteamLinkLora::init(void *vconf, uint8_t config_length) {
 
   if (!_manager->init()) {
     FATAL("RH manager init failed");
-	while (1);
+    while (1);
   }
   INFO("RH Initialized\n");
 
@@ -84,15 +84,14 @@ bool SteamLinkLora::driver_receive(uint8_t* &packet, uint8_t &packet_size, uint3
     INFO(to);
     INFO(" packet: ");
     phex(driverbuffer, rcvlen);
-    INFONL();
     _last_rssi = _driver->lastRssi();
     is_test = (_driver->headerFlags() & SL_LORA_TEST_FLAGS);
     packet = driverbuffer;
     packet_size = rcvlen;
-	if (to == get_node_from_slid(SL_DEFAULT_STORE_ADDR)) {
-	    slid = SL_DEFAULT_STORE_ADDR;
+    if (to == get_node_from_slid(SL_DEFAULT_STORE_ADDR)) {
+        slid = SL_DEFAULT_STORE_ADDR;
     } else {
-	    slid = (uint32_t) to | (get_mesh_from_slid(_slid) << 8);
+        slid = (uint32_t) to | (get_mesh_from_slid(_slid) << 8);
     }
     return true;
   } else {
@@ -109,9 +108,8 @@ bool SteamLinkLora::driver_send(uint8_t* packet, uint8_t packet_size, uint32_t s
   INFO(slid);
   INFO(" test: ");
   INFO((uint8_t) is_test);
-  INFO(" packet: ");
+  INFONL(" packet: ");
   phex(packet, packet_size);
-  INFONL();
 
   if (is_test) {
     _manager->setHeaderFlags(SL_LORA_TEST_FLAGS, 0);
@@ -121,10 +119,9 @@ bool SteamLinkLora::driver_send(uint8_t* packet, uint8_t packet_size, uint32_t s
     sent = _manager->sendto(packet, packet_size, to_addr);
   }
   if (sent)  {
-    INFO("Sent packet!\n");
     return true;
   }  else {
-    ERR("Sent packet failed!");
+    ERR("SteamLinkLora::driver_send failed!");
     return false;
   }
 }
