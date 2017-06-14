@@ -236,20 +236,19 @@ uint32_t SteamLinkGeneric::get_slid() {
 bool SteamLinkGeneric::generic_send(uint8_t* packet, uint8_t packet_length, uint32_t slid) {
   bool is_data = ((packet[0] & 0x1) == 1); // data or control?
 
-  if ( is_data ) {
+  if ( is_data ) { // DATA
     if  (_bridge_mode == storeside ) {
       return driver_send(packet, packet_length, slid, false);
     } else if ( _bridge_mode == nodeside  ) {
       _bridge_handler(packet, packet_length, slid);
     } else if ( _bridge_mode == unbridged ) {
       return driver_send(packet, packet_length, slid, false);
-    } else if ( _bridge_mode == storeside ) {
-      _bridge_handler(packet, packet_length, slid);
     }
-  } else {
+  } else { // CONTROL
     if ( _bridge_mode == nodeside  ) {
       return driver_send(packet, packet_length, slid, false);
     } else if ( _bridge_mode == unbridged ) {
+      WARNNL("Sending a control packet as an unbridged node");
       return driver_send(packet, packet_length, slid, false); // TODO: is this even a valid case?
     } else  if ( _bridge_mode == storeside ) {
       _bridge_handler(packet, packet_length, slid);
