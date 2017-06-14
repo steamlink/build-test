@@ -30,18 +30,20 @@ void SteamLinkBridge::init() {
 }
 
 void SteamLinkBridge::router(uint8_t* packet, uint8_t packet_length, uint32_t slid) {
-  INFO("Bridge router: slid ");
-  INFONL(slid);
-  INFONL("Bridge Packet is: ");
+  INFO("SteamLinkBridge::router: slid ");
+  INFO(slid);
+  INFONL(" packet: ");
   phex(packet, packet_length);
   if (slid == SL_DEFAULT_STORE_ADDR) {
     _storeSideDriver->handle_admin_packet(packet, packet_length);
-  } if (slid == _storeSideDriver->get_slid()) {
+  } else if (slid == _storeSideDriver->get_slid()) {
     _storeSideDriver->handle_admin_packet(packet, packet_length);
   } else if (slid == _nodeSideDriver->get_slid()) {
     _nodeSideDriver->handle_admin_packet(packet, packet_length);
+  } else {
+    FATAL("SteamLinkBridge::router  unroutable slid:");
+    FATALNL(slid);
   }
-  // else something went wrong! we don't have a routing table to handle this!
 }
 
 bool SteamLinkBridge::_init_done = false;

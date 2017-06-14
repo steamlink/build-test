@@ -194,6 +194,7 @@ void SteamLinkGeneric::handle_admin_packet(uint8_t* packet, uint8_t packet_lengt
     uint8_t* payload;
     uint8_t payload_length = SteamLinkPacket::get_packet(packet, packet_length, payload, pkt_header, (uint8_t) sizeof(td_header));
     driver_send(payload, payload_length, SL_DEFAULT_TEST_ADDR, true);
+	send_ak();
 
   } else if (op == SL_OP_SR) {
     INFONL("SetRadio Received");

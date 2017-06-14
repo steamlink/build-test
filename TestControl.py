@@ -195,7 +195,7 @@ class SteamLinkPacket:
 		self.rssi = None
 		self.qos = None
 		self.pkt = None
-		self.via = []		# sl_ids of route
+		self.via = []
 
 		if pkt == None:						# construct pkt
 			self.slid = slnode.sl_id
@@ -247,12 +247,12 @@ class SteamLinkPacket:
 			else:
 				logging.error("SteamLinkPacket unknown opcode in pkt %s", self.pkt)
 
-			if len(slnode.via) > 0:
-				for via in [self.slid]+slnode.via[::-1][:-1]:
+			self.via = node_routes[self.slid].via
+			if len(self.via) > 0:
+				for via in [self.slid]+self.via[::-1][:-1]:
 					bpayload = self.pkt
 					sfmt = '<BL%is' % len(bpayload)
 					self.pkt = struct.pack(sfmt, SL_OP.BN, via, bpayload)
-#				self.slid = slnode.via[0]
 				
 
 		else:								# deconstruct pkt
@@ -367,27 +367,43 @@ class TestPkt:
 		return json.dumps(self.pkt)
 
 
+class NodeRoutes:
+	def __init__(self, dest, via):
+		self.dest = dest
+		self.via = via
+
+
+	def __str__(self):
+		svia = ""
+		for v in self.via:
+			svia += "->0x%02x" % v
+		return "VIA(0x%0x: %s" % (self.dest, svia)
+
+
 class Node:
 	""" a node in the test set """
-	def __init__(self, sl_conf, name, sl_id, antenna, ntype, via):
+	def __init__(self, sl_conf, name, sl_id, antenna, ntype):
 		self.name = name
 		self.sl_conf = sl_conf
 		self.sl_id = sl_id
-		self.via = via		# routing to get to this node
 		self.antenna = antenna
 		self.ntype = ntype
 		if not ntype in ["LoRa", "ESP"]:
 			logging.error("unknown node type %s for node %s", ntype, name);
 			return
 		self.response_q = queue.Queue(maxsize=1)
-		if len(via) == 0:
-			firsthop = self.sl_id
-		else:
-			firsthop = self.via[0]
-		self.admin_control_topic = self.sl_conf.admin_control_topic % firsthop
 
 		self.state = "DOWN"	
 		self.status = []
+
+
+	def get_admin_control_topic(self):
+		route_via = node_routes[self.sl_id].via
+		if len(route_via) == 0:
+			firsthop = self.sl_id
+		else:
+			firsthop = route_via[0]
+		return self.sl_conf.admin_control_topic % firsthop
 
 
 	def set_state(self, new_state):
@@ -408,7 +424,7 @@ class Node:
 
 	def admin_send_get_status(self):
 		sl_pkt = SteamLinkPacket(slnode=self, opcode=SL_OP.GS)
-		self.steamlink.publish(self.admin_control_topic, sl_pkt)
+		self.steamlink.publish(self.get_admin_control_topic(), sl_pkt)
 		rc = self.get_response(timeout=2)
 		return rc
 
@@ -418,7 +434,7 @@ class Node:
 		lorainit = struct.pack('<BLB', 0, 0, radio)
 		logging.debug("admin_send_set_radio_param: len %s, pkt %s", len(lorainit), lorainit)
 		sl_pkt = SteamLinkPacket(slnode=self, opcode=SL_OP.SR, payload=lorainit)
-		self.steamlink.publish(self.admin_control_topic, sl_pkt)
+		self.steamlink.publish(self.get_admin_control_topic(), sl_pkt)
 
 		rc = self.get_response(timeout=2)
 		return rc
@@ -427,7 +443,7 @@ class Node:
 	def admin_send_testpacket(self, pkt):
 		if self.state != "UP": return SL_OP.NC
 		sl_pkt = SteamLinkPacket(slnode=self, opcode=SL_OP.TD, payload=pkt)
-		self.steamlink.publish(self.admin_control_topic, sl_pkt)
+		self.steamlink.publish(self.get_admin_control_topic(), sl_pkt)
 		rc = self.get_response(timeout=2)
 		logging.debug("send_packet %s got %s", sl_pkt, rc)
 		return rc
@@ -599,30 +615,44 @@ def setup():
 
 	steamlink.wait_connect()
 
+
+	for node in nodes:
+		nodes[node].set_brokers(get_base_gps, steamlink)
 	for loc in locations:
 		for node in locations[loc]['nodes']:
 			if loc == 'mobile':
 				nodes[node].set_brokers(gps.get_gps, steamlink)
-			else:
-				nodes[node].set_brokers(get_base_gps, steamlink)
+#			else:
+#				nodes[node].set_brokers(get_base_gps, steamlink)
 
 
 def runtest():
 	# establish nodes online
 	nodes_defined = 0
+	nodes_id_needed = []
 	for loc in locations:
 		for node in locations[loc]['nodes']:
-			rc = nodes[node].admin_send_get_status()
-			nodes_defined += 1
-#			if rc != SL_OP.AK:
-#				logging.warning("get_status for node 0x%0x failed: %s", node, rc)
-#			self.set_state('UP')
+			nodes_id_needed.append(nodes[node].sl_id)
+			for vianode in node_routes[nodes[node].sl_id].via:
+				if not vianode in nodes_id_needed:
+					nodes_id_needed.append(vianode)
+
+	for node_id in nodes_id_needed:
+		rc = nodes_by_id[node_id].admin_send_get_status()
 
 	# wait for all nodes to send their status updates
-	if sl_log.nodes_online < nodes_defined:
-		while sl_log.nodes_online < nodes_defined:
-			print("waiting for %s node to come online" % (nodes_defined - sl_log.nodes_online), end="\r")
-			time.sleep(1)
+	EEOF = '\x1b[K'
+	while len(nodes_id_needed) > 0:
+		snodes = ""
+		for n in nodes_id_needed:
+			snodes +="%s " % nodes_by_id[n].name
+		print("waiting for %s to come online" % snodes,  end=EEOF+"\r")
+		time.sleep(1)
+		nodes_id_needed_new = []
+		for n in nodes_id_needed:
+			if not nodes_by_id[n].is_up():
+				nodes_id_needed_new.append(n)
+		nodes_id_needed = nodes_id_needed_new
 
 	for radio in radio_params:
 		for loc in locations:
@@ -652,6 +682,7 @@ def runtest():
 #
 nodes = {}
 nodes_by_id = {}
+node_routes = {}
 locations = {}
 radio_param = {}
 
@@ -680,11 +711,31 @@ conf = loadconfig(conff)
 if DBG: print(conf)
 sl_conf = SteamLink(conf['steamlink'])
 
+
+# build node name dict (nodes) and node slid dict (node_by_id)
 for node_name in conf['nodes']:
 	nconf = conf['nodes'][node_name]
-	nvia = nconf.get('via', [])
-	nodes_by_id[nconf['sl_id']] = nodes[node_name] = Node(sl_conf, node_name, nconf['sl_id'], nconf.get('antenna',None), nconf['type'], nvia)
+	nodes_by_id[nconf['sl_id']] = nodes[node_name] = Node(sl_conf, node_name, nconf['sl_id'], nconf.get('antenna',None), nconf['type'])
 
+# build routing table by slid
+err = False
+for node_name in conf['nodes']:
+	nconf = conf['nodes'][node_name]
+	nvias = nconf.get('via', [])
+	via_ids = []
+	if nvias != []:
+		for via in nvias:
+			try:
+				via_ids.append(nodes[via].sl_id)
+			except KeyError:
+				logging.error("node '%s' in via list of node '%s' not found", via, node_name);
+				err = True
+#		via_ids.append(nconf['sl_id'])
+
+	node_routes[nconf['sl_id']] = NodeRoutes(nconf['sl_id'], via_ids)
+
+if err:
+	sys.exit(1)
 logging.info("%s nodes loaded" % len(nodes))
 
 for loc in  conf['locations']:
