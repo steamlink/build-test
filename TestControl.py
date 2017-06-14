@@ -38,6 +38,7 @@ class SL_OP:
 	NK = 0x39		# negative acknowlegde the last control message
 	TR = 0x3B		# Received Test Data
 	SS = 0x3D		# status info and counters
+	NC = 0x3F		# No Connection or timeout
 
 	def code(code):
 		try:
@@ -110,9 +111,9 @@ class Mqtt(Thread):
 		logging.info("%s got %s  %s", self.name, msg,topic, json.loads(msg.payload.decode('utf-8')))
 
 
-	def publish(self, topic, msg, qos=0, retain=False):
-		logging.debug("%s publish %s %s", self.name, topic, SteamLinkPacket(pkt=msg))
-		self.mq.publish(topic, payload=msg, qos=qos, retain=retain)
+	def publish(self, topic, pkt, qos=0, retain=False):
+		logging.debug("%s publish %s %s", self.name, topic, pkt)
+		self.mq.publish(topic, payload=pkt.pkt, qos=qos, retain=retain)
 
 
 class GpsMqtt(Mqtt):
@@ -233,9 +234,12 @@ class SteamLinkPacket:
 			elif opcode == SL_OP.DN:
 				sfmt = '<BLB%is' % len(bpayload)
 				self.pkt = struct.pack(sfmt, self.opcode, self.slid, self.qos, self.rssi, bpayload)
-			elif opcode in [SL_OP.GS, SL_OP.TD, SL_OP.BC, SL_OP.BR]:
+			elif opcode in [SL_OP.GS, SL_OP.BC, SL_OP.BR]:
 				sfmt = '<B' 
 				self.pkt = struct.pack(sfmt, self.opcode)
+			elif opcode == SL_OP.TD:
+				sfmt = '<B%is' % len(bpayload)
+				self.pkt = struct.pack(sfmt, self.opcode, bpayload)
 			elif opcode == SL_OP.SR:
 				sfmt = '<B%is' % len(bpayload)
 				self.pkt = struct.pack(sfmt, self.opcode, bpayload)
@@ -248,11 +252,9 @@ class SteamLinkPacket:
 					bpayload = self.pkt
 					sfmt = '<BL%is' % len(bpayload)
 					self.pkt = struct.pack(sfmt, SL_OP.BN, via, bpayload)
-				self.slid = slnode.via[0]
+#				self.slid = slnode.via[0]
 				
 
-			logging.debug("pkt out\n%s", "\n".join(phex(self.pkt, 4)))
-			
 		else:								# deconstruct pkt
 			self.pkt = pkt
 			logging.debug("pkt\n%s", "\n".join(phex(pkt, 4)))
@@ -295,10 +297,14 @@ class SteamLinkPacket:
 				sfmt = '<BL%is' % (len(pkt) - 5)
 				self.opcode, self.slid, bpayload = struct.unpack(sfmt, pkt)
 				self.payload = bpayload.decode('utf8')
-			elif pkt[0] in [SL_OP.GS, SL_OP.TD, SL_OP.BC, SL_OP.BR]:
+			elif pkt[0] in [SL_OP.GS, SL_OP.BC, SL_OP.BR]:
 				sfmt = '<B' 
 				self.opcode = struct.unpack(sfmt, pkt)
 				self.payload = None
+			elif pkt[0] == SL_OP.TD:
+				sfmt = '<B%is' % (len(pkt) - 1)
+				self.opcode, bpayload = struct.unpack(sfmt, pkt)
+				self.payload = bpayload.decode('utf8')
 			elif pkt[0] == SL_OP.SR:
 				sfmt = '<B%is' % (len(pkt) - 1)
 				self.opcode, bpayload = struct.unpack(sfmt, pkt)
@@ -312,7 +318,13 @@ class SteamLinkPacket:
 		via = "0x%0x" % self.slid
 		if len(self.via) > 0:
 			for v in self.via[::-1]: via += "->0x%0x" % v
-		return "SL(op %s, id %s rssi %s %s)" % (SL_OP.code(self.opcode), via,  self.rssi, self.payload)
+		s = "SL(op %s, id %s" % (SL_OP.code(self.opcode), via)
+		if self.rssi:
+			s += " rssi %s" % (self.rssi)
+		if self.payload:
+			s += " payload %s" % (self.payload)
+		s += ")"
+		return s
 
 
 class TestPkt:
@@ -396,26 +408,26 @@ class Node:
 
 	def admin_send_get_status(self):
 		sl_pkt = SteamLinkPacket(slnode=self, opcode=SL_OP.GS)
-		self.steamlink.publish(self.admin_control_topic, sl_pkt.pkt)
+		self.steamlink.publish(self.admin_control_topic, sl_pkt)
 		rc = self.get_response(timeout=2)
 		return rc
 
 
 	def admin_send_set_radio_param(self, radio):
-		if self.state != "UP": return "NC"
+		if self.state != "UP": return SL_OP.NC
 		lorainit = struct.pack('<BLB', 0, 0, radio)
 		logging.debug("admin_send_set_radio_param: len %s, pkt %s", len(lorainit), lorainit)
 		sl_pkt = SteamLinkPacket(slnode=self, opcode=SL_OP.SR, payload=lorainit)
-		self.steamlink.publish(self.admin_control_topic, sl_pkt.pkt)
+		self.steamlink.publish(self.admin_control_topic, sl_pkt)
 
 		rc = self.get_response(timeout=2)
 		return rc
 
 
 	def admin_send_testpacket(self, pkt):
-		if self.state != "UP": return "NC"
+		if self.state != "UP": return SL_OP.NC
 		sl_pkt = SteamLinkPacket(slnode=self, opcode=SL_OP.TD, payload=pkt)
-		self.steamlink.publish(self.admin_control_topic, sl_pkt.pkt)
+		self.steamlink.publish(self.admin_control_topic, sl_pkt)
 		rc = self.get_response(timeout=2)
 		logging.debug("send_packet %s got %s", sl_pkt, rc)
 		return rc
@@ -442,15 +454,19 @@ class Node:
 			logging.debug('post_admin_data: slid 0x%0x status %s', self.sl_id,opargs)
 			self.status = opargs.split(',')
 
-		elif opcode in  [SL_OP.AK, SL_OP.NK]:
-			logging.debug('post_admin_data: slid 0x%0x answer %s', self.sl_id, opcode)
+		elif opcode in [SL_OP.AK, SL_OP.NK]:
+			logging.debug('post_admin_data: slid 0x%0x answer %s', self.sl_id, SL_OP.code(opcode))
 			try:
 				self.response_q.put(opcode, block=False)
 			except queue.Full:
 				logging.warning('post_admin_data: node %s queue, dropping: %s', self.sl_id, sl_pkt)
 		elif opcode == SL_OP.TR:
 			logging.debug('post_admin_data: node %s test msg', opargs)
-			rssi, jmsg = opargs.split(',',1)
+			try:
+				rssi, jmsg = opargs.split(',',1)
+			except ValueError as e:
+				logging.error("post_incoming: testpacket receive: %s", e);
+				return
 
 			try:
 				pkt = TestPkt(pkt=jmsg)
@@ -465,7 +481,7 @@ class Node:
 		try:
 			data = self.response_q.get(block=True, timeout=timeout)
 		except queue.Empty:
-			data = "NR"
+			data = SL_OP.NC
 		return data
 		
 
@@ -598,7 +614,7 @@ def runtest():
 		for node in locations[loc]['nodes']:
 			rc = nodes[node].admin_send_get_status()
 			nodes_defined += 1
-#			if rc != "AK":
+#			if rc != SL_OP.AK:
 #				logging.warning("get_status for node 0x%0x failed: %s", node, rc)
 #			self.set_state('UP')
 
@@ -614,8 +630,8 @@ def runtest():
 				if not nodes[node].is_up():
 					continue
 				rc = nodes[node].admin_send_set_radio_param(radio)
-				if rc != "AK":
-					logging.warning("set_radio to %s for %s failed: %s", radio, node, rc)
+				if rc != SL_OP.AK:
+					logging.warning("set_radio to %s for %s failed: %s", radio, node, SL_OP.code(rc))
 
 		wait = int(radio_params[radio]['wait'])
 		for loc in locations:
@@ -625,8 +641,8 @@ def runtest():
 				pkt = TestPkt(nodes[node].get_gps(), "TEST", nodes[node].sl_id)
 				pktno = pkt.get_pktno()
 				rc = nodes[node].admin_send_testpacket(pkt.pkt_string())
-				if rc != "AK":
-					logging.warning("send_packet for node %s failed: %s", node, rc)
+				if rc != SL_OP.AK:
+					logging.warning("send_packet for node %s failed: %s", node, SL_OP.code(rc))
 				else:
 					sl_log.post_outgoing(pkt)
 					sl_log.wait_pkt_number(pktno, wait)
