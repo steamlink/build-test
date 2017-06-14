@@ -31,12 +31,13 @@ MSB...........................LSB
 */
 
 
+#pragma pack(push,1)
 struct SteamLinkLoraConfig {
   bool encrypted;
   uint8_t *key;
   uint8_t mod_conf;
 };
-    
+#pragma pack(pop)
 
 class SteamLinkLora : public SteamLinkGeneric {
 
