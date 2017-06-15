@@ -186,7 +186,7 @@ void SteamLinkGeneric::handle_admin_packet(uint8_t* packet, uint8_t packet_lengt
 
   } else if (op == SL_OP_GS) {
     INFONL("GetStatus Received");
-    delay(100);
+//AEW    delay(100);
     send_on();
 
   } else if (op == SL_OP_TD) {
@@ -194,16 +194,19 @@ void SteamLinkGeneric::handle_admin_packet(uint8_t* packet, uint8_t packet_lengt
     uint8_t* pkt_header;
     uint8_t* payload;
     uint8_t payload_length = SteamLinkPacket::get_packet(packet, packet_length, payload, pkt_header, (uint8_t) sizeof(td_header));
-    driver_send(payload, payload_length, SL_DEFAULT_TEST_ADDR, true);
+//AEW   delay(100);
 	send_ak();
+    delay(100);
+    driver_send(payload, payload_length, SL_DEFAULT_TEST_ADDR, true);
 
   } else if (op == SL_OP_SR) {
     INFONL("SetRadio Received");
     uint8_t* pkt_header;
     uint8_t* payload;
     uint8_t payload_length = SteamLinkPacket::get_packet(packet, packet_length, payload, pkt_header, (uint8_t) sizeof(sr_header));
+//AEW   delay(100);
     send_ak();
-    delay(100); // TODO: assure ack is transmitted before changing radio params
+//AEW   delay(100); // TODO: assure ack is transmitted before changing radio params
     INFONL("Passing payload as config to init");
     init(payload, payload_length);
     free(pkt_header);
@@ -237,24 +240,28 @@ uint32_t SteamLinkGeneric::get_slid() {
 
 bool SteamLinkGeneric::generic_send(uint8_t* packet, uint8_t packet_length, uint32_t slid) {
   bool is_data = ((packet[0] & 0x1) == 1); // data or control?
+  bool rc = true;
 
   if ( is_data ) { // DATA
     if  (_bridge_mode == storeside ) {
-      return driver_send(packet, packet_length, slid, false);
+      rc = driver_send(packet, packet_length, slid, false);
     } else if ( _bridge_mode == nodeside  ) {
       _bridge_handler(packet, packet_length, slid);
     } else if ( _bridge_mode == unbridged ) {
-      return driver_send(packet, packet_length, slid, false);
+      rc = driver_send(packet, packet_length, slid, false);
     }
   } else { // CONTROL
     if ( _bridge_mode == nodeside  ) {
-      return driver_send(packet, packet_length, slid, false);
+      rc = driver_send(packet, packet_length, slid, false);
     } else if ( _bridge_mode == unbridged ) {
       WARNNL("Sending a control packet as an unbridged node");
-      return driver_send(packet, packet_length, slid, false); // TODO: is this even a valid case?
+      rc = driver_send(packet, packet_length, slid, false); // TODO: is this even a valid case?
     } else  if ( _bridge_mode == storeside ) {
       _bridge_handler(packet, packet_length, slid);
     }
   }
-  return true;
+  if (!rc) {
+    WARNNL("SteamLinkGeneric::generic_send: send failed!!");
+  }
+  return rc;
 }
