@@ -7,7 +7,7 @@
 #include <SteamLink.h>
 #include <SteamLinkLora.h>
 
-#define VER "6"
+#define VER "7"
 
 // for Feather M0
 #if 1
@@ -28,7 +28,7 @@
 #endif
 
 // node 5 in mesh 
-#define SL_ID 0x106
+#define SL_ID 0x105
 // Change to 434.0 or other frequency, must match RX's freq!
 #define RF95_FREQ 915.0
 
@@ -63,7 +63,7 @@ void setup()
 {
   Serial.begin(115200);
   delay(1000);
-  Serial.print(F("!ID SL_testclient " VER "slid "));
+  Serial.print(F("!ID SL_testclient " VER " slid "));
   Serial.println(SL_ID, HEX);
 
   pinMode(LED, OUTPUT);
