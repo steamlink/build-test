@@ -647,6 +647,7 @@ def runtest():
 
 	for node_id in nodes_id_needed:
 		nodes_by_id[node_id].admin_send_get_status()
+		time.sleep(0.1)		# ??
 
 	# wait for all nodes to send their status updates
 	EEOF = '\x1b[K'
@@ -676,7 +677,7 @@ def runtest():
 			for node in locations[loc]['nodes']:
 				if not nodes[node].is_up():
 					continue
-				for i in range(10):
+				for i in range(test_packet_count):
 					pkt = TestPkt(nodes[node].get_gps(), "TEST", nodes[node].sl_id)
 					pktno = pkt.get_pktno()
 					rc = nodes[node].admin_send_testpacket(pkt.pkt_string())
@@ -754,6 +755,8 @@ if DBG: print(locations)
 
 radio_params = conf['radio_params']
 if DBG: print(radio_params)
+
+test_packet_count = conf.get('test_packet_count', 3)
 
 sl_log = LogData(conf['logdata'])
 
