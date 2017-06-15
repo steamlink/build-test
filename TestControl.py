@@ -14,7 +14,7 @@ import time
 import yaml
 import argparse
 
-
+SL_RESPONSE_WAIT_SEC = 10
 
 # op codes
 class SL_OP:
@@ -112,8 +112,9 @@ class Mqtt(Thread):
 
 
 	def publish(self, topic, pkt, qos=0, retain=False):
-		logging.debug("%s publish %s %s", self.name, topic, pkt)
+		logging.info("%s publish %s %s", self.name, topic, pkt)
 		self.mq.publish(topic, payload=pkt.pkt, qos=qos, retain=retain)
+		time.sleep(0.1)
 
 
 class GpsMqtt(Mqtt):
@@ -202,7 +203,7 @@ class SteamLinkPacket:
 			self.opcode = opcode
 			self.rssi = rssi
 			self.payload = payload
-			logging.debug("SteamLinkPaktet payload = %s", payload);
+#			logging.debug("SteamLinkPaktet payload = %s", payload);
 			if self.payload:
 				if type(self.payload) == type(b''):
 					bpayload = self.payload
@@ -283,6 +284,7 @@ class SteamLinkPacket:
 			elif pkt[0] == SL_OP.TR:
 				sfmt = '<BLB%is' % (len(pkt) - 6)
 				self.opcode, self.slid, self.rssi, bpayload = struct.unpack(sfmt, pkt)
+				self.rssi = self.rssi - 256
 				self.payload = bpayload.decode('utf8')
 			elif pkt[0] == SL_OP.SS:
 				sfmt = '<BL%is' % (len(pkt) - 5)
@@ -355,7 +357,11 @@ class TestPkt:
 		return self.pkt['pktno']
 
 
-	def set_rssi(self, rssu):
+	def set_receiver_slid(self, recslid):
+		self.pkt['recslid'] = recslid
+
+
+	def set_rssi(self, rssi):
 		self.pkt['rssi'] = rssi
 
 
@@ -365,6 +371,10 @@ class TestPkt:
 
 	def json(self):
 		return json.dumps(self.pkt)
+
+
+	def __str__(self):
+		return "TESTP(%s)" % str(self.pkt)
 
 
 class NodeRoutes:
@@ -425,8 +435,8 @@ class Node:
 	def admin_send_get_status(self):
 		sl_pkt = SteamLinkPacket(slnode=self, opcode=SL_OP.GS)
 		self.steamlink.publish(self.get_admin_control_topic(), sl_pkt)
-		rc = self.get_response(timeout=2)
-		return rc
+#		rc = self.get_response(timeout=SL_RESPONSE_WAIT_SEC)
+		return 
 
 
 	def admin_send_set_radio_param(self, radio):
@@ -436,7 +446,7 @@ class Node:
 		sl_pkt = SteamLinkPacket(slnode=self, opcode=SL_OP.SR, payload=lorainit)
 		self.steamlink.publish(self.get_admin_control_topic(), sl_pkt)
 
-		rc = self.get_response(timeout=2)
+		rc = self.get_response(timeout=SL_RESPONSE_WAIT_SEC)
 		return rc
 
 
@@ -444,8 +454,8 @@ class Node:
 		if self.state != "UP": return SL_OP.NC
 		sl_pkt = SteamLinkPacket(slnode=self, opcode=SL_OP.TD, payload=pkt)
 		self.steamlink.publish(self.get_admin_control_topic(), sl_pkt)
-		rc = self.get_response(timeout=2)
-		logging.debug("send_packet %s got %s", sl_pkt, rc)
+		rc = self.get_response(timeout=SL_RESPONSE_WAIT_SEC)
+		logging.debug("send_packet %s got %s", sl_pkt, SL_OP.code(rc))
 		return rc
 
 
@@ -455,7 +465,7 @@ class Node:
 
 	def post_admin_data(self, sl_pkt):
 		""" handle incoming messages on the ../admin_data topic """
-		logging.debug("post_admin_data %s", sl_pkt)
+		logging.info("post_admin_data %s", sl_pkt)
 
 		# any pkt from node indicates it's up
 		self.set_state('UP')
@@ -478,19 +488,16 @@ class Node:
 				logging.warning('post_admin_data: node %s queue, dropping: %s', self.sl_id, sl_pkt)
 		elif opcode == SL_OP.TR:
 			logging.debug('post_admin_data: node %s test msg', opargs)
-			try:
-				rssi, jmsg = opargs.split(',',1)
-			except ValueError as e:
-				logging.error("post_incoming: testpacket receive: %s", e);
-				return
 
 			try:
-				pkt = TestPkt(pkt=jmsg)
+				test_pkt = TestPkt(pkt=opargs)
 			except ValueError as e:
-				logging.warning("post_incoming: cannot convert %s to pkt", jmsg)
+				logging.warning("post_incoming: cannot convert %s to pkt", opargs)
 				return
-			pkt.set_rssi(rssi)
-			sl_log.post_incoming(pkt)
+			
+			test_pkt.set_receiver_slid(sl_pkt.slid)
+			test_pkt.set_rssi(sl_pkt.rssi)
+			sl_log.post_incoming(test_pkt)
 			
 	
 	def get_response(self, timeout):
@@ -517,7 +524,7 @@ class LogData:
 
 	def post_incoming(self, pkt):
 		""" a pkt arrives """
-		self.log_pkt(pkt)
+		self.log_pkt(pkt, "receive")
 		self.pkt_inq.put(pkt, "recv")
 
 
@@ -537,13 +544,14 @@ class LogData:
 		while True:
 			now = time.time()
 			try:
-				pkt = self.pkt_inq.get(block=True, timeout=lwait)
+				test_pkt = self.pkt_inq.get(block=True, timeout=lwait)
 			except queue.Empty:
-				pkt = None
+				test_pkt = None
+			logging.debug("wait_pkt_number pkt %s", test_pkt)
 			waited = time.time() - now
-			if pkt and pkt['pktno'] == pktnumber:
+			if test_pkt and test_pkt.pkt['pktno'] == pktnumber:
 				return pktnumber
-			if waited >= lwait or pkt['pktno'] > pktnumber:	# our pkt will never arrive
+			if waited >= lwait or test_pkt.pkt['pktno'] > pktnumber:	# our pkt will never arrive
 				return None
 			lwait -= waited
 			
@@ -638,7 +646,7 @@ def runtest():
 					nodes_id_needed.append(vianode)
 
 	for node_id in nodes_id_needed:
-		rc = nodes_by_id[node_id].admin_send_get_status()
+		nodes_by_id[node_id].admin_send_get_status()
 
 	# wait for all nodes to send their status updates
 	EEOF = '\x1b[K'
@@ -668,14 +676,15 @@ def runtest():
 			for node in locations[loc]['nodes']:
 				if not nodes[node].is_up():
 					continue
-				pkt = TestPkt(nodes[node].get_gps(), "TEST", nodes[node].sl_id)
-				pktno = pkt.get_pktno()
-				rc = nodes[node].admin_send_testpacket(pkt.pkt_string())
-				if rc != SL_OP.AK:
-					logging.warning("send_packet for node %s failed: %s", node, SL_OP.code(rc))
-				else:
-					sl_log.post_outgoing(pkt)
-					sl_log.wait_pkt_number(pktno, wait)
+				for i in range(10):
+					pkt = TestPkt(nodes[node].get_gps(), "TEST", nodes[node].sl_id)
+					pktno = pkt.get_pktno()
+					rc = nodes[node].admin_send_testpacket(pkt.pkt_string())
+					if rc != SL_OP.AK:
+						logging.warning("send_packet for node %s failed: %s", node, SL_OP.code(rc))
+					else:
+						sl_log.post_outgoing(pkt)
+						sl_log.wait_pkt_number(pktno, wait)
 
 #
 # Main
