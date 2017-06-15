@@ -3,7 +3,7 @@
 // bridge for a SteamLink base LoRa network
 // https://steamlink.net/
 
-#define VER "9"
+#define VER "10"
 
 #include <SteamLink.h>
 #include <SteamLinkESP.h>
@@ -54,7 +54,10 @@ void setup()
 {
   Serial.begin(115200);
   delay(1000);
-  Serial.println(F("!ID SL_bridge0 " VER));
+  Serial.print(F("!ID SL_bridge0 " VER " slid_ESP: " ));
+  Serial.println(SL_ID_ESP, HEX);
+  Serial.print(F(" slid_LoRa: "));
+  Serial.println(SL_ID_LORA, HEX);
 
   slbridge.bridge(&sllora);
   
