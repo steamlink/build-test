@@ -43,7 +43,7 @@ bool SteamLinkESP::driver_receive(uint8_t* &packet, uint8_t &packet_size, uint32
    INFO("SteamLinkESP::driver_receive len: ");
    INFO(rcvlen);
    INFO(" packet: ");
-   phex(driverbuffer, rcvlen);
+   INFOPHEX(driverbuffer, rcvlen);
    _last_rssi = WiFi.RSSI();
    packet = driverbuffer;
    packet_size = rcvlen;
@@ -72,7 +72,7 @@ bool SteamLinkESP::driver_send(uint8_t* packet, uint8_t packet_size, uint32_t sl
   INFO(" test: ");
   INFO((uint8_t) is_test);
   INFONL(" packet: ");
-  phex(packet, packet_size);
+  INFOPHEX(packet, packet_size);
   if (_mqtt->connected()){
     _pub->publish(packet, packet_size);
     return true;

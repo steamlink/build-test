@@ -99,7 +99,7 @@ bool SteamLinkLora::driver_receive(uint8_t* &packet, uint8_t &packet_size, uint3
     INFO(" to: ");
     INFO(to);
     INFO(" packet: ");
-    phex(driverbuffer, rcvlen);
+    INFOPHEX(driverbuffer, rcvlen);
     _last_rssi = _driver->lastRssi();
     is_test = (_driver->headerFlags() & SL_LORA_TEST_FLAGS);
     packet = driverbuffer;
@@ -125,7 +125,7 @@ bool SteamLinkLora::driver_send(uint8_t* packet, uint8_t packet_size, uint32_t s
   INFO(" test: ");
   INFO((uint8_t) is_test);
   INFONL(" packet: ");
-  phex(packet, packet_size);
+  INFOPHEX(packet, packet_size);
 
   if (is_test) {
     _manager->setHeaderFlags(SL_LORA_TEST_FLAGS, 0);

@@ -42,33 +42,41 @@ typedef void (*on_receive_bridge_handler_function)(uint8_t* packet, uint8_t pack
 #if DEBUG_ENABLED >= DEBUG_LEVEL_INFO
  #define INFONL(text) Serial.println(text)
  #define INFO(text) Serial.print(text)
+ #define INFOPHEX(data, len) phex(data, len)
 #else 
  #define INFONL(text) ((void)0)
  #define INFO(text) ((void)0)
+ #define INFOPHEX(data, len) ((void)0)
 #endif
 
 #if DEBUG_ENABLED >= DEBUG_LEVEL_WARN
  #define WARNNL(text) Serial.println(text)
  #define WARN(text) Serial.print(text)
+ #define WARNPHEX(data, len) phex(data, len)
 #else 
  #define WARNNL(text) ((void)0)
  #define WARN(text) ((void)0)
+ #define WARNPHEX(data, len) ((void)0)
 #endif
 
 #if DEBUG_ENABLED >= DEBUG_LEVEL_ERR
  #define ERRNL(text) Serial.println(text)
  #define ERR(text) Serial.print(text)
+ #define ERRPHEX(data, len) phex(data, len)
 #else 
  #define ERRNL(text) ((void)0)
  #define ERR(text) ((void)0)
+ #define ERRPHEX(data, len) ((void)0)
 #endif
 
 #if DEBUG_ENABLED >= DEBUG_LEVEL_FATAL
  #define FATALNL(text) Serial.println(text)
  #define FATAL(text) Serial.print(text)
+ #define FATALPHEX(data, len) phex(data, len)
 #else 
  #define FATALNL(text) ((void)0)
  #define FATAL(text) ((void)0)
+ #define FATALPHEX(data, len) ((void)0)
 #endif
 
 
