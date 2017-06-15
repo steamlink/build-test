@@ -40,6 +40,10 @@ bool SteamLinkESP::driver_receive(uint8_t* &packet, uint8_t &packet_size, uint32
    _mqtt->processPackets(10);
   }
   if (available) {
+   INFO("SteamLinkESP::driver_receive len: ");
+   INFO(rcvlen);
+   INFO(" packet: ");
+   phex(driverbuffer, rcvlen);
    _last_rssi = WiFi.RSSI();
    packet = driverbuffer;
    packet_size = rcvlen;
@@ -61,11 +65,19 @@ bool SteamLinkESP::driver_send(uint8_t* packet, uint8_t packet_size, uint32_t sl
   // this can be exanded in the future. We ignore the input SLID
 
   // TODO also MQTT nodes cannot send MQTT test packages for now
+  INFO("SteamLinkESP::driver_send len: ");
+  INFO(packet_size);
+  INFO(" to: ");
+  INFO(slid);
+  INFO(" test: ");
+  INFO((uint8_t) is_test);
+  INFONL(" packet: ");
+  phex(packet, packet_size);
   if (_mqtt->connected()){
     _pub->publish(packet, packet_size);
     return true;
   } else {
-    ERR("MQTT not connected, Dropping user packet");
+    ERRNL("MQTT not connected, Dropping user packet");
     return false;
   }
 }
@@ -145,9 +157,13 @@ void SteamLinkESP::_sub_callback(char* data, uint16_t len) {
   INFO("_sub_callback len: ");
   INFONL(len);
   // TODO: check max len
-  memcpy(driverbuffer, data, len);
-  rcvlen = len;
-  available = true;
+  if (available) {
+    ERRNL("SteamLinkESP::_sub_callback packet overrun!!");
+  } else {
+    memcpy(driverbuffer, data, len);
+    rcvlen = len;
+    available = true;
+  }
 }
 
 uint8_t SteamLinkESP::driverbuffer[] = {0};
