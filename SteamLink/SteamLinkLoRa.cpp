@@ -135,9 +135,13 @@ bool SteamLinkLora::driver_send(uint8_t* packet, uint8_t packet_size, uint32_t s
     sent = _manager->sendto(packet, packet_size, to_addr);
   }
   if (sent)  {
+    if (! _driver->waitPacketSent(5000)) {	// wait max 5 sec for xmit to finish
+      ERRNL("SteamLinkLora::driver_send waitPacketSent failed!");
+      return false;
+    }
     return true;
   }  else {
-    ERR("SteamLinkLora::driver_send failed!");
+    ERRNL("SteamLinkLora::driver_send failed!");
     return false;
   }
 }
