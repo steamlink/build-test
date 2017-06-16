@@ -263,8 +263,8 @@ class SteamLinkPacket:
 			if pkt[0] == SL_OP.BS:		# un-ecap all
 				while pkt[0] == SL_OP.BS:
 					sfmt = '<BLBB%is' % (len(pkt) - 7)
-					self.opcode, self.slid, self.rssi,  self.qos, bpayload = struct.unpack(sfmt, pkt)
-					self.via.append(self.slid)
+					self.opcode, slid, self.rssi,  self.qos, bpayload = struct.unpack(sfmt, pkt)
+					self.via.append(slid)
 					pkt = bpayload
 					logging.debug("pkg encap BS, len %s\n%s", len(pkt), "\n".join(phex(pkt, 4)))
 #				self.payload = bpayload.decode('utf8')
@@ -662,6 +662,7 @@ def runtest():
 			if not nodes_by_id[n].is_up():
 				nodes_id_needed_new.append(n)
 		nodes_id_needed = nodes_id_needed_new
+	print("All online",  end=EEOF+"\n")
 
 	for radio in radio_params:
 		for loc in locations:
