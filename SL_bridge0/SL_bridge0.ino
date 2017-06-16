@@ -1,4 +1,4 @@
-// SL_bidge0
+// SL_bridge0
 // -*- mode: C++ -*-
 // bridge for a SteamLink base LoRa network
 // https://steamlink.net/
@@ -55,7 +55,7 @@ void setup()
   Serial.begin(115200);
   delay(1000);
   Serial.print(F("!ID SL_bridge0 " VER " slid_ESP: " ));
-  Serial.println(SL_ID_ESP, HEX);
+  Serial.print(SL_ID_ESP, HEX);
   Serial.print(F(" slid_LoRa: "));
   Serial.println(SL_ID_LORA, HEX);
 
