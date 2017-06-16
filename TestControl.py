@@ -114,7 +114,7 @@ class Mqtt(Thread):
 	def publish(self, topic, pkt, qos=0, retain=False):
 		logging.info("%s publish %s %s", self.name, topic, pkt)
 		self.mq.publish(topic, payload=pkt.pkt, qos=qos, retain=retain)
-		time.sleep(0.1)
+#		time.sleep(0.1)
 
 
 class GpsMqtt(Mqtt):
@@ -681,10 +681,10 @@ def runtest():
 					pkt = TestPkt(nodes[node].get_gps(), "TEST", nodes[node].sl_id)
 					pktno = pkt.get_pktno()
 					rc = nodes[node].admin_send_testpacket(pkt.pkt_string())
+					sl_log.post_outgoing(pkt)
 					if rc != SL_OP.AK:
 						logging.warning("send_packet for node %s failed: %s", node, SL_OP.code(rc))
 					else:
-						sl_log.post_outgoing(pkt)
 						sl_log.wait_pkt_number(pktno, wait)
 
 #

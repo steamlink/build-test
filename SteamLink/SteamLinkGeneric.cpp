@@ -37,6 +37,7 @@ void SteamLinkGeneric::update() {
     } else { // is test packet
       send_tr(packet, packet_length);
     }
+	free(packet);
   }
 }
 

@@ -29,4 +29,3 @@ void phex(uint8_t *data, unsigned int length) {
   }
 }
 
-

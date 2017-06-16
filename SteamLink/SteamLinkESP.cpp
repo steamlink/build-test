@@ -1,5 +1,12 @@
 #include <SteamLinkESP.h>
+#include <SL_RingBuff.h>
+
 #ifdef ESP8266
+
+#define MQTTQSIZE 10
+
+SL_RingBuff mqttQ(MQTTQSIZE);
+
 
 SteamLinkESP::SteamLinkESP(uint32_t slid) : SteamLinkGeneric(slid) {
   _slid = slid;
@@ -39,20 +46,18 @@ bool SteamLinkESP::driver_receive(uint8_t* &packet, uint8_t &packet_size, uint32
   // process packets
    _mqtt->processPackets(10);
   }
-  if (available) {
-   INFO("SteamLinkESP::driver_receive len: ");
-   INFO(rcvlen);
-   INFO(" packet: ");
-   INFOPHEX(driverbuffer, rcvlen);
+  if (mqttQ.queuelevel()) {
    _last_rssi = WiFi.RSSI();
-   packet = driverbuffer;
-   packet_size = rcvlen;
+   packet = mqttQ.dequeue(&packet_size);
+
+   INFO("SteamLinkESP::driver_receive len: ");
+   INFO(packet_size);
+   INFO(" packet: ");
+   INFOPHEX(packet, packet_size);
    // TODO: see comment above re: MQTT nodes can only speak to store for now
    slid = SL_DEFAULT_STORE_ADDR;
    // TODO: mqtt nodes cannot send test packets for now
    is_test = false;
-   // flip available
-   available = false;
    return true;
   } else {
     return false;
@@ -156,18 +161,14 @@ bool SteamLinkESP::mqtt_connect() {
 void SteamLinkESP::_sub_callback(char* data, uint16_t len) {
   INFO("_sub_callback len: ");
   INFONL(len);
+  char *msg;
+  
   // TODO: check max len
-  if (available) {
-    ERRNL("SteamLinkESP::_sub_callback packet overrun!!");
-  } else {
-    memcpy(driverbuffer, data, len);
-    rcvlen = len;
-    available = true;
+  msg = (char *) malloc(len);
+  memcpy(msg, data, len);
+  if (mqttQ.enqueue((uint8_t *)msg, len) == 0) {
+    WARNNL("SteamLinkESP::_sub_callback: WARN: mqttQ FULL, pkt dropped");
   }
 }
-
-uint8_t SteamLinkESP::driverbuffer[] = {0};
-uint8_t SteamLinkESP::rcvlen = 0;
-bool SteamLinkESP::available = false;
 
 #endif

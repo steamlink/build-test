@@ -102,7 +102,8 @@ bool SteamLinkLora::driver_receive(uint8_t* &packet, uint8_t &packet_size, uint3
     INFOPHEX(driverbuffer, rcvlen);
     _last_rssi = _driver->lastRssi();
     is_test = (_driver->headerFlags() & SL_LORA_TEST_FLAGS);
-    packet = driverbuffer;
+	packet = (uint8_t *) malloc(rcvlen);
+    memcpy(packet,driverbuffer, rcvlen);
     packet_size = rcvlen;
     if (to == get_node_from_slid(SL_DEFAULT_STORE_ADDR)) {
         slid = SL_DEFAULT_STORE_ADDR;
