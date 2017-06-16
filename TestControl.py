@@ -495,7 +495,7 @@ class Node:
 				logging.warning("post_incoming: cannot convert %s to pkt", opargs)
 				return
 			
-			test_pkt.set_receiver_slid(sl_pkt.slid)
+			test_pkt.set_receiver_slid(sl_pkt.via)
 			test_pkt.set_rssi(sl_pkt.rssi)
 			sl_log.post_incoming(test_pkt)
 			
@@ -647,7 +647,7 @@ def runtest():
 
 	for node_id in nodes_id_needed:
 		nodes_by_id[node_id].admin_send_get_status()
-		time.sleep(0.1)		# ??
+#		time.sleep(0.1)		# ??
 
 	# wait for all nodes to send their status updates
 	EEOF = '\x1b[K'
