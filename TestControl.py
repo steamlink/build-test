@@ -165,7 +165,10 @@ class SteamLinkMqtt(Mqtt):
 	def on_admin_data_msg(self, client, userdata, msg):
 		topic_parts = msg.topic.split('/', 2)
 #		sl_id = int(topic_parts[1])
-		sl_pkt = SteamLinkPacket(pkt=msg.payload)
+		try:
+			sl_pkt = SteamLinkPacket(pkt=msg.payload)
+		except:
+			return
 		sl_id = sl_pkt.slid
 		if not sl_id in self.nodes:
 			logging.warning("SteamLinkMqtt on_message sl_id 0x%0x not in nodes", sl_id)
@@ -190,18 +193,19 @@ class SteamLink:
 
 class SteamLinkPacket:
 
-	def __init__(self, slnode = None, opcode = None, rssi = None, payload = None, pkt = None):
+	def __init__(self, slnode = None, opcode = None, rssi = 0, payload = None, pkt = None):
 		self.opcode = None
 		self.slid = None
-		self.rssi = None
+		self.rssi = 0
 		self.qos = None
 		self.pkt = None
 		self.via = []
+		self.payload = None
 
 		if pkt == None:						# construct pkt
 			self.slid = slnode.sl_id
 			self.opcode = opcode
-			self.rssi = rssi
+			self.rssi = rssi + 256
 			self.payload = payload
 #			logging.debug("SteamLinkPaktet payload = %s", payload);
 			if self.payload:
@@ -267,6 +271,7 @@ class SteamLinkPacket:
 					self.via.append(slid)
 					pkt = bpayload
 					logging.debug("pkg encap BS, len %s\n%s", len(pkt), "\n".join(phex(pkt, 4)))
+				self.rssi = self.rssi - 256
 #				self.payload = bpayload.decode('utf8')
 
 			if pkt[0] == SL_OP.DS:
@@ -285,7 +290,11 @@ class SteamLinkPacket:
 				sfmt = '<BLB%is' % (len(pkt) - 6)
 				self.opcode, self.slid, self.rssi, bpayload = struct.unpack(sfmt, pkt)
 				self.rssi = self.rssi - 256
-				self.payload = bpayload.decode('utf8')
+				try:
+					self.payload = bpayload.decode('utf8')
+				except Exception as e:
+					logging.error("cannot decode paket: %s %s", e, pkt);
+					raise
 			elif pkt[0] == SL_OP.SS:
 				sfmt = '<BL%is' % (len(pkt) - 5)
 				self.opcode, self.slid, bpayload = struct.unpack(sfmt, pkt)
@@ -314,6 +323,9 @@ class SteamLinkPacket:
 			else:
 				logging.error("SteamLinkPacket unknowm opcode in pkt %s", pkt)
 
+			if (pkt[0] & 0x01) == 1: 	# Data
+				self.via.append(self.slid)
+				
 			
 
 	def __str__(self):
@@ -405,6 +417,7 @@ class Node:
 
 		self.state = "DOWN"	
 		self.status = []
+		self.tr = {}		# dict of sending nodes, each holds a list of (pktno, rssi)
 
 
 	def get_admin_control_topic(self):
@@ -497,6 +510,9 @@ class Node:
 			
 			test_pkt.set_receiver_slid(sl_pkt.via)
 			test_pkt.set_rssi(sl_pkt.rssi)
+			if not test_pkt.pkt['slid'] in self.tr:
+				self.tr[test_pkt.pkt['slid']] = []
+			self.tr[test_pkt.pkt['slid']].append((test_pkt.pkt['pktno'], test_pkt.pkt['rssi']))
 			sl_log.post_incoming(test_pkt)
 			
 	
@@ -524,6 +540,7 @@ class LogData:
 
 	def post_incoming(self, pkt):
 		""" a pkt arrives """
+		
 		self.log_pkt(pkt, "receive")
 		self.pkt_inq.put(pkt, "recv")
 
@@ -550,6 +567,7 @@ class LogData:
 			logging.debug("wait_pkt_number pkt %s", test_pkt)
 			waited = time.time() - now
 			if test_pkt and test_pkt.pkt['pktno'] == pktnumber:
+				time.sleep(1);
 				return pktnumber
 			if waited >= lwait or test_pkt.pkt['pktno'] > pktnumber:	# our pkt will never arrive
 				return None
@@ -647,7 +665,7 @@ def runtest():
 
 	for node_id in nodes_id_needed:
 		nodes_by_id[node_id].admin_send_get_status()
-#		time.sleep(0.1)		# ??
+		time.sleep(0.2)		# ??
 
 	# wait for all nodes to send their status updates
 	EEOF = '\x1b[K'
@@ -665,6 +683,7 @@ def runtest():
 	print("All online",  end=EEOF+"\n")
 
 	for radio in radio_params:
+		logging.info("Setting radio to %s", radio);
 		for loc in locations:
 			for node in locations[loc]['nodes']:
 				if not nodes[node].is_up():
@@ -688,6 +707,27 @@ def runtest():
 					else:
 						sl_log.wait_pkt_number(pktno, wait)
 
+	time.sleep(3);	# wait for late packets
+
+	# Print report
+	
+	for loc in locations:
+		
+		for rnode_name in locations[loc]['nodes']:
+			if nodes[rnode_name].ntype != "LoRa":
+				continue
+			print("%-8s: " % rnode_name)
+			for snode in nodes[rnode_name].tr:
+				print("    %-8s: " % nodes_by_id[snode].name, end="")
+				
+				cnt = len(nodes[rnode_name].tr[snode])
+				a_rssi = 0
+				if cnt:
+					for pktno, rssi in nodes[rnode_name].tr[snode]:
+						a_rssi += rssi
+					a_rssi = a_rssi / cnt
+				print("%3i %4i" % (cnt, a_rssi), end="")
+				print()
 #
 # Main
 #
