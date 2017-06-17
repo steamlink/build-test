@@ -20,6 +20,14 @@ void SteamLinkLora::init(void *vconf, uint8_t config_length) {
   _key = _conf->key;
   _mod_conf = _conf->mod_conf;
 
+  if (config_length != sizeof(SteamLinkLoraConfig)) {
+    FATAL("Received bad config struct, len should be: ");
+    FATAL(sizeof(SteamLinkLoraConfig));
+    FATAL(" is: ");
+    FATALNL(config_length);
+    while(1);
+  }
+  
   if (!_driver) {
     /*
     // TODO: Not used, full initialization hangs on 3rd
@@ -29,25 +37,17 @@ void SteamLinkLora::init(void *vconf, uint8_t config_length) {
     delay(200); // TODO
     digitalWrite(_reset_pin, HIGH);
     */
-
-    if (config_length != sizeof(SteamLinkLoraConfig)) {
-      FATAL("Received bad config struct, len should be: ");
-      FATAL(sizeof(SteamLinkLoraConfig));
-      FATAL(" is: ");
-      FATALNL(config_length);
-      while(1);
-    }
-
     _driver = new RH_RF95(_cs_pin, _interrupt_pin);
     _manager = new RHDatagram(*_driver, _node_addr);
 
-    if (!_manager->init()) {
-      FATAL("RH manager init failed");
-      while (1);
-    }
-    INFO("RH Initialized\n");
   }
 
+  if (!_manager->init()) {
+    FATAL("RH manager init failed");
+    while (1);
+  }
+  INFO("RH Initialized\n");
+  
   INFONL("Setting Radio Parameters...");
 
   // Set frequency
