@@ -555,19 +555,20 @@ class LogData:
 		self.logfile.flush()
 
 
-	def wait_pkt_number(self, pktnumber, timeout=10):
+	def wait_pkt_number(self, pktnumber, timeout, num_packets):
 		""" wait for pkt with number pktnumber for a max of timeout seconds """
 		lwait = timeout
+		packets_seen = 0
 		while True:
 			now = time.time()
 			try:
 				test_pkt = self.pkt_inq.get(block=True, timeout=lwait)
+				packets_seen += 1
 			except queue.Empty:
 				test_pkt = None
 			logging.debug("wait_pkt_number pkt %s", test_pkt)
 			waited = time.time() - now
-			if test_pkt and test_pkt.pkt['pktno'] == pktnumber:
-				time.sleep(1);
+			if test_pkt and test_pkt.pkt['pktno'] == pktnumber and packets_seen == num_packets:
 				return pktnumber
 			if waited >= lwait or test_pkt.pkt['pktno'] > pktnumber:	# our pkt will never arrive
 				return None
@@ -659,6 +660,7 @@ def runtest():
 	for loc in locations:
 		for node in locations[loc]['nodes']:
 			nodes_id_needed.append(nodes[node].sl_id)
+			nodes_defined += 1
 			for vianode in node_routes[nodes[node].sl_id].via:
 				if not vianode in nodes_id_needed:
 					nodes_id_needed.append(vianode)
@@ -705,7 +707,7 @@ def runtest():
 					if rc != SL_OP.AK:
 						logging.warning("send_packet for node %s failed: %s", node, SL_OP.code(rc))
 					else:
-						sl_log.wait_pkt_number(pktno, wait)
+						sl_log.wait_pkt_number(pktno, wait, nodes_defined - 1)
 
 	time.sleep(3);	# wait for late packets
 
@@ -716,7 +718,7 @@ def runtest():
 		for rnode_name in locations[loc]['nodes']:
 			if nodes[rnode_name].ntype != "LoRa":
 				continue
-			print("%-8s: " % rnode_name)
+			print("%-8s: %s nodes seen" % (rnode_name, len(nodes[rnode_name].tr)))
 			for snode in nodes[rnode_name].tr:
 				print("    %-8s: " % nodes_by_id[snode].name, end="")
 				

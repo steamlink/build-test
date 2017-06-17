@@ -187,7 +187,6 @@ void SteamLinkGeneric::handle_admin_packet(uint8_t* packet, uint8_t packet_lengt
 
   } else if (op == SL_OP_GS) {
     INFONL("GetStatus Received");
-//AEW    delay(100);
     send_on();
 
   } else if (op == SL_OP_TD) {
@@ -195,7 +194,6 @@ void SteamLinkGeneric::handle_admin_packet(uint8_t* packet, uint8_t packet_lengt
     uint8_t* pkt_header;
     uint8_t* payload;
     uint8_t payload_length = SteamLinkPacket::get_packet(packet, packet_length, payload, pkt_header, (uint8_t) sizeof(td_header));
-//AEW   delay(100);
 	send_ak();
     delay(100);
     driver_send(payload, payload_length, SL_DEFAULT_TEST_ADDR, true);
@@ -205,9 +203,7 @@ void SteamLinkGeneric::handle_admin_packet(uint8_t* packet, uint8_t packet_lengt
     uint8_t* pkt_header;
     uint8_t* payload;
     uint8_t payload_length = SteamLinkPacket::get_packet(packet, packet_length, payload, pkt_header, (uint8_t) sizeof(sr_header));
-//AEW   delay(100);
     send_ak();
-//AEW   delay(100); // TODO: assure ack is transmitted before changing radio params
     INFONL("Passing payload as config to init");
     init(payload, payload_length);
     free(pkt_header);
