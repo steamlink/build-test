@@ -6,7 +6,7 @@
 # N.B. deletes content of SL_bridge1,2,3,...
 
 # numebr of bridges to make i.e. SL_bridge1/ SL_bridge2
-N=3
+N=7
 
 
 
