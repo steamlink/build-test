@@ -6,6 +6,7 @@
 #include <SteamLinkGeneric.h>
 #include <SteamLinkPacket.h>
 #include <SteamLink.h>
+#include <SL_RingBuff.h>
 
 #define SL_DEFAULT_SLID_SIZE 32 // in bits
 #define SL_LORA_DEFAULT_NODE_SIZE 8 // in bits
@@ -21,6 +22,7 @@
 #define SL_LORA_DEFAULT_FLAGS 0
 #define SL_LORA_TEST_FLAGS 1
 
+//#define LORASENDQSIZE 10
 /*
 This library needs the following defines:
 
@@ -48,9 +50,9 @@ class SteamLinkLora : public SteamLinkGeneric {
 
   virtual void init(void *conf, uint8_t config_length);
 
-  virtual bool driver_send(uint8_t* packet, uint8_t packet_length, uint32_t slid, bool is_test);
+  virtual bool driver_send(uint8_t* packet, uint8_t packet_length, uint32_t slid);
 
-  virtual bool driver_receive(uint8_t* &packet, uint8_t &packet_size, uint32_t &slid, bool &is_test);
+  virtual bool driver_receive(uint8_t* &packet, uint8_t &packet_size, uint32_t &slid);
   /// get_addrs_from_slid
   /// \brief LoRa driver uses the 32 bit slid
   ///  24 bits are mesh_id and 8 bits are node_addr
@@ -89,6 +91,8 @@ class SteamLinkLora : public SteamLinkGeneric {
 
   // modem_config
   uint8_t _mod_conf = 0;
+
+  //  SL_RingBuff loraSendQ(LORASENDQSIZE);
 
   // LORA driver stuff
   uint8_t driverbuffer[SL_LORA_MAX_MESSAGE_LEN];

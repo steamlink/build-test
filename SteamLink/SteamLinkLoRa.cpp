@@ -88,7 +88,7 @@ bool SteamLinkLora::update_modem_config() {
   return rc;
 }
 
-bool SteamLinkLora::driver_receive(uint8_t* &packet, uint8_t &packet_size, uint32_t &slid, bool &is_test) {
+bool SteamLinkLora::driver_receive(uint8_t* &packet, uint8_t &packet_size, uint32_t &slid) {
   uint8_t rcvlen = sizeof(driverbuffer);
   uint8_t from;
   uint8_t to;
@@ -101,14 +101,15 @@ bool SteamLinkLora::driver_receive(uint8_t* &packet, uint8_t &packet_size, uint3
     INFO(" packet: ");
     INFOPHEX(driverbuffer, rcvlen);
     _last_rssi = _driver->lastRssi();
-    is_test = (_driver->headerFlags() & SL_LORA_TEST_FLAGS);
-	packet = (uint8_t *) malloc(rcvlen);
+    packet = (uint8_t *) malloc(rcvlen);
     memcpy(packet,driverbuffer, rcvlen);
     packet_size = rcvlen;
     if (to == get_node_from_slid(SL_DEFAULT_STORE_ADDR)) {
         slid = SL_DEFAULT_STORE_ADDR;
+    } else if (to == get_node_from_slid(SL_DEFAULT_TEST_ADDR)) {
+      slid = SL_DEFAULT_TEST_ADDR;
     } else {
-        slid = (uint32_t) to | (get_mesh_from_slid(_slid) << 8);
+      slid = (uint32_t) to | (get_mesh_from_slid(_slid) << 8);
     }
     return true;
   } else {
@@ -116,25 +117,17 @@ bool SteamLinkLora::driver_receive(uint8_t* &packet, uint8_t &packet_size, uint3
   }
 }
 
-bool SteamLinkLora::driver_send(uint8_t* packet, uint8_t packet_size, uint32_t slid, bool is_test) {
+bool SteamLinkLora::driver_send(uint8_t* packet, uint8_t packet_size, uint32_t slid) {
   uint8_t to_addr = get_node_from_slid(slid);
   bool sent;
   INFO("SteamLinkLora::driver_send len: ");
   INFO(packet_size);
   INFO(" to: ");
   INFO(slid);
-  INFO(" test: ");
-  INFO((uint8_t) is_test);
   INFONL(" packet: ");
   INFOPHEX(packet, packet_size);
-
-  if (is_test) {
-    _manager->setHeaderFlags(SL_LORA_TEST_FLAGS, 0);
-    sent = _manager->sendto(packet, packet_size, to_addr);
-    _manager->setHeaderFlags(0, SL_LORA_TEST_FLAGS);
-  } else {
-    sent = _manager->sendto(packet, packet_size, to_addr);
-  }
+  sent = _manager->sendto(packet, packet_size, to_addr);
+  
   if (sent)  {
     if (! _driver->waitPacketSent(5000)) {	// wait max 5 sec for xmit to finish
       ERRNL("SteamLinkLora::driver_send waitPacketSent failed!");

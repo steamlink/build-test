@@ -59,9 +59,9 @@ class SteamLinkGeneric {
   /// \param packet is a pointer for the packet to send
   /// \param packet_size is the size of the packet
   /// \param slid is the steamlink id of the receiver node
-  virtual bool driver_send(uint8_t* packet, uint8_t packet_length, uint32_t slid, bool is_test);
+  virtual bool driver_send(uint8_t* packet, uint8_t packet_length, uint32_t slid);
 
-  virtual bool driver_receive(uint8_t* &packet, uint8_t &packet_size, uint32_t &slid, bool &is_test);
+  virtual bool driver_receive(uint8_t* &packet, uint8_t &packet_size, uint32_t &slid);
 
   virtual uint32_t get_slid();
 

@@ -22,12 +22,11 @@ void SteamLinkGeneric::update() {
   uint8_t* packet;
   uint8_t packet_length;
   uint32_t slid;
-  bool is_test;
-  bool received = driver_receive(packet, packet_length, slid, is_test);
+  bool received = driver_receive(packet, packet_length, slid);
   if (received) {
     INFO("received slid: ");
     INFONL(slid);
-    if (!is_test) {
+    if (slid != SL_DEFAULT_TEST_ADDR) {
       if ((slid == _slid) || ((slid == SL_DEFAULT_STORE_ADDR) && (_bridge_mode != unbridged))) {
         INFONL("update->handle_admin_packet");
         handle_admin_packet(packet, packet_length);
@@ -37,7 +36,7 @@ void SteamLinkGeneric::update() {
     } else { // is test packet
       send_tr(packet, packet_length);
     }
-	free(packet);
+    free(packet);
   }
 }
 
@@ -50,11 +49,11 @@ void SteamLinkGeneric::register_bridge_handler(on_receive_bridge_handler_functio
   _bridge_handler = on_receive;
 }
 
-bool SteamLinkGeneric::driver_send(uint8_t* packet, uint8_t packet_size, uint32_t slid, bool is_test) {
+bool SteamLinkGeneric::driver_send(uint8_t* packet, uint8_t packet_size, uint32_t slid) {
   return false;
 }
 
-bool SteamLinkGeneric::driver_receive(uint8_t* &packet, uint8_t &packet_size, uint32_t &slid, bool &is_test) {
+bool SteamLinkGeneric::driver_receive(uint8_t* &packet, uint8_t &packet_size, uint32_t &slid) {
   return false;
 }
 
@@ -193,10 +192,10 @@ void SteamLinkGeneric::handle_admin_packet(uint8_t* packet, uint8_t packet_lengt
     INFONL("Transmit Test Received");
     uint8_t* pkt_header;
     uint8_t* payload;
-    uint8_t payload_length = SteamLinkPacket::get_packet(packet, packet_length, payload, pkt_header, (uint8_t) sizeof(td_header));
-	send_ak();
+    uint8_t payload_length = SteamLinkPacket::get_packet(packet, packet_length, payload, pkt_header, (uint8_t) sizeof(td_header));   
+    send_ak();
     delay(100);
-    driver_send(payload, payload_length, SL_DEFAULT_TEST_ADDR, true);
+    driver_send(payload, payload_length, SL_DEFAULT_TEST_ADDR);
 
   } else if (op == SL_OP_SR) {
     INFONL("SetRadio Received");
@@ -241,18 +240,18 @@ bool SteamLinkGeneric::generic_send(uint8_t* packet, uint8_t packet_length, uint
 
   if ( is_data ) { // DATA
     if  (_bridge_mode == storeside ) {
-      rc = driver_send(packet, packet_length, slid, false);
+      rc = driver_send(packet, packet_length, slid);
     } else if ( _bridge_mode == nodeside  ) {
       _bridge_handler(packet, packet_length, slid);
     } else if ( _bridge_mode == unbridged ) {
-      rc = driver_send(packet, packet_length, slid, false);
+      rc = driver_send(packet, packet_length, slid);
     }
   } else { // CONTROL
     if ( _bridge_mode == nodeside  ) {
-      rc = driver_send(packet, packet_length, slid, false);
+      rc = driver_send(packet, packet_length, slid);
     } else if ( _bridge_mode == unbridged ) {
       WARNNL("Sending a control packet as an unbridged node");
-      rc = driver_send(packet, packet_length, slid, false); // TODO: is this even a valid case?
+      rc = driver_send(packet, packet_length, slid); // TODO: is this even a valid case?
     } else  if ( _bridge_mode == storeside ) {
       _bridge_handler(packet, packet_length, slid);
     }

@@ -39,7 +39,7 @@ void SteamLinkESP::init(void *vconf, uint8_t config_length) {
   mqtt_connect();
 }
 
-bool SteamLinkESP::driver_receive(uint8_t* &packet, uint8_t &packet_size, uint32_t &slid, bool &is_test) {
+bool SteamLinkESP::driver_receive(uint8_t* &packet, uint8_t &packet_size, uint32_t &slid) {
   // first make sure we're still connected
   wifi_connect();
   if (mqtt_connect()) {
@@ -48,7 +48,8 @@ bool SteamLinkESP::driver_receive(uint8_t* &packet, uint8_t &packet_size, uint32
   }
   if (mqttQ.queuelevel()) {
    _last_rssi = WiFi.RSSI();
-   packet = mqttQ.dequeue(&packet_size);
+   
+   packet = mqttQ.dequeue(&packet_size, NULL);
 
    INFO("SteamLinkESP::driver_receive len: ");
    INFO(packet_size);
@@ -56,15 +57,13 @@ bool SteamLinkESP::driver_receive(uint8_t* &packet, uint8_t &packet_size, uint32
    INFOPHEX(packet, packet_size);
    // TODO: see comment above re: MQTT nodes can only speak to store for now
    slid = SL_DEFAULT_STORE_ADDR;
-   // TODO: mqtt nodes cannot send test packets for now
-   is_test = false;
    return true;
   } else {
     return false;
   }
 }
 
-bool SteamLinkESP::driver_send(uint8_t* packet, uint8_t packet_size, uint32_t slid, bool is_test) {
+bool SteamLinkESP::driver_send(uint8_t* packet, uint8_t packet_size, uint32_t slid) {
   INFO("Sending user string over mqtt\n");
   // TODO: for now, MQTT nodes can only send to one SLID, ie store_slid
   // this can be exanded in the future. We ignore the input SLID
@@ -75,7 +74,6 @@ bool SteamLinkESP::driver_send(uint8_t* packet, uint8_t packet_size, uint32_t sl
   INFO(" to: ");
   INFO(slid);
   INFO(" test: ");
-  INFO((uint8_t) is_test);
   INFONL(" packet: ");
   INFOPHEX(packet, packet_size);
   if (_mqtt->connected()){
@@ -166,7 +164,7 @@ void SteamLinkESP::_sub_callback(char* data, uint16_t len) {
   // TODO: check max len
   msg = (char *) malloc(len);
   memcpy(msg, data, len);
-  if (mqttQ.enqueue((uint8_t *)msg, len) == 0) {
+  if (mqttQ.enqueue((uint8_t *)msg, len, NULL) == 0) {
     WARNNL("SteamLinkESP::_sub_callback: WARN: mqttQ FULL, pkt dropped");
   }
 }

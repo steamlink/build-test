@@ -84,10 +84,10 @@ class SteamLinkESP : public SteamLinkGeneric {
   virtual void init(void *vconf, uint8_t config_length);
 
   /// send
-  virtual bool driver_send(uint8_t* packet, uint8_t packet_length, uint32_t slid, bool is_test);
+  virtual bool driver_send(uint8_t* packet, uint8_t packet_length, uint32_t slid);
 
   /// receive
-  virtual bool driver_receive(uint8_t* &packet, uint8_t &packet_size, uint32_t &slid, bool &is_test);
+  virtual bool driver_receive(uint8_t* &packet, uint8_t &packet_size, uint32_t &slid);
 
 
  private:

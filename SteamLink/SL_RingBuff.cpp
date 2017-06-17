@@ -21,7 +21,7 @@ SL_RingBuff::SL_RingBuff(int size) {
 
 // Put something into the buffer. Returns 0 when the buffer was full,
 // 1 when the stuff was put sucessfully into the buffer
-int SL_RingBuff::enqueue (uint8_t *val, uint8_t len) {
+int SL_RingBuff::enqueue (uint8_t *val, uint8_t len, uint32_t addr) {
   Serial.print("enqueue len: ");
   Serial.println(len);
   int newtail = (_tail + 1) % _ringsize;
@@ -32,6 +32,7 @@ int SL_RingBuff::enqueue (uint8_t *val, uint8_t len) {
   else {
     _ring[_tail].len = len;
     _ring[_tail].pkt = val;
+    _ring[_tail].addr = addr;
     _tail = newtail;
     return 1;
   }
@@ -44,13 +45,16 @@ int SL_RingBuff::queuelevel () {
 
 // Get something from the queue. 0 will be returned if the queue
 // is empty
-uint8_t *SL_RingBuff::dequeue (uint8_t *len) {
+uint8_t *SL_RingBuff::dequeue (uint8_t *len, uint32_t *addr) {
   if (_head == _tail) {
     return 0;
   }
   else {
     uint8_t *val = _ring[_head].pkt;
     *len = _ring[_head].len;
+    if(addr) {
+      *addr = _ring[_head].addr;
+    }
     _head  = (_head + 1) % _ringsize;
     return val;
   }
