@@ -41,9 +41,9 @@ void SteamLinkLora::init(void *vconf, uint8_t config_length) {
     digitalWrite(_reset_pin, HIGH);
     delay(100);
     digitalWrite(_reset_pin, LOW);
-    delay(50);
+    delay(100);
     digitalWrite(_reset_pin, HIGH);
-    delay(50);
+    delay(10);
     
     _driver = new RH_RF95(_cs_pin, _interrupt_pin);
     _manager = new RHDatagram(*_driver, _node_addr);
@@ -107,14 +107,14 @@ bool SteamLinkLora::driver_receive(uint8_t* &packet, uint8_t &packet_size, uint3
 #ifdef LORA_SEND_BLUE_LED
   if(driver_can_send()) {
     pinMode(LORA_SEND_BLUE_LED, OUTPUT);
-    digitalWrite(LORA_SEND_BLUE_LED, LOW);
+    digitalWrite(LORA_SEND_BLUE_LED, HIGH);
   }
-#endif LORA_SEND_BLUE_LED
+#endif //LORA_SEND_BLUE_LED
 
 #ifdef LORA_RECEIVE_RED_LED
   pinMode(LORA_RECEIVE_RED_LED, OUTPUT);
   digitalWrite(LORA_RECEIVE_RED_LED, HIGH);
-#endif LORA_RECEIVE_RED_LED
+#endif //LORA_RECEIVE_RED_LED
 
   uint8_t rcvlen = sizeof(driverbuffer);
   uint8_t from;
@@ -125,7 +125,7 @@ bool SteamLinkLora::driver_receive(uint8_t* &packet, uint8_t &packet_size, uint3
 #ifdef LORA_RECEIVE_RED_LED
     pinMode(LORA_RECEIVE_RED_LED, OUTPUT);
     digitalWrite(LORA_RECEIVE_RED_LED, LOW);
-#endif LORA_RECEIVE_RED_LED
+#endif //LORA_RECEIVE_RED_LED
 
     INFO("SteamLinkLora::driver_receive len: ");
     INFO(rcvlen);
@@ -155,8 +155,8 @@ bool SteamLinkLora::driver_send(uint8_t* packet, uint8_t packet_size, uint32_t s
 
 #ifdef LORA_SEND_BLUE_LED
   pinMode(LORA_SEND_BLUE_LED, OUTPUT);
-  digitalWrite(LORA_SEND_BLUE_LED, HIGH);
-#endif LORA_SEND_BLUE_LED
+  digitalWrite(LORA_SEND_BLUE_LED, LOW);
+#endif //LORA_SEND_BLUE_LED
 
   uint8_t to_addr = get_node_from_slid(slid);
   bool sent;
@@ -167,12 +167,6 @@ bool SteamLinkLora::driver_send(uint8_t* packet, uint8_t packet_size, uint32_t s
   INFONL(" packet: ");
   INFOPHEX(packet, packet_size);
   return (_manager->sendto(packet, packet_size, to_addr));
-
-#ifdef LORA_SEND_BLUE_LED
-  pinMode(LORA_SEND_BLUE_LED, OUTPUT);
-  digitalWrite(LORA_SEND_BLUE_LED, LOW);
-#endif LORA_SEND_BLUE_LED
-
 }
 
 // TODO: these are one-way functions
