@@ -3,10 +3,12 @@
 
 #include <SteamLink.h>
 #include <SteamLinkPacket.h>
+#include <SL_RingBuff.h>
 
 #define SL_DEFAULT_STORE_ADDR 1
 #define SL_DEFAULT_TEST_ADDR  0
 #define SL_DEFAULT_QOS 0
+#define SENDQSIZE 10
 
 class SteamLinkGeneric {
 
@@ -52,6 +54,7 @@ class SteamLinkGeneric {
 
   virtual void sign_on_procedure();
 
+  virtual bool send_enqueue(uint8_t* packet, uint8_t packet_length, uint32_t slid);
   /// DRIVER LEVEL CALLS
 
   /// driver_send
@@ -60,6 +63,8 @@ class SteamLinkGeneric {
   /// \param packet_size is the size of the packet
   /// \param slid is the steamlink id of the receiver node
   virtual bool driver_send(uint8_t* packet, uint8_t packet_length, uint32_t slid);
+
+  virtual bool driver_can_send();
 
   virtual bool driver_receive(uint8_t* &packet, uint8_t &packet_size, uint32_t &slid);
 
@@ -92,6 +97,8 @@ class SteamLinkGeneric {
   BridgeMode _bridge_mode = unbridged;
 
   bool sign_on_complete = false;
+
+  SL_RingBuff sendQ;
 
  private:
 

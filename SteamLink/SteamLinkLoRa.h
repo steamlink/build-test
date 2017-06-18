@@ -65,7 +65,7 @@ class SteamLinkLora : public SteamLinkGeneric {
 
   void set_pins(uint8_t cs, uint8_t reset, uint8_t interrupt);
 
-
+  bool driver_can_send();
 
  private:
 

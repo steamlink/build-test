@@ -13,6 +13,10 @@ SteamLinkLora::SteamLinkLora(uint32_t slid) : SteamLinkGeneric(slid) {
 }
 
 
+bool SteamLinkLora::driver_can_send() {
+  return _driver->waitPacketSent(0); // wait max 0 us
+}
+
 void SteamLinkLora::init(void *vconf, uint8_t config_length) {
 
   struct SteamLinkLoraConfig *_conf = (struct SteamLinkLoraConfig *) vconf;
@@ -66,6 +70,13 @@ void SteamLinkLora::init(void *vconf, uint8_t config_length) {
   INFO("set CAD timeout\n");
   _driver->setTxPower(SL_LORA_DEFAULT_TXPWR, false);
   INFO("set lora tx power\n");
+  
+  if(_driver->waitPacketSent(0)){
+    INFONL("LoRa driver ready to send!");
+  } else {
+    WARNNL("LoRa driver initialize but not ready to send");
+    WARNNL("Is the RadioHead library patched?");
+  }
 }
 
 void SteamLinkLora::set_modem_config(uint8_t mod_conf) {
@@ -126,18 +137,7 @@ bool SteamLinkLora::driver_send(uint8_t* packet, uint8_t packet_size, uint32_t s
   INFO(slid);
   INFONL(" packet: ");
   INFOPHEX(packet, packet_size);
-  sent = _manager->sendto(packet, packet_size, to_addr);
-  
-  if (sent)  {
-    if (! _driver->waitPacketSent(5000)) {	// wait max 5 sec for xmit to finish
-      ERRNL("SteamLinkLora::driver_send waitPacketSent failed!");
-      return false;
-    }
-    return true;
-  }  else {
-    ERRNL("SteamLinkLora::driver_send failed!");
-    return false;
-  }
+  return !(_manager->sendto(packet, packet_size, to_addr));
 }
 
 // TODO: these are one-way functions
