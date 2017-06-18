@@ -7,6 +7,7 @@ uint8_t SteamLinkPacket::set_packet(uint8_t* &packet, uint8_t* payload, uint8_t 
   INFONL(packet_length);
 
   packet = (uint8_t*) malloc(packet_length);
+  INFO("alloc: "); Serial.println((unsigned int)packet, HEX);
 //  INFONL("SteamLinkPacket - memory allocated for packet");
   if (header_length > 0) {
     memcpy(packet, header, header_length);
@@ -23,6 +24,7 @@ uint8_t SteamLinkPacket::get_packet(uint8_t* packet, uint8_t packet_length, uint
   INFONL("SteamLinkPacket - getting packet");
   uint8_t payload_length = packet_length - header_length;
   header = (uint8_t*) malloc(packet_length);
+  INFO("alloc: "); Serial.println((unsigned int) header, HEX);
   memcpy(header, packet, packet_length);
   payload = header + header_length;
   return payload_length;

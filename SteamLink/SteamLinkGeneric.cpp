@@ -36,13 +36,14 @@ void SteamLinkGeneric::update() {
     } else { // is test packet
       send_tr(packet, packet_length);
     }
-    free(packet);
   }
   if (sendQ.queuelevel() && driver_can_send()) {
+    INFONL("SteamLinkGeneric::update:   about ot dequeue");
     packet = sendQ.dequeue(&packet_length, &slid);
     if (!driver_send(packet, packet_length, slid)) {
       WARNNL("SteamLinkGeneric::update driver_send dropping packet");
     }  
+    INFO("free: "); Serial.println((unsigned int)packet, HEX);
     free(packet);
   }
   
@@ -184,6 +185,7 @@ void SteamLinkGeneric::handle_admin_packet(uint8_t* packet, uint8_t packet_lengt
     if (_on_receive != NULL) {
       _on_receive(payload, payload_length);
     }
+    INFO("free: "); Serial.println((unsigned int)pkt_header, HEX);
     free(pkt_header);
 
   } else if (op == SL_OP_BN) {
@@ -194,6 +196,7 @@ void SteamLinkGeneric::handle_admin_packet(uint8_t* packet, uint8_t packet_lengt
     INFONL("SteamLinkGeneric::handle_admin_packet BN  packet: ");
     INFOPHEX(pkt_header, packet_length);
     generic_send(payload, payload_length, ((bn_header*) pkt_header)->slid);
+    INFO("free: "); Serial.println((unsigned int)pkt_header, HEX);
     free(pkt_header);
 
   } else if (op == SL_OP_GS) {
@@ -217,6 +220,7 @@ void SteamLinkGeneric::handle_admin_packet(uint8_t* packet, uint8_t packet_lengt
     send_ak();
     INFONL("Passing payload as config to init");
     init(payload, payload_length);
+    INFO("free: "); Serial.println((unsigned int)pkt_header, HEX);
     free(pkt_header);
 
   } else if (op == SL_OP_BC) {
