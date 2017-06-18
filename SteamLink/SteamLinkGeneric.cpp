@@ -41,7 +41,7 @@ void SteamLinkGeneric::update() {
     INFONL("SteamLinkGeneric::update:   about ot dequeue");
     packet = sendQ.dequeue(&packet_length, &slid);
     if (!driver_send(packet, packet_length, slid)) {
-      WARNNL("SteamLinkGeneric::update driver_send dropping packet");
+      WARNNL("SteamLinkGeneric::update driver_send dropping packet!!");
     }  
     INFO(" SteamLinkGeneric::update free: "); Serial.println((unsigned int)packet, HEX);
     free(packet);

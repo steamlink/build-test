@@ -138,7 +138,7 @@ bool SteamLinkLora::driver_send(uint8_t* packet, uint8_t packet_size, uint32_t s
   INFO(slid);
   INFONL(" packet: ");
   INFOPHEX(packet, packet_size);
-  return !(_manager->sendto(packet, packet_size, to_addr));
+  return (_manager->sendto(packet, packet_size, to_addr));
 }
 
 // TODO: these are one-way functions
