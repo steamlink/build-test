@@ -2,6 +2,9 @@
 //#include <SteamLinkPacket.h>
 //#include <SteamLink.h>
 
+#define LORA_SEND_BLUE_LED 2
+#define LORA_RECEIVE_RED_LED 0
+
 SteamLinkLora::SteamLinkLora(uint32_t slid) : SteamLinkGeneric(slid) {
   // initialize slid and set _node_addr
   _slid = slid;
@@ -33,14 +36,15 @@ void SteamLinkLora::init(void *vconf, uint8_t config_length) {
   }
   
   if (!_driver) {
-    /*
-    // TODO: Not used, full initialization hangs on 3rd
-    // Memory leak?
+    INFONL("Resetting driver by toggling reset pin");
     pinMode(_reset_pin, OUTPUT);
-    digitalWrite(_reset_pin, LOW);
-    delay(200); // TODO
     digitalWrite(_reset_pin, HIGH);
-    */
+    delay(100);
+    digitalWrite(_reset_pin, LOW);
+    delay(50);
+    digitalWrite(_reset_pin, HIGH);
+    delay(50);
+    
     _driver = new RH_RF95(_cs_pin, _interrupt_pin);
     _manager = new RHDatagram(*_driver, _node_addr);
     if (!_manager->init()) {
@@ -99,11 +103,30 @@ bool SteamLinkLora::update_modem_config() {
 }
 
 bool SteamLinkLora::driver_receive(uint8_t* &packet, uint8_t &packet_size, uint32_t &slid) {
+  
+#ifdef LORA_SEND_BLUE_LED
+  if(driver_can_send()) {
+    pinMode(LORA_SEND_BLUE_LED, OUTPUT);
+    digitalWrite(LORA_SEND_BLUE_LED, LOW);
+  }
+#endif LORA_SEND_BLUE_LED
+
+#ifdef LORA_RECEIVE_RED_LED
+  pinMode(LORA_RECEIVE_RED_LED, OUTPUT);
+  digitalWrite(LORA_RECEIVE_RED_LED, HIGH);
+#endif LORA_RECEIVE_RED_LED
+
   uint8_t rcvlen = sizeof(driverbuffer);
   uint8_t from;
   uint8_t to;
   bool received = _manager->recvfrom(driverbuffer, &rcvlen, &from, &to);
   if (received) {
+
+#ifdef LORA_RECEIVE_RED_LED
+    pinMode(LORA_RECEIVE_RED_LED, OUTPUT);
+    digitalWrite(LORA_RECEIVE_RED_LED, LOW);
+#endif LORA_RECEIVE_RED_LED
+
     INFO("SteamLinkLora::driver_receive len: ");
     INFO(rcvlen);
     INFO(" to: ");
@@ -129,6 +152,12 @@ bool SteamLinkLora::driver_receive(uint8_t* &packet, uint8_t &packet_size, uint3
 }
 
 bool SteamLinkLora::driver_send(uint8_t* packet, uint8_t packet_size, uint32_t slid) {
+
+#ifdef LORA_SEND_BLUE_LED
+  pinMode(LORA_SEND_BLUE_LED, OUTPUT);
+  digitalWrite(LORA_SEND_BLUE_LED, HIGH);
+#endif LORA_SEND_BLUE_LED
+
   uint8_t to_addr = get_node_from_slid(slid);
   bool sent;
   INFO("SteamLinkLora::driver_send len: ");
@@ -138,6 +167,12 @@ bool SteamLinkLora::driver_send(uint8_t* packet, uint8_t packet_size, uint32_t s
   INFONL(" packet: ");
   INFOPHEX(packet, packet_size);
   return (_manager->sendto(packet, packet_size, to_addr));
+
+#ifdef LORA_SEND_BLUE_LED
+  pinMode(LORA_SEND_BLUE_LED, OUTPUT);
+  digitalWrite(LORA_SEND_BLUE_LED, LOW);
+#endif LORA_SEND_BLUE_LED
+
 }
 
 // TODO: these are one-way functions
