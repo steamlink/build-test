@@ -43,14 +43,13 @@ void SteamLinkLora::init(void *vconf, uint8_t config_length) {
     */
     _driver = new RH_RF95(_cs_pin, _interrupt_pin);
     _manager = new RHDatagram(*_driver, _node_addr);
-
+    if (!_manager->init()) {
+      FATAL("RH manager init failed");
+      while (1);
+    }
+    INFO("RH Initialized\n");
   }
 
-  if (!_manager->init()) {
-    FATAL("RH manager init failed");
-    while (1);
-  }
-  INFO("RH Initialized\n");
   
   INFONL("Setting Radio Parameters...");
 

@@ -38,15 +38,15 @@ void SteamLinkGeneric::update() {
     }
   }
   if (sendQ.queuelevel() && driver_can_send()) {
-    INFONL("SteamLinkGeneric::update:   about ot dequeue");
+    // TODO is driver_can_send functioning properly?
+    INFONL("SteamLinkGeneric::update: about to dequeue");
     packet = sendQ.dequeue(&packet_length, &slid);
     if (!driver_send(packet, packet_length, slid)) {
       WARNNL("SteamLinkGeneric::update driver_send dropping packet!!");
     }  
     INFO(" SteamLinkGeneric::update free: "); Serial.println((unsigned int)packet, HEX);
     free(packet);
-  }
-  
+  } 
 }
 
 void SteamLinkGeneric::register_receive_handler(on_receive_handler_function on_receive) {
@@ -110,7 +110,6 @@ bool SteamLinkGeneric::send_td(uint8_t *td, uint8_t len) {
   uint8_t* packet = (uint8_t *)malloc(len);
   memcpy(packet, td, len);
   uint8_t packet_length;
-  
   INFONL("SteamLinkGeneric::send_td packet: ");
   INFOPHEX(packet, len);
   bool sent = send_enqueue(packet, len, SL_DEFAULT_TEST_ADDR);	// update will free this
@@ -216,19 +215,19 @@ void SteamLinkGeneric::handle_admin_packet(uint8_t* packet, uint8_t packet_lengt
 
   } else if (op == SL_OP_TD) {
     INFONL("Transmit Test Received");
+    send_ak();
     uint8_t* pkt_header;
     uint8_t* payload;
     uint8_t payload_length = SteamLinkPacket::get_packet(packet, packet_length, payload, pkt_header, (uint8_t) sizeof(td_header));   
-    send_ak();
 //    delay(100);
     send_td(payload, payload_length);
 
   } else if (op == SL_OP_SR) {
+    send_ak();
     INFONL("SetRadio Received");
     uint8_t* pkt_header;
     uint8_t* payload;
     uint8_t payload_length = SteamLinkPacket::get_packet(packet, packet_length, payload, pkt_header, (uint8_t) sizeof(sr_header));
-    send_ak();
     INFONL("Passing payload as config to init");
     init(payload, payload_length);
 //    INFO("Passing payload as config free: "); Serial.println((unsigned int)pkt_header, HEX);
