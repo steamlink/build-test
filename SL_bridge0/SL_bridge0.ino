@@ -59,19 +59,16 @@ void setup()
   Serial.print(F(" slid_LoRa: "));
   Serial.println(SL_ID_LORA, HEX);
 
-  slbridge.bridge(&sllora);
-  
+  slesp.init((void *) &sl_ESP_config, sizeof(sl_ESP_config));
+  slesp.register_receive_handler(esp_on_receive);
+  Serial.println(F("slesp.init done"));
+
   sllora.set_pins(RFM95_CS, RFM95_RST, RFM95_INT);
   sllora.init((void *) &sl_Lora_config, sizeof(sl_Lora_config));
-  Serial.println(F("sllora.init done"));
-  slesp.init((void *) &sl_ESP_config, sizeof(sl_ESP_config));
-  Serial.println(F("slesp.init done" VER));
-  
   sllora.register_receive_handler(lora_on_receive);
-  Serial.println(F("sllora.register_receive_handler done"));
-  slesp.register_receive_handler(esp_on_receive);
-  Serial.println(F("sslesp.register_receive_handler done"));
+  Serial.println(F("sllora.init done"));
 
+  slbridge.bridge(&sllora);
 }
 
 

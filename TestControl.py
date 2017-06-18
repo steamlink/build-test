@@ -445,6 +445,12 @@ class Node:
 		self.steamlink = steamlink
 
 
+	def admin_send_boot_cold(self):
+		sl_pkt = SteamLinkPacket(slnode=self, opcode=SL_OP.BC)
+		self.steamlink.publish(self.get_admin_control_topic(), sl_pkt)
+		return 
+
+
 	def admin_send_get_status(self):
 		sl_pkt = SteamLinkPacket(slnode=self, opcode=SL_OP.GS)
 		self.steamlink.publish(self.get_admin_control_topic(), sl_pkt)
@@ -666,6 +672,12 @@ def runtest():
 					nodes_id_needed.append(vianode)
 
 	for node_id in nodes_id_needed:
+		if nodes_by_id[node_id].ntype == "LoRa":
+			continue
+		nodes_by_id[node_id].admin_send_boot_cold()
+		time.sleep(0.2)		# ??
+
+	for node_id in nodes_id_needed:
 		nodes_by_id[node_id].admin_send_get_status()
 		time.sleep(0.2)		# ??
 
@@ -690,9 +702,9 @@ def runtest():
 			for node in locations[loc]['nodes']:
 				if not nodes[node].is_up():
 					continue
-				rc = nodes[node].admin_send_set_radio_param(radio)
-				if rc != SL_OP.AK:
-					logging.warning("set_radio to %s for %s failed: %s", radio, node, SL_OP.code(rc))
+#				rc = nodes[node].admin_send_set_radio_param(radio)
+#				if rc != SL_OP.AK:
+#					logging.warning("set_radio to %s for %s failed: %s", radio, node, SL_OP.code(rc))
 
 		wait = int(radio_params[radio]['wait'])
 		for loc in locations:

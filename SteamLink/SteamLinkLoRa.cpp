@@ -38,10 +38,15 @@ void SteamLinkLora::init(void *vconf, uint8_t config_length) {
   if (!_driver) {
     INFONL("Resetting driver by toggling reset pin");
     pinMode(_reset_pin, OUTPUT);
+
     digitalWrite(_reset_pin, HIGH);
     delay(100);
     digitalWrite(_reset_pin, LOW);
-    delay(10);
+    delay(50);
+    digitalWrite(_reset_pin, HIGH);
+    delay(100);
+    digitalWrite(_reset_pin, LOW);
+    delay(50);
     digitalWrite(_reset_pin, HIGH);
     delay(10);
     

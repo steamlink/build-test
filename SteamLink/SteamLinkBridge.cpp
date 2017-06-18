@@ -20,8 +20,8 @@ void SteamLinkBridge::update() {
     INFO("init done\nl");
     last_update_time = millis();
   }
-  _storeSideDriver->update();
   _nodeSideDriver->update();
+  _storeSideDriver->update();
   if (millis() > (last_update_time + UPDATE_INTERVAL)) {
     last_update_time = millis();
 	_storeSideDriver->send_on();
