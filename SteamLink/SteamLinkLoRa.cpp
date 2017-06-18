@@ -41,7 +41,7 @@ void SteamLinkLora::init(void *vconf, uint8_t config_length) {
     digitalWrite(_reset_pin, HIGH);
     delay(100);
     digitalWrite(_reset_pin, LOW);
-    delay(100);
+    delay(10);
     digitalWrite(_reset_pin, HIGH);
     delay(10);
     
