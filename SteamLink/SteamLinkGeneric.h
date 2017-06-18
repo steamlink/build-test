@@ -31,6 +31,8 @@ class SteamLinkGeneric {
 
   virtual bool send_bs(uint8_t* payload, uint8_t payload_length);
 
+  virtual bool send_td(uint8_t *td, uint8_t len);
+
   virtual bool send_on();
 
   virtual bool send_ak();

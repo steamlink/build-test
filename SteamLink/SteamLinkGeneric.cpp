@@ -43,7 +43,7 @@ void SteamLinkGeneric::update() {
     if (!driver_send(packet, packet_length, slid)) {
       WARNNL("SteamLinkGeneric::update driver_send dropping packet");
     }  
-    INFO("free: "); Serial.println((unsigned int)packet, HEX);
+    INFO(" SteamLinkGeneric::update free: "); Serial.println((unsigned int)packet, HEX);
     free(packet);
   }
   
@@ -103,6 +103,17 @@ bool SteamLinkGeneric::send_bs(uint8_t* payload, uint8_t payload_length) {
   INFONL("SteamLinkGeneric::send_bs packet: ");
   INFOPHEX(packet, packet_length);
   bool sent = generic_send(packet, packet_length, SL_DEFAULT_STORE_ADDR);
+  return sent;
+}
+
+bool SteamLinkGeneric::send_td(uint8_t *td, uint8_t len) {
+  uint8_t* packet = (uint8_t *)malloc(len);
+  memcpy(packet, td, len);
+  uint8_t packet_length;
+  
+  INFONL("SteamLinkGeneric::send_td packet: ");
+  INFOPHEX(packet, len);
+  bool sent = send_enqueue(packet, len, SL_DEFAULT_TEST_ADDR);	// update will free this
   return sent;
 }
 
@@ -185,8 +196,8 @@ void SteamLinkGeneric::handle_admin_packet(uint8_t* packet, uint8_t packet_lengt
     if (_on_receive != NULL) {
       _on_receive(payload, payload_length);
     }
-    INFO("free: "); Serial.println((unsigned int)pkt_header, HEX);
-    free(pkt_header);
+//    INFO(" SteamLinkGeneric::handle_admin_packet DN free: "); Serial.println((unsigned int)pkt_header, HEX);
+//    free(pkt_header);
 
   } else if (op == SL_OP_BN) {
     INFONL("BN Packet Received");
@@ -196,8 +207,8 @@ void SteamLinkGeneric::handle_admin_packet(uint8_t* packet, uint8_t packet_lengt
     INFONL("SteamLinkGeneric::handle_admin_packet BN  packet: ");
     INFOPHEX(pkt_header, packet_length);
     generic_send(payload, payload_length, ((bn_header*) pkt_header)->slid);
-    INFO("free: "); Serial.println((unsigned int)pkt_header, HEX);
-    free(pkt_header);
+//    INFO("fSteamLinkGeneric::handle_admin_packet BN ree: "); Serial.println((unsigned int)pkt_header, HEX);
+//    free(pkt_header);
 
   } else if (op == SL_OP_GS) {
     INFONL("GetStatus Received");
@@ -209,8 +220,8 @@ void SteamLinkGeneric::handle_admin_packet(uint8_t* packet, uint8_t packet_lengt
     uint8_t* payload;
     uint8_t payload_length = SteamLinkPacket::get_packet(packet, packet_length, payload, pkt_header, (uint8_t) sizeof(td_header));   
     send_ak();
-    delay(100);
-    send_enqueue(payload, payload_length, SL_DEFAULT_TEST_ADDR);
+//    delay(100);
+    send_td(payload, payload_length);
 
   } else if (op == SL_OP_SR) {
     INFONL("SetRadio Received");
@@ -220,8 +231,8 @@ void SteamLinkGeneric::handle_admin_packet(uint8_t* packet, uint8_t packet_lengt
     send_ak();
     INFONL("Passing payload as config to init");
     init(payload, payload_length);
-    INFO("free: "); Serial.println((unsigned int)pkt_header, HEX);
-    free(pkt_header);
+//    INFO("Passing payload as config free: "); Serial.println((unsigned int)pkt_header, HEX);
+//    free(pkt_header);
 
   } else if (op == SL_OP_BC) {
     INFONL("BootCold Received");
