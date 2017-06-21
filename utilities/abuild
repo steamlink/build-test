@@ -63,7 +63,7 @@ if [ ! -r "$BDIR/$ABUILD/.json" ]; then
 	if [ "$FLASH" = "esptool" ]; then
 		if  [ "$FLASHTOOL" = "" ]; then
 			FLASHTOOL=$(which esptool.py)
-			if [ ! -x "$x" ]; then
+			if [ ! -x "$FLASHTOOL" ]; then
 				echo "error: esptool.py not found"
 				exit 2
 			fi
@@ -113,6 +113,7 @@ echo "flashing"
 if [ "$FLASH" = "esptool" ]; then
   echo "put the ESP8266 in loader mode, hit <ENTER>"
   $FLASHTOOL --baud $SPEED --port $PORT write_flash  0x00000 $BDIR/$ABUILD/"$BNAME.bin"
+  read a
 elif [ "$FLASH" = "bossac" ]; then
   echo "double-click the RST button on the Feather M0 board, hit <ENTER>"
   read a
