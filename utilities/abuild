@@ -1,17 +1,17 @@
 #!/bin/sh
 
-# script to compile arduino sketches w/o the IDE
+# script to compile arduino sketches and flash them w/o the IDE
 
 ARDUINO_APP="/Applications/Arduino.app"
 
+# defaults
 PORT="/dev/cu.usbserial-A400h9rO"
 SPEED=921600 
 BOARD="esp8266" 
 ABUILD=".abuild"
 
+
 SKETCH="$1"
-
-
 if [ "$SKETCH" = "" ]; then
 	echo "usage: abuild.sh sketch.ino [port [speed [board]]]"
 	exit 1
@@ -30,6 +30,11 @@ fi
 
 if [ ! -d "$ARDUINO_APP" ]; then
 	echo "Ardhino IDE not found at $ARDUINO_APP"
+	exit 1
+fi
+ARDUINOBUILDER=$ARDUINO_APP/Contents/Java/arduino-builder
+if [ ! -x "$ARDUINOBUILDER" ]; then
+	echo "arduino-builder not found in $ARDUINO_APP"
 	exit 1
 fi
 
@@ -103,7 +108,7 @@ EOF
 fi
 
 
-arduino-builder  -build-path $BDIR/$ABUILD  -compile -build-options-file $BDIR/$ABUILD/.json  $SKETCH
+$ARDUINOBUILDER  -build-path $BDIR/$ABUILD  -compile -build-options-file $BDIR/$ABUILD/.json  $SKETCH
 if [ $? -ne 0 ]; then
 	echo "compile failed"
 	exit 1
