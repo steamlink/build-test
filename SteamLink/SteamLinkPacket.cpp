@@ -7,32 +7,19 @@ uint8_t SteamLinkPacket::set_packet(uint8_t* &packet, uint8_t* payload, uint8_t 
   INFONL(packet_length);
 
   packet = (uint8_t*) malloc(packet_length);
-  INFO("set_packet alloc: "); Serial.println((unsigned int)packet, HEX);
-//  INFONL("SteamLinkPacket - memory allocated for packet");
+  INFO("set_packet malloc: "); Serial.println((unsigned int)packet, HEX);
   if (header_length > 0) {
     memcpy(packet, header, header_length);
-//    INFONL("SteamLinkPacket - header copied in to packet");
   }
   if (payload_length > 0) {
     memcpy(&packet[header_length], payload, payload_length);
-//    INFONL("SteamLinkPacket - payload copied in to packet");
   }
+  if (payload) {
+    INFO("SteamLinkPacket::set_packet  free: "); Serial.println((unsigned int)payload, HEX);
+    free(payload);	// free input packet 
+  }
+
   return packet_length;
-}
-
-uint8_t SteamLinkPacket::get_packet(uint8_t* packet, uint8_t packet_length, uint8_t* &payload, uint8_t* &header, uint8_t header_length) {
-  INFONL("SteamLinkPacket - getting packet");
-
-  header = packet;
-  payload = header + header_length;
-  return (packet_length - header_length);
-/*
-  header = (uint8_t*) malloc(packet_length);
-  INFO("get_packet alloc: "); Serial.println((unsigned int) header, HEX);
-  memcpy(header, packet, packet_length);
-  payload = header + header_length;
-  return payload_length;
-*/
 }
 
 uint8_t SteamLinkPacket::set_encrypted_packet(uint8_t* &packet, uint8_t* payload, uint8_t payload_length, uint8_t* key) {

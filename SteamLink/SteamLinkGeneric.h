@@ -6,7 +6,7 @@
 #include <SL_RingBuff.h>
 
 #define SL_DEFAULT_STORE_ADDR 1
-#define SL_DEFAULT_TEST_ADDR  0
+#define SL_DEFAULT_TEST_ADDR  0xFFFFFFFF
 #define SL_DEFAULT_QOS 0
 #define SENDQSIZE 10
 

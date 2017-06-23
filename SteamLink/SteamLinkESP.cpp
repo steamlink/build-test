@@ -163,7 +163,7 @@ void SteamLinkESP::_sub_callback(char* data, uint16_t len) {
   
   // TODO: check max len
   msg = (char *) malloc(len);
-  INFO("SteamLinkESP::_sub_callback alloc: "); Serial.println((unsigned int) msg, HEX);
+  INFO("SteamLinkESP::_sub_callback malloc: "); Serial.println((unsigned int) msg, HEX);
 
   memcpy(msg, data, len);
   if (mqttQ.enqueue((uint8_t *)msg, len, NULL) == 0) {

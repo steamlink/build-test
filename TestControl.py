@@ -671,11 +671,12 @@ def runtest():
 				if not vianode in nodes_id_needed:
 					nodes_id_needed.append(vianode)
 
-	for node_id in nodes_id_needed:
-		if nodes_by_id[node_id].ntype == "LoRa":
-			continue
-		nodes_by_id[node_id].admin_send_boot_cold()
-		time.sleep(0.2)		# ??
+	if False:	# boot node cold
+		for node_id in nodes_id_needed:
+			if nodes_by_id[node_id].ntype == "LoRa":
+				continue
+			nodes_by_id[node_id].admin_send_boot_cold()
+			time.sleep(0.2)		# ??
 
 	for node_id in nodes_id_needed:
 		nodes_by_id[node_id].admin_send_get_status()
