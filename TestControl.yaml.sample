@@ -15,7 +15,6 @@ steamlink_mqtt:
     cert: "/Users/andreas/git/build-test/store/ca.crt"
     port: 8883
 
-steamlink:
     prefix: "SL"
     admin_data: "admin_data"
     admin_control: "admin_control"

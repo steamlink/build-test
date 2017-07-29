@@ -111,11 +111,6 @@ class Mqtt(Thread):
 		logging.info("%s got %s  %s", self.name, msg,topic, json.loads(msg.payload.decode('utf-8')))
 
 
-	def publish(self, topic, pkt, qos=0, retain=False):
-		logging.info("%s publish %s %s", self.name, topic, pkt)
-		self.mq.publish(topic, payload=pkt.pkt, qos=qos, retain=retain)
-#		time.sleep(0.1)
-
 
 class GpsMqtt(Mqtt):
 	def __init__(self, conf):
@@ -140,15 +135,24 @@ class GpsMqtt(Mqtt):
 
 
 class SteamLinkMqtt(Mqtt):
-	def __init__(self, conf, sl_conf,  nodes, sl_log):
+	def __init__(self, conf, nodes, sl_log):
 		self.conf = conf
-		self.sl_conf = sl_conf
 		self.sl_log = sl_log
 		self.nodes = nodes
+
+		for c in ["prefix", "admin_data", "admin_control"]: # , "data", "control"]:
+			if not c in conf:
+				logging.error("error: %s steamlink_mqtt %s not specified", self.name, c)
+				raise KeyError
+
+		self.prefix = conf['prefix']
+		self.admin_control_topic = "%s/%%s/%s" % (self.prefix, conf['admin_control'])
+		self.admin_data_topic = "%s/+/%s" % (self.prefix, conf['admin_data'])
+
 		super(SteamLinkMqtt, self).__init__(conf, "SteamLink")
 
-		self.subscription_list = [self.sl_conf.admin_data_topic]
-		self.mq.message_callback_add(self.sl_conf.admin_data_topic, self.on_admin_data_msg)
+		self.subscription_list = [self.admin_data_topic]
+		self.mq.message_callback_add(self.admin_data_topic, self.on_admin_data_msg)
 
 
 	def mk_json_msg(self, msg):
@@ -176,19 +180,11 @@ class SteamLinkMqtt(Mqtt):
 		self.nodes[sl_id].post_admin_data(sl_pkt)
 				
 	
-
-class SteamLink:
-	""" config data for steamlink mqtt """
-	def __init__(self, conf):
-
-		for c in ["prefix", "admin_data", "admin_control"]: # , "data", "control"]:
-			if not c in conf:
-				logging.error("error: %s steamlink_mqtt %s not specified", self.name, c)
-				raise KeyError
-
-		self.prefix = conf['prefix']
-		self.admin_control_topic = "%s/%%s/%s" % (self.prefix, conf['admin_control'])
-		self.admin_data_topic = "%s/+/%s" % (self.prefix, conf['admin_data'])
+	def publish(self, firsthop, pkt, qos=0, retain=False):
+		topic = self.admin_control_topic % firsthop
+		logging.info("%s publish %s %s", self.name, topic, pkt)
+		self.mq.publish(topic, payload=pkt.pkt, qos=qos, retain=retain)
+#		time.sleep(0.1)
 
 
 class SteamLinkPacket:
@@ -404,9 +400,8 @@ class NodeRoutes:
 
 class Node:
 	""" a node in the test set """
-	def __init__(self, sl_conf, name, sl_id, antenna, ntype):
+	def __init__(self, name, sl_id, antenna, ntype):
 		self.name = name
-		self.sl_conf = sl_conf
 		self.sl_id = sl_id
 		self.antenna = antenna
 		self.ntype = ntype
@@ -420,13 +415,13 @@ class Node:
 		self.tr = {}		# dict of sending nodes, each holds a list of (pktno, rssi)
 
 
-	def get_admin_control_topic(self):
+	def get_firsthop(self):
 		route_via = node_routes[self.sl_id].via
 		if len(route_via) == 0:
 			firsthop = self.sl_id
 		else:
 			firsthop = route_via[0]
-		return self.sl_conf.admin_control_topic % firsthop
+		return firsthop
 
 
 	def set_state(self, new_state):
@@ -447,13 +442,13 @@ class Node:
 
 	def admin_send_boot_cold(self):
 		sl_pkt = SteamLinkPacket(slnode=self, opcode=SL_OP.BC)
-		self.steamlink.publish(self.get_admin_control_topic(), sl_pkt)
+		self.steamlink.publish(self.get_firsthop(), sl_pkt)
 		return 
 
 
 	def admin_send_get_status(self):
 		sl_pkt = SteamLinkPacket(slnode=self, opcode=SL_OP.GS)
-		self.steamlink.publish(self.get_admin_control_topic(), sl_pkt)
+		self.steamlink.publish(self.get_firsthop(), sl_pkt)
 #		rc = self.get_response(timeout=SL_RESPONSE_WAIT_SEC)
 		return 
 
@@ -463,7 +458,7 @@ class Node:
 		lorainit = struct.pack('<BLB', 0, 0, radio)
 		logging.debug("admin_send_set_radio_param: len %s, pkt %s", len(lorainit), lorainit)
 		sl_pkt = SteamLinkPacket(slnode=self, opcode=SL_OP.SR, payload=lorainit)
-		self.steamlink.publish(self.get_admin_control_topic(), sl_pkt)
+		self.steamlink.publish(self.get_firsthop(), sl_pkt)
 
 		rc = self.get_response(timeout=SL_RESPONSE_WAIT_SEC)
 		return rc
@@ -472,7 +467,7 @@ class Node:
 	def admin_send_testpacket(self, pkt):
 		if self.state != "UP": return SL_OP.NC
 		sl_pkt = SteamLinkPacket(slnode=self, opcode=SL_OP.TD, payload=pkt)
-		self.steamlink.publish(self.get_admin_control_topic(), sl_pkt)
+		self.steamlink.publish(self.get_firsthop(), sl_pkt)
 		rc = self.get_response(timeout=SL_RESPONSE_WAIT_SEC)
 		logging.debug("send_packet %s got %s", sl_pkt, SL_OP.code(rc))
 		return rc
@@ -635,7 +630,7 @@ def loadconfig(conf_fname):
 	
 
 def setup():
-	steamlink.start()
+	sl_mqtt.start()
 	gps.start()
 
 	gps.wait_connect()
@@ -646,17 +641,17 @@ def setup():
 		time.sleep(0.1)
 	logging.info("got gps location %s", gps.gps)
 
-	steamlink.wait_connect()
+	sl_mqtt.wait_connect()
 
 
 	for node in nodes:
-		nodes[node].set_brokers(get_base_gps, steamlink)
+		nodes[node].set_brokers(get_base_gps, sl_mqtt)
 	for loc in locations:
 		for node in locations[loc]['nodes']:
 			if loc == 'mobile':
-				nodes[node].set_brokers(gps.get_gps, steamlink)
+				nodes[node].set_brokers(gps.get_gps, sl_mqtt)
 #			else:
-#				nodes[node].set_brokers(get_base_gps, steamlink)
+#				nodes[node].set_brokers(get_base_gps, sl_mqtt)
 
 
 def runtest():
@@ -775,13 +770,12 @@ logger.setLevel(loglevel)
 conff = cl_args.config if cl_args.config else "TestControl.yaml"
 conf = loadconfig(conff)
 if DBG: print(conf)
-sl_conf = SteamLink(conf['steamlink'])
 
 
 # build node name dict (nodes) and node slid dict (node_by_id)
 for node_name in conf['nodes']:
 	nconf = conf['nodes'][node_name]
-	nodes_by_id[nconf['sl_id']] = nodes[node_name] = Node(sl_conf, node_name, nconf['sl_id'], nconf.get('antenna',None), nconf['type'])
+	nodes_by_id[nconf['sl_id']] = nodes[node_name] = Node(node_name, nconf['sl_id'], nconf.get('antenna',None), nconf['type'])
 
 # build routing table by slid
 err = False
@@ -817,7 +811,7 @@ test_packet_count = conf.get('test_packet_count', 3)
 sl_log = LogData(conf['logdata'])
 
 try:
-	steamlink = SteamLinkMqtt(conf['steamlink_mqtt'], sl_conf, nodes_by_id, sl_log)
+	sl_mqtt = SteamLinkMqtt(conf['steamlink_mqtt'], nodes_by_id, sl_log)
 	gps = GpsMqtt(conf['gps_mqtt'])
 except KeyError as e:
 	logging.error("Gps config key missing: %s", e)
@@ -840,13 +834,13 @@ except KeyboardInterrupt as e:
 except Exception as e:
 	logging.warn("test exception %s", e, exc_info=True)
 
-logging.debug("stopping steamlink")
-steamlink.stop()
+logging.debug("stopping sl_mqtt")
+sl_mqtt.stop()
 logging.debug("stopping gps")
 gps.stop()
 
-logging.debug("waiting for steamlink to finish")
-steamlink.join()
+logging.debug("waiting for sl_mqtt to finish")
+sl_mqtt.join()
 logging.debug("waiting for gps to finish")
 gps.join()
 logging.info("done")
