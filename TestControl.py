@@ -19,8 +19,8 @@ SL_RESPONSE_WAIT_SEC = 10
 # op codes
 class SL_OP:
 	'''
-	admin_control message types: EVEN, 0 bottom bit 
-	admin_data message types: ODD, 1 bottom bit
+	control message types: EVEN, 0 bottom bit 
+	data message types: ODD, 1 bottom bit
 	'''
 
 	DN = 0x30		# data to node, ACK for qos 2
@@ -140,19 +140,19 @@ class SteamLinkMqtt(Mqtt):
 		self.sl_log = sl_log
 		self.nodes = nodes
 
-		for c in ["prefix", "admin_data", "admin_control"]: # , "data", "control"]:
+		for c in ["prefix", "data", "control"]: # , "data", "control"]:
 			if not c in conf:
 				logging.error("error: %s steamlink_mqtt %s not specified", self.name, c)
 				raise KeyError
 
 		self.prefix = conf['prefix']
-		self.admin_control_topic = "%s/%%s/%s" % (self.prefix, conf['admin_control'])
-		self.admin_data_topic = "%s/+/%s" % (self.prefix, conf['admin_data'])
+		self.control_topic = "%s/%%s/%s" % (self.prefix, conf['control'])
+		self.data_topic = "%s/+/%s" % (self.prefix, conf['data'])
 
 		super(SteamLinkMqtt, self).__init__(conf, "SteamLink")
 
-		self.subscription_list = [self.admin_data_topic]
-		self.mq.message_callback_add(self.admin_data_topic, self.on_admin_data_msg)
+		self.subscription_list = [self.data_topic]
+		self.mq.message_callback_add(self.data_topic, self.on_data_msg)
 
 
 	def mk_json_msg(self, msg):
@@ -166,7 +166,7 @@ class SteamLinkMqtt(Mqtt):
 		return jmsg
 
 
-	def on_admin_data_msg(self, client, userdata, msg):
+	def on_data_msg(self, client, userdata, msg):
 		topic_parts = msg.topic.split('/', 2)
 #		sl_id = int(topic_parts[1])
 		try:
@@ -177,11 +177,11 @@ class SteamLinkMqtt(Mqtt):
 		if not sl_id in self.nodes:
 			logging.warning("SteamLinkMqtt on_message sl_id 0x%0x not in nodes", sl_id)
 			return
-		self.nodes[sl_id].post_admin_data(sl_pkt)
+		self.nodes[sl_id].post_data(sl_pkt)
 				
 	
 	def publish(self, firsthop, pkt, qos=0, retain=False):
-		topic = self.admin_control_topic % firsthop
+		topic = self.control_topic % firsthop
 		logging.info("%s publish %s %s", self.name, topic, pkt)
 		self.mq.publish(topic, payload=pkt.pkt, qos=qos, retain=retain)
 #		time.sleep(0.1)
@@ -440,23 +440,23 @@ class Node:
 		self.steamlink = steamlink
 
 
-	def admin_send_boot_cold(self):
+	def send_boot_cold(self):
 		sl_pkt = SteamLinkPacket(slnode=self, opcode=SL_OP.BC)
 		self.steamlink.publish(self.get_firsthop(), sl_pkt)
 		return 
 
 
-	def admin_send_get_status(self):
+	def send_get_status(self):
 		sl_pkt = SteamLinkPacket(slnode=self, opcode=SL_OP.GS)
 		self.steamlink.publish(self.get_firsthop(), sl_pkt)
 #		rc = self.get_response(timeout=SL_RESPONSE_WAIT_SEC)
 		return 
 
 
-	def admin_send_set_radio_param(self, radio):
+	def send_set_radio_param(self, radio):
 		if self.state != "UP": return SL_OP.NC
 		lorainit = struct.pack('<BLB', 0, 0, radio)
-		logging.debug("admin_send_set_radio_param: len %s, pkt %s", len(lorainit), lorainit)
+		logging.debug("send_set_radio_param: len %s, pkt %s", len(lorainit), lorainit)
 		sl_pkt = SteamLinkPacket(slnode=self, opcode=SL_OP.SR, payload=lorainit)
 		self.steamlink.publish(self.get_firsthop(), sl_pkt)
 
@@ -464,7 +464,7 @@ class Node:
 		return rc
 
 
-	def admin_send_testpacket(self, pkt):
+	def send_testpacket(self, pkt):
 		if self.state != "UP": return SL_OP.NC
 		sl_pkt = SteamLinkPacket(slnode=self, opcode=SL_OP.TD, payload=pkt)
 		self.steamlink.publish(self.get_firsthop(), sl_pkt)
@@ -477,9 +477,9 @@ class Node:
 		return "%s: %s %s" % (self.name, self.sl_id, self.antenna)
 
 
-	def post_admin_data(self, sl_pkt):
-		""" handle incoming messages on the ../admin_data topic """
-		logging.info("post_admin_data %s", sl_pkt)
+	def post_data(self, sl_pkt):
+		""" handle incoming messages on the ../data topic """
+		logging.info("post_data %s", sl_pkt)
 
 		# any pkt from node indicates it's up
 		self.set_state('UP')
@@ -488,20 +488,20 @@ class Node:
 		opargs = sl_pkt.payload
 
 		if opcode == SL_OP.ON:
-			logging.debug('post_admin_data: slid 0x%0x ONLINE', self.sl_id)
+			logging.debug('post_data: slid 0x%0x ONLINE', self.sl_id)
 
 		elif opcode == SL_OP.SS:
-			logging.debug('post_admin_data: slid 0x%0x status %s', self.sl_id,opargs)
+			logging.debug('post_data: slid 0x%0x status %s', self.sl_id,opargs)
 			self.status = opargs.split(',')
 
 		elif opcode in [SL_OP.AK, SL_OP.NK]:
-			logging.debug('post_admin_data: slid 0x%0x answer %s', self.sl_id, SL_OP.code(opcode))
+			logging.debug('post_data: slid 0x%0x answer %s', self.sl_id, SL_OP.code(opcode))
 			try:
 				self.response_q.put(opcode, block=False)
 			except queue.Full:
-				logging.warning('post_admin_data: node %s queue, dropping: %s', self.sl_id, sl_pkt)
+				logging.warning('post_data: node %s queue, dropping: %s', self.sl_id, sl_pkt)
 		elif opcode == SL_OP.TR:
-			logging.debug('post_admin_data: node %s test msg', opargs)
+			logging.debug('post_data: node %s test msg', opargs)
 
 			try:
 				test_pkt = TestPkt(pkt=opargs)
@@ -526,7 +526,7 @@ class Node:
 		
 
 class LogData:
-	""" Handle incoming pkts on the ../admin_data topic """
+	""" Handle incoming pkts on the ../data topic """
 	def __init__(self, conf):
 		self.conf = conf
 		self.logfile = open(conf["file"],"a+")
@@ -670,11 +670,11 @@ def runtest():
 		for node_id in nodes_id_needed:
 			if nodes_by_id[node_id].ntype == "LoRa":
 				continue
-			nodes_by_id[node_id].admin_send_boot_cold()
+			nodes_by_id[node_id].send_boot_cold()
 			time.sleep(0.2)		# ??
 
 	for node_id in nodes_id_needed:
-		nodes_by_id[node_id].admin_send_get_status()
+		nodes_by_id[node_id].send_get_status()
 		time.sleep(0.2)		# ??
 
 	# wait for all nodes to send their status updates
@@ -698,7 +698,7 @@ def runtest():
 			for node in locations[loc]['nodes']:
 				if not nodes[node].is_up():
 					continue
-#				rc = nodes[node].admin_send_set_radio_param(radio)
+#				rc = nodes[node].send_set_radio_param(radio)
 #				if rc != SL_OP.AK:
 #					logging.warning("set_radio to %s for %s failed: %s", radio, node, SL_OP.code(rc))
 
@@ -710,7 +710,7 @@ def runtest():
 				for i in range(test_packet_count):
 					pkt = TestPkt(nodes[node].get_gps(), "TEST", nodes[node].sl_id)
 					pktno = pkt.get_pktno()
-					rc = nodes[node].admin_send_testpacket(pkt.pkt_string())
+					rc = nodes[node].send_testpacket(pkt.pkt_string())
 					sl_log.post_outgoing(pkt)
 					if rc != SL_OP.AK:
 						logging.warning("send_packet for node %s failed: %s", node, SL_OP.code(rc))
