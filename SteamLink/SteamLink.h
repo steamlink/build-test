@@ -3,6 +3,23 @@
 
 #include <Arduino.h>
 
+//   Node configuration data, as stored in flash
+#pragma pack(push,1)
+struct SL_NodeCfgStruct {
+    int slid;
+    char name[10];
+    char description[32];
+    float gps_lat;
+    float gps_lon;
+    short altitude;
+    short max_silence;
+    boolean sleeps;
+    boolean pingable;
+    boolean battery_powered;
+    byte radio_params;
+};
+#pragma pack(pop)
+
 typedef void (*on_receive_handler_function)(uint8_t* buffer, uint8_t size); // user
 typedef void (*on_receive_bridge_handler_function)(uint8_t* packet, uint8_t packet_length, uint32_t to_slid); // admin
 
@@ -86,7 +103,27 @@ typedef void (*on_receive_bridge_handler_function)(uint8_t* packet, uint8_t pack
 ////////////////////////////////////////
 
 /// DATA PACKETS ///
+#pragma pack(push,1)
+struct data_header {
+  uint8_t op;
+  uint32_t slid;
+  uint16_t pkg_num;
+  uint8_t rssi;
+  uint8_t qos;
+};
+#pragma pack(pop)
 
+#pragma pack(push,1)
+struct control_header {
+  uint8_t op;
+  uint32_t slid;
+  uint16_t pkg_num;
+  uint8_t qos;
+};
+#pragma pack(pop)
+
+
+/*
 #pragma pack(push,1)
 struct ds_header {
   uint8_t op;
@@ -188,6 +225,7 @@ struct br_header { // no payload required
   uint8_t op;
 };
 #pragma pack(pop)
+*/
 
 void phex(uint8_t *data, unsigned int length);
 

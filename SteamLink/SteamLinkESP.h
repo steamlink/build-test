@@ -79,7 +79,7 @@ class SteamLinkESP : public SteamLinkGeneric {
   public:
 
   /// constructor
-  SteamLinkESP(uint32_t slid);
+  SteamLinkESP(SL_NodeCfgStruct *config);
 
   virtual void init(void *vconf, uint8_t config_length);
 

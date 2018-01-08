@@ -1,6 +1,8 @@
 #include <SteamLinkPacket.h>
 #include <SteamLink.h>
 
+
+/*
 uint8_t SteamLinkPacket::set_packet(uint8_t* &packet, uint8_t* payload, uint8_t payload_length, uint8_t* header, uint8_t header_length) {
   INFO("SteamLinkPacket - setting packet len ");
   uint8_t packet_length = payload_length + header_length;
@@ -21,6 +23,8 @@ uint8_t SteamLinkPacket::set_packet(uint8_t* &packet, uint8_t* payload, uint8_t 
 
   return packet_length;
 }
+*/
+
 
 uint8_t SteamLinkPacket::set_encrypted_packet(uint8_t* &packet, uint8_t* payload, uint8_t payload_length, uint8_t* key) {
   INFONL("SteamLinkPacket - setting encrypted packet");

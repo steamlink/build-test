@@ -8,10 +8,11 @@
 SL_RingBuff mqttQ(MQTTQSIZE);
 
 
-SteamLinkESP::SteamLinkESP(uint32_t slid) : SteamLinkGeneric(slid) {
-  _slid = slid;
-  create_pub_str(_pub_str, slid);
-  create_sub_str(_sub_str, slid);
+SteamLinkESP::SteamLinkESP(SL_NodeCfgStruct *config) : SteamLinkGeneric(config) {
+  _config = _config;
+  _slid = _config->slid;
+  create_pub_str(_pub_str, _slid);
+  create_sub_str(_sub_str, _slid);
 }
 
 void SteamLinkESP::init(void *vconf, uint8_t config_length) {

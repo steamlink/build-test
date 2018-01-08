@@ -2,13 +2,14 @@
 //#include <SteamLinkPacket.h>
 //#include <SteamLink.h>
 
-#define LORA_SEND_BLUE_LED 2
-#define LORA_RECEIVE_RED_LED 0
+// #define LORA_SEND_BLUE_LED 2
+//  #define LORA_RECEIVE_RED_LED 0
 
-SteamLinkLora::SteamLinkLora(uint32_t slid) : SteamLinkGeneric(slid) {
-  // initialize slid and set _node_addr
-  _slid = slid;
-  _node_addr = get_node_from_slid(slid);
+SteamLinkLora::SteamLinkLora(SL_NodeCfgStruct *config) : SteamLinkGeneric(config) {
+  // initialize _config, _slid  and set _node_addr
+  _config = _config;
+  _slid = _config->slid;
+  _node_addr = get_node_from_slid(_slid);
   if (_node_addr == get_node_from_slid(SL_DEFAULT_STORE_ADDR)) {
     FATAL("slid cannot be SL_DEFAULT_STORE_ADDR addr! ");
     while (1);
@@ -77,6 +78,7 @@ void SteamLinkLora::init(void *vconf, uint8_t config_length) {
   //_driver->setCADTimeout(10000);
   INFO("set CAD timeout\n");
   _driver->setTxPower(SL_LORA_DEFAULT_TXPWR, false);
+
   INFO("set lora tx power\n");
   
   if(_driver->waitPacketSent(0)){
@@ -125,6 +127,7 @@ bool SteamLinkLora::driver_receive(uint8_t* &packet, uint8_t &packet_size, uint3
   uint8_t from;
   uint8_t to;
   bool received = _manager->recvfrom(driverbuffer, &rcvlen, &from, &to);
+//  bool received = _driver->recv(driverbuffer, &rcvlen);
   if (received) {
 
 #ifdef LORA_RECEIVE_RED_LED

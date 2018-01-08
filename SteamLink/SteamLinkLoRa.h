@@ -14,7 +14,7 @@
 
 #define SL_LORA_DEFAULT_BRIDGE_ADDR 1
 
-#define SL_LORA_MAX_MESSAGE_LEN 64
+#define SL_LORA_MAX_MESSAGE_LEN 255
 
 #define SL_LORA_DEFAULT_TXPWR 23
 #define SL_LORA_DEFAULT_FREQUENCY 915
@@ -46,7 +46,8 @@ class SteamLinkLora : public SteamLinkGeneric {
  public:
 
   // constructor
-  SteamLinkLora(uint32_t slid);
+//  SteamLinkLora(uint32_t slid);
+  SteamLinkLora(SL_NodeCfgStruct *config);
 
   virtual void init(void *conf, uint8_t config_length);
 

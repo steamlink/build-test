@@ -27,10 +27,8 @@
 #undef LORALED
 #endif
 
-// node 5 in mesh 
+// node 5 in mesh  1
 #define SL_ID 0x105
-// Change to 434.0 or other frequency, must match RX's freq!
-#define RF95_FREQ 915.0
 
 // minimum transmisison gap (ms)
 #define MINTXGAP 125
@@ -43,13 +41,26 @@
 #define  MIN(a,b) (((a)<(b))?(a):(b))
 #define  MAX(a,b) (((a)>(b))?(a):(b))
 
+struct SL_NodeCfgStruct config = {
+	SL_ID, 
+	"Test222",
+	"Desc for 222", 
+	43.43,
+	-79.23,
+	180,
+	10,
+	0,
+	1,
+	0,
+	0
+};
 
-SteamLinkLora sl(SL_ID);
+SteamLinkLora sl(&config);
 struct SteamLinkLoraConfig slconfig = { false, NULL, 0 };
 
 
 /* Packet building */
-uint8_t data[100];
+char  data[100];
 int packet_num = 0;
 
 // button state
@@ -84,10 +95,10 @@ void setup()
 }
 
 
-// Dont put this on the stack:
+// Don't put this on the stack:
 uint8_t buf[MAX_MESSAGE_LEN];
 int beforeTime = 0, afterTime = 0, nextSendTime = 0;
-int waitInterval = 60000;
+int waitInterval = 10000;
 
 int getBatInfo() {
 #ifdef VBATPIN
@@ -110,19 +121,20 @@ void loop()
     packet_num += 1;
     if (bCurrent != bLast) {
       int8_t value = (bCurrent == LOW ? 1 : 0);
-      snprintf((char*) data, sizeof(data), "Button %i pkt: %d", value, packet_num);
+      snprintf(data, sizeof(data), "Button %i pkt: %d", value, packet_num);
       bLast = bCurrent;
     } else {
-      snprintf((char*) data, sizeof(data), "Hello World! pkt: %d vBat: %dmV", packet_num, getBatInfo());
+      snprintf(data, sizeof(data), "Hello World! pkt: %d vBat: %dmV", packet_num, getBatInfo());
     }
     beforeTime = millis();
 #ifdef LORALED
     digitalWrite(LORALED, HIGH);
 #endif
     Serial.print("Sending \"");
-    Serial.print((char *)data);
+    Serial.print(data);
     Serial.println("\"");
-    bool rc = sl.send(data);
+    bool rc = sl.send((uint8_t* )data);
+//    rc = sl.send_td((uint8_t *)data, strlen(data)+1);
 #ifdef LORALED
     digitalWrite(LORALED, LOW);
 #endif

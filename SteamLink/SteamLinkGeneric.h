@@ -5,7 +5,7 @@
 #include <SteamLinkPacket.h>
 #include <SL_RingBuff.h>
 
-#define SL_DEFAULT_STORE_ADDR 1
+#define SL_DEFAULT_STORE_ADDR 0xFF
 #define SL_DEFAULT_TEST_ADDR  0xFFFFFFFF
 #define SL_DEFAULT_QOS 0
 #define SENDQSIZE 10
@@ -15,7 +15,7 @@ class SteamLinkGeneric {
  public:
 
   // constructor
-  SteamLinkGeneric(uint32_t slid);
+  SteamLinkGeneric(SL_NodeCfgStruct *config);
 
   virtual void init(void *conf, uint8_t config_length);
 
@@ -27,10 +27,8 @@ class SteamLinkGeneric {
 
   /// ADMIN DATA PACKETS
 
-  virtual bool send_ds(uint8_t* payload, uint8_t payload_length);
-
-  virtual bool send_bs(uint8_t* payload, uint8_t payload_length);
-
+  virtual bool send_data(uint8_t op,uint8_t* payload, uint8_t payload_length);
+  virtual bool send_control(uint8_t op, uint32_t slid, uint8_t* payload, uint8_t payload_length);
   virtual bool send_td(uint8_t *td, uint8_t len);
 
   virtual bool send_on();
@@ -41,7 +39,7 @@ class SteamLinkGeneric {
 
   virtual bool send_tr(uint8_t* payload, uint8_t payload_length);
 
-  virtual bool send_ss(uint8_t* payload, uint8_t payload_length);
+  virtual bool send_ss(char *status);
 
   virtual void update();
 
@@ -79,6 +77,7 @@ class SteamLinkGeneric {
 
  protected:
 
+  struct SL_NodeCfgStruct *_config;
   uint32_t _slid;
 
   // handlers
@@ -88,6 +87,9 @@ class SteamLinkGeneric {
   // encryption mode
   bool _encrypted;
   uint8_t* _key;
+
+  // packet counters
+  uint16_t  _pkt_count_data, _pkt_count_control;
 
   uint8_t _last_rssi = 0;
 

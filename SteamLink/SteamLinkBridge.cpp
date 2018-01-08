@@ -10,22 +10,23 @@ void SteamLinkBridge::bridge(SteamLinkGeneric *nodeSideDriver) {
   _nodeSideDriver = nodeSideDriver;
 }
 
-#define UPDATE_INTERVAL 30000
-uint32_t  last_update_time = 0;
+//#define UPDATE_INTERVAL 30000
+//uint32_t  last_update_time = 0;
 
 void SteamLinkBridge::update() {
   if (!_init_done) {
     INFO("In Bridge Update, running init()\n");
     init();
     INFO("init done\nl");
-    last_update_time = millis();
+//    last_update_time = millis();
   }
   _nodeSideDriver->update();
   _storeSideDriver->update();
-  if (millis() > (last_update_time + UPDATE_INTERVAL)) {
-    last_update_time = millis();
-	_storeSideDriver->send_on();
-  }
+//  if (millis() > (last_update_time + UPDATE_INTERVAL)) {
+//    last_update_time = millis();
+//	_storeSideDriver->send_ss("OK");
+//	_nodeSideDriver->send_ss("OK");
+ // }
 }
 
 

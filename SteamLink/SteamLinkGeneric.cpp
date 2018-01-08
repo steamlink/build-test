@@ -1,23 +1,29 @@
 #include <SteamLinkGeneric.h>
 
-SteamLinkGeneric::SteamLinkGeneric(uint32_t slid) : sendQ(SENDQSIZE) {
-  _slid = slid;
+SteamLinkGeneric::SteamLinkGeneric(SL_NodeCfgStruct *config) : sendQ(SENDQSIZE) {
+  _config = config;
+  _slid = _config->slid;
   _encrypted = false;
   _key = NULL;
+  _pkt_count_data = 1;		// don't use pkt_count 0
+  _pkt_count_control = 1;		// don't use pkt_count 0
 }
 
 void SteamLinkGeneric::init(void *conf, uint8_t config_length) {
 }
 
 bool SteamLinkGeneric::send(uint8_t* buf) {
-  uint8_t len = strlen((char*) buf) + 1; // +1 for trailing nul
-  return send_ds(buf, len);
+  return send_data(SL_OP_DS, buf, strlen((char*) buf) + 1);
 }
+
+#define UPDATE_INTERVAL 30000
+uint32_t  last_update_time = 0;
 
 void SteamLinkGeneric::update() {
   if (!sign_on_complete) {
     sign_on_procedure();
     sign_on_complete = true;
+    last_update_time = millis();
   }
   uint8_t* packet;
   uint8_t packet_length;
@@ -45,8 +51,13 @@ void SteamLinkGeneric::update() {
       WARNNL("SteamLinkGeneric::update driver_send dropping packet!!");
     }  
     INFO("SteamLinkGeneric::update send free: "); Serial.println((unsigned int)packet, HEX);
+    last_update_time = millis();
     free(packet);
   } 
+  if (millis() > (last_update_time + UPDATE_INTERVAL)) {
+    last_update_time = millis();
+	send_ss("OK");
+  }
 }
 
 void SteamLinkGeneric::register_receive_handler(on_receive_handler_function on_receive) {
@@ -77,34 +88,46 @@ bool SteamLinkGeneric::driver_receive(uint8_t* &packet, uint8_t &packet_size, ui
   return false;
 }
 
-bool SteamLinkGeneric::send_ds(uint8_t* payload, uint8_t payload_length) {
+bool SteamLinkGeneric::send_data(uint8_t op, uint8_t* payload, uint8_t payload_length) {
   uint8_t* packet;
-  uint8_t packet_length;
-  ds_header header;
-  header.op = SL_OP_DS;
-  header.slid = _slid;
-  header.qos = SL_DEFAULT_QOS;
-  INFONL("SteamLinkGeneric::send_ds packet: ");
+  uint8_t packet_length = payload_length + sizeof(data_header);
+  INFONL("SteamLinkGeneric::send_data packet: ");
+  packet = (uint8_t*) malloc(packet_length);
+  data_header *header = (data_header *)packet;
+  header->op = op;
+  header->slid = _slid;
+  header->pkg_num = _pkt_count_data++;
+  if (_pkt_count_data == 0) {		// skip 0
+    _pkt_count_data++;
+  }
+  header->rssi = _last_rssi;
+  header->qos = SL_DEFAULT_QOS;
+  if (payload_length > 0) {
+    memcpy(&packet[sizeof(data_header)], payload, payload_length);
+  }
   INFOPHEX(packet, packet_length);
-  packet_length = SteamLinkPacket::set_packet(packet, payload, payload_length, (uint8_t*) &header, sizeof(header));
   bool sent = generic_send(packet, packet_length, SL_DEFAULT_STORE_ADDR);
   return sent;
 }
 
-bool SteamLinkGeneric::send_bs(uint8_t* payload, uint8_t payload_length) {
+
+bool SteamLinkGeneric::send_control(uint8_t op, uint32_t slid, uint8_t* payload, uint8_t payload_length) {
   uint8_t* packet;
-  uint8_t packet_length;
-  bs_header header;
-  header.op = SL_OP_BS;
-  header.slid = _slid;
-  header.rssi = _last_rssi;
-  header.qos = SL_DEFAULT_QOS;
-  INFONL("SteamLinkGeneric::send_bs packet: ");
-  INFOPHEX(packet, packet_length);
-  packet_length = SteamLinkPacket::set_packet(packet, payload, payload_length, (uint8_t*) &header, sizeof(header));
-  bool sent = generic_send(packet, packet_length, SL_DEFAULT_STORE_ADDR);
+  uint8_t packet_length = payload_length + sizeof(control_header);
+  INFONL("SteamLinkGeneric::send_data packet: ");
+  packet = (uint8_t*) malloc(packet_length);
+  control_header *header = (control_header *)packet;
+  header->op = op;
+  header->slid = slid;
+  header->pkg_num = _pkt_count_control++;
+  header->qos = SL_DEFAULT_QOS;
+  if (payload_length > 0) {
+    memcpy(&packet[sizeof(control_header)], payload, payload_length);
+  }
+  bool sent = generic_send(packet, packet_length, slid);
   return sent;
 }
+
 
 bool SteamLinkGeneric::send_td(uint8_t *td, uint8_t len) {
   uint8_t* packet = (uint8_t *)malloc(len);
@@ -118,68 +141,32 @@ bool SteamLinkGeneric::send_td(uint8_t *td, uint8_t len) {
 }
 
 bool SteamLinkGeneric::send_on() {
-  uint8_t* packet;
-  uint8_t packet_length;
-  on_header header;
-  header.op = SL_OP_ON;
-  header.slid = _slid;
   INFONL("SteamLinkGeneric::send_on packet: ");
-  INFOPHEX(packet, packet_length);
-  packet_length = SteamLinkPacket::set_packet(packet, NULL, 0, (uint8_t*) &header, sizeof(header));
-  bool sent = generic_send(packet, packet_length, SL_DEFAULT_STORE_ADDR);
+  bool sent = send_data(SL_OP_ON, (uint8_t *)_config, sizeof(*_config));
   return sent;
 }
 
 bool SteamLinkGeneric::send_ak() {
-  uint8_t* packet;
-  uint8_t packet_length;
-  ak_header header;
-  header.op = SL_OP_AK;
-  header.slid = _slid;
   INFONL("SteamLinkGeneric::send_ak packet: ");
-  INFOPHEX(packet, packet_length);
-  packet_length = SteamLinkPacket::set_packet(packet, NULL, 0, (uint8_t*) &header, sizeof(header));
-  bool sent = generic_send(packet, packet_length, SL_DEFAULT_STORE_ADDR);
+  bool sent = send_data(SL_OP_AK, NULL, 0);
   return sent;
 }
 
 bool SteamLinkGeneric::send_nk() {
-  uint8_t* packet;
-  uint8_t packet_length;
-  nk_header header;
-  header.op = SL_OP_NK;
-  header.slid = _slid;
   INFONL("SteamLinkGeneric::send_nk packet: ");
-  INFOPHEX(packet, packet_length);
-  packet_length = SteamLinkPacket::set_packet(packet, NULL, 0, (uint8_t*) &header, sizeof(header));
-  bool sent = generic_send(packet, packet_length, SL_DEFAULT_STORE_ADDR);
+  bool sent = send_data(SL_OP_NK, NULL, 0);
   return sent;
 }
 
 bool SteamLinkGeneric::send_tr(uint8_t* payload, uint8_t payload_length) {
-  uint8_t* packet;
-  uint8_t packet_length;
-  tr_header header;
-  header.op = SL_OP_TR;
-  header.slid = _slid;
-  header.rssi = _last_rssi;
   INFONL("SteamLinkGeneric::send_tr packet: ");
-  INFOPHEX(packet, packet_length);
-  packet_length = SteamLinkPacket::set_packet(packet, payload, payload_length, (uint8_t*) &header, sizeof(header));
-  bool sent = generic_send(packet, packet_length, SL_DEFAULT_STORE_ADDR);
+  bool sent = send_data(SL_OP_TR, payload, payload_length);
   return sent;
 }
 
-bool SteamLinkGeneric::send_ss(uint8_t* payload, uint8_t payload_length) {
-uint8_t* packet;
-uint8_t packet_length;
-  tr_header header;
-  header.op = SL_OP_SS;
-  header.slid = _slid;
+bool SteamLinkGeneric::send_ss(char* status) {
   INFONL("SteamLinkGeneric::send_ss packet: ");
-  INFOPHEX(packet, packet_length);
-  packet_length = SteamLinkPacket::set_packet(packet, payload, payload_length, (uint8_t*) &header, sizeof(header));
-  bool sent = generic_send(packet, packet_length, SL_DEFAULT_STORE_ADDR);
+  bool sent = send_data(SL_OP_SS, (uint8_t *) status, strlen(status)+1);
   return sent;
 }
 
@@ -187,8 +174,8 @@ void SteamLinkGeneric::handle_admin_packet(uint8_t* packet, uint8_t packet_lengt
   uint8_t op = packet[0];
   if (op == SL_OP_DN) {          // CONTROL PACKETS
     INFONL("DN Packet Received");
-    uint8_t* payload = packet + sizeof(dn_header);
-    uint8_t payload_length = packet_length - sizeof(dn_header);
+    uint8_t* payload = packet + sizeof(control_header);
+    uint8_t payload_length = packet_length - sizeof(control_header);
     memcpy(packet, payload, payload_length);    // move payload to start of allc'd pkt
     if (_on_receive != NULL) {
       _on_receive(packet, payload_length);
@@ -196,30 +183,29 @@ void SteamLinkGeneric::handle_admin_packet(uint8_t* packet, uint8_t packet_lengt
 
   } else if (op == SL_OP_BN) {
     INFONL("BN Packet Received");
-    uint8_t* payload = packet + sizeof(bn_header);
-    uint8_t payload_length = packet_length - sizeof(bn_header);
-    uint32_t to_slid = ((bn_header*) packet)->slid;
+    uint8_t* payload = packet + sizeof(control_header);
+    uint8_t payload_length = packet_length - sizeof(control_header);
+    uint32_t to_slid = ((control_header*) packet)->slid;
     memcpy(packet, payload, payload_length);    // move payload to start of allc'd pkt
     generic_send(packet, payload_length, to_slid);
 
-
   } else if (op == SL_OP_GS) {
     INFONL("GetStatus Received");
-    send_on();
+    send_ss("OK");
 
   } else if (op == SL_OP_TD) {
     INFONL("Transmit Test Received");
     send_ak();
-    uint8_t* payload = packet + sizeof(td_header);
-    uint8_t payload_length = packet_length - sizeof(td_header);
+    uint8_t* payload = packet + sizeof(control_header);
+    uint8_t payload_length = packet_length - sizeof(control_header);
     memcpy(packet, payload, payload_length);    // move payload to start of allc'd pkt
     send_td(packet, payload_length);
 
   } else if (op == SL_OP_SR) {
     send_ak();
     INFONL("SetRadio Received");
-    uint8_t* payload = packet + sizeof(sr_header);
-    uint8_t payload_length = packet_length - sizeof(sr_header);
+    uint8_t* payload = packet + sizeof(control_header);
+    uint8_t payload_length = packet_length - sizeof(control_header);
     memcpy(packet, payload, payload_length);    // move payload to start of allc'd pkt
     INFONL("Passing payload as config to init");
     init(packet, payload_length);
@@ -235,7 +221,7 @@ void SteamLinkGeneric::handle_admin_packet(uint8_t* packet, uint8_t packet_lengt
 
   }  
   else if ((op & 0x1) == 1) {     // we've received a DATA PACKET
-    send_bs(packet, packet_length);
+    send_data(SL_OP_BS, packet, packet_length);
   }
 }
 
@@ -261,6 +247,7 @@ bool SteamLinkGeneric::generic_send(uint8_t* packet, uint8_t packet_length, uint
     } else if ( _bridge_mode == nodeside  ) {
       _bridge_handler(packet, packet_length, slid);
     } else if ( _bridge_mode == unbridged ) {
+      INFONL("sending_enqueue");
       rc = send_enqueue(packet, packet_length, slid);
     }
   } else { // CONTROL

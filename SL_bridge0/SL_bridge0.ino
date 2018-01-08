@@ -15,6 +15,34 @@
 #define SL_ID_ESP 0x111
 #define SL_ID_LORA 0x110
 
+struct SL_NodeCfgStruct ESPconfig = {
+	SL_ID_ESP, 
+	"Test111",
+	"Desc for 111", 
+	43.43,
+	-79.23,
+	180,
+	10,
+	0,
+	1,
+	0,
+	0
+};
+
+struct SL_NodeCfgStruct LoRaconfig = {
+	SL_ID_LORA, 
+	"Test110",
+	"Desc for 110", 
+	43.43,
+	-79.23,
+	180,
+	10,
+	0,
+	1,
+	0,
+	0
+};
+
 
 #if 0
 // for Feather M0
@@ -36,8 +64,8 @@
 void esp_on_receive(uint8_t* buffer, uint8_t size);
 void lora_on_receive(uint8_t* buffer, uint8_t size);
 
-SteamLinkESP slesp(SL_ID_ESP);
-SteamLinkLora sllora(SL_ID_LORA);
+SteamLinkESP slesp(&ESPconfig);
+SteamLinkLora sllora(&LoRaconfig);
 SteamLinkBridge slbridge(&slesp);
 
 /* Packet building */
