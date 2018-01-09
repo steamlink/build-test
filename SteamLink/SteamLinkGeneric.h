@@ -5,7 +5,7 @@
 #include <SteamLinkPacket.h>
 #include <SL_RingBuff.h>
 
-#define SL_DEFAULT_STORE_ADDR 0xFF
+#define SL_DEFAULT_STORE_ADDR 0x1
 #define SL_DEFAULT_TEST_ADDR  0xFFFFFFFF
 #define SL_DEFAULT_QOS 0
 #define SENDQSIZE 10

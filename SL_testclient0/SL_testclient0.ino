@@ -43,8 +43,8 @@
 
 struct SL_NodeCfgStruct config = {
 	SL_ID, 
-	"Test222",
-	"Desc for 222", 
+	"Node261",
+	"TestNode 261", 
 	43.43,
 	-79.23,
 	180,

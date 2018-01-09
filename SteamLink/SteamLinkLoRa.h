@@ -1,8 +1,7 @@
 #ifndef STEAMLINKLORA_H
 #define STEAMLINKLORA_H
 
-#include <RHDatagram.h>
-#include <RH_RF95.h>
+#include <LoRa.h>
 #include <SteamLinkGeneric.h>
 #include <SteamLinkPacket.h>
 #include <SteamLink.h>
@@ -75,8 +74,7 @@ class SteamLinkLora : public SteamLinkGeneric {
   uint8_t *_key = NULL;
   uint8_t _encrypted = false;
   
-  RH_RF95 *_driver = NULL;
-  RHDatagram *_manager = NULL;
+  LoRaClass *_driver = NULL;
 
   bool update_modem_config();
 
@@ -99,6 +97,8 @@ class SteamLinkLora : public SteamLinkGeneric {
   uint8_t driverbuffer[SL_LORA_MAX_MESSAGE_LEN];
 
   // Custom modem config
+  // TODO: for LoRa driver
+/*
   RH_RF95::ModemConfig modem_config[1] = {
     { // conf number 4, see https://lowpowerlab.com/forum/general-topics/issue-with-lora-long-range-modes-and-rfm95rfm96/
       .reg_1d = 0x78, // Reg 0x1D: BW=125kHz, Coding=4/8, Header=explicit
@@ -106,6 +106,6 @@ class SteamLinkLora : public SteamLinkGeneric {
       .reg_26 = 0x0c  // Reg 0x26: LowDataRate=On, Agc=On
     }
   };
-
+*/
 };
 #endif

@@ -17,28 +17,28 @@
 
 struct SL_NodeCfgStruct ESPconfig = {
 	SL_ID_ESP, 
-	"Test111",
-	"Desc for 111", 
+	"ESP_273",
+	"ESP Side of Bridge", 
 	43.43,
 	-79.23,
 	180,
-	10,
-	0,
-	1,
+	10,	// max_silence
+	0,  // sleeps
+	0,	// pingable
 	0,
 	0
 };
 
 struct SL_NodeCfgStruct LoRaconfig = {
 	SL_ID_LORA, 
-	"Test110",
-	"Desc for 110", 
+	"LoRa_272",
+	"LoRa side", 
 	43.43,
 	-79.23,
 	180,
-	10,
-	0,
-	1,
+	10,	// max_silence
+	0,	// sleeps
+	1,	// pingable
 	0,
 	0
 };
