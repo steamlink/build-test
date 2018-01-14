@@ -2,9 +2,17 @@
 #define STEAMLINKESP_H
 
 #ifdef ESP8266
-
-#include <SPI.h>
 #include <ESP8266WiFi.h>
+#endif
+#ifdef ESP32
+#include <WiFiClient.h>
+#include <WiFiClientSecure.h>
+#endif
+
+#include <math.h>
+
+#if defined(ESP8266) or defined(ESP32)
+#include <SPI.h>
 #include <Adafruit_MQTT.h>
 #include <Adafruit_MQTT_Client.h>
 #include <SteamLinkGeneric.h>

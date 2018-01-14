@@ -1,7 +1,7 @@
 #include <SteamLinkESP.h>
 #include <SL_RingBuff.h>
 
-#ifdef ESP8266
+#if defined(ESP8266) or defined(ESP32)
 
 #define MQTTQSIZE 10
 
