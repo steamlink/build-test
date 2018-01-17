@@ -1,0 +1,9 @@
+{
+  "builtInLibrariesFolders": "/Applications/Arduino.app/Contents/Java/libraries",
+  "customBuildProperties": "",
+  "fqbn": "espressif:esp32:heltec_wifi_lora_32",
+  "hardwareFolders": "/Applications/Arduino.app/Contents/Java/hardware,/Users/andreas/Library/Arduino15/packages",
+  "otherLibrariesFolders": "/Applications/Arduino.app/Contents/Java/libraries,/Users/andreas/Documents/Arduino/libraries",
+  "runtime.ide.version": "10600",
+  "toolsFolders": "/Applications/Arduino.app/Contents/Java/tools-builder,/Applications/Arduino.app/Contents/Java/hardware/tools/avr,/Users/andreas/Library/Arduino15/packages"
+}
