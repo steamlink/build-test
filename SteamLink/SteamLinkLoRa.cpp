@@ -54,6 +54,12 @@ void SteamLinkLora::init(void *vconf, uint8_t config_length) {
 */
     _driver = new LoRaClass();
     _driver->setPins(_cs_pin, _reset_pin, _interrupt_pin);// set CS, reset, IRQ pin
+	_driver->setFrequency(SL_LORA_DEFAULT_FREQUENCY * 1E6);
+	_driver->setSpreadingFactor(7);
+	_driver->setSignalBandwidth(125E3);
+	_driver->setPreambleLength(8);
+	_driver->setCodingRate4(5);
+
     if (!_driver->begin(SL_LORA_DEFAULT_FREQUENCY * 1E6)) {
 		FATAL("LoRa driver init failed");
 		while (true); 
@@ -124,18 +130,20 @@ bool SteamLinkLora::driver_receive(uint8_t* &packet, uint8_t &packet_size, uint3
     rcvlen+=1;
   }
 
-  // TESTCLUGE!!!
+  // determin slid for this packet
   if ((driverbuffer[0] & 0x01) == 0x01) {
-      to = 1;
+    struct data_header *header = (struct data_header *)&driverbuffer[0];
+    slid = SL_DEFAULT_STORE_ADDR;
+	header->rssi = _driver->packetRssi();
   } else {
-      to = driverbuffer[1];
+    struct control_header *header = (struct control_header *)&driverbuffer[0];
+    slid = header->slid;
   }
-  // ENDOF TESTCLUGE!!!
 
   INFO("SteamLinkLora::driver_receive len: ");
   INFO(rcvlen);
   INFO(" to: ");
-  INFO(to);
+  INFO(slid);
   INFO(" packet: ");
   INFOPHEX(driverbuffer, rcvlen);
   _last_rssi = _driver->packetRssi();
@@ -143,6 +151,8 @@ bool SteamLinkLora::driver_receive(uint8_t* &packet, uint8_t &packet_size, uint3
   INFO("SSteamLinkLora::driver_receive: malloc "); Serial.println((unsigned int) packet, HEX);
   memcpy(packet,driverbuffer, rcvlen);
   packet_size = rcvlen;
+
+/*
   if (to == get_node_from_slid(SL_DEFAULT_STORE_ADDR)) {
       slid = SL_DEFAULT_STORE_ADDR;
   } else if (to == get_node_from_slid(SL_DEFAULT_TEST_ADDR)) {
@@ -150,6 +160,7 @@ bool SteamLinkLora::driver_receive(uint8_t* &packet, uint8_t &packet_size, uint3
   } else {
     slid = (uint32_t) to | (get_mesh_from_slid(_slid) << 8);
   }
+*/
   return true;
 }
 

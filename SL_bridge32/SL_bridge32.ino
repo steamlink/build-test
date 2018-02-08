@@ -22,7 +22,7 @@ struct SL_NodeCfgStruct ESPconfig = {
 	43.43,
 	-79.23,
 	180,
-	10,	// max_silence
+	60,	// max_silence
 	0,  // sleeps
 	0,	// pingable
 	0,
@@ -36,7 +36,7 @@ struct SL_NodeCfgStruct LoRaconfig = {
 	43.43,
 	-79.23,
 	180,
-	10,	// max_silence
+	60,	// max_silence
 	0,	// sleeps
 	1,	// pingable
 	0,
