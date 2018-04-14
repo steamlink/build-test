@@ -24,9 +24,9 @@ struct SL_NodeCfgStruct ESPconfig = {
 	180,
 	60,	// max_silence
 	0,  // sleeps
-	0,	// pingable
-	0,
-	0
+	1,	// pingable
+	0, // battery powered
+	0  // radio params
 };
 
 struct SL_NodeCfgStruct LoRaconfig = {
@@ -44,7 +44,7 @@ struct SL_NodeCfgStruct LoRaconfig = {
 };
 
 
-#if 1
+#if 0
 // for ESP32 "heltec_wifi_lora_32"
 #define RFM95_CS 18		// GPIO18
 #define RFM95_RST 14
@@ -61,7 +61,7 @@ struct SL_NodeCfgStruct LoRaconfig = {
 #define RFM95_INT 3
 #endif
 
-#if 0
+#if 1
 // for Adafruit Huzzah breakout
 #define RFM95_CS 15
 #define RFM95_RST 4

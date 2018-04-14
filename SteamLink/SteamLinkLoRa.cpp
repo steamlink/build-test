@@ -59,6 +59,7 @@ void SteamLinkLora::init(void *vconf, uint8_t config_length) {
 	_driver->setSignalBandwidth(125E3);
 	_driver->setPreambleLength(8);
 	_driver->setCodingRate4(5);
+	_driver->enableCrc();
 
     if (!_driver->begin(SL_LORA_DEFAULT_FREQUENCY * 1E6)) {
 		FATAL("LoRa driver init failed");
