@@ -29,7 +29,6 @@ void SteamLinkBridge::update() {
  // }
 }
 
-
 void SteamLinkBridge::init() {
   _storeSideDriver->register_bridge_handler(&router);
   _nodeSideDriver->register_bridge_handler(&router);
@@ -43,7 +42,7 @@ void SteamLinkBridge::router(uint8_t* packet, uint8_t packet_length, uint32_t sl
   INFO(slid);
   INFONL(" packet: ");
   INFOPHEX(packet, packet_length);
-  if (slid == SL_DEFAULT_STORE_ADDR) {
+  if ((packet[0] & 0x01) == 0x01) { // IF DATA PACKET
     _storeSideDriver->handle_admin_packet(packet, packet_length);
   } else if (slid == _storeSideDriver->get_slid()) {
     _storeSideDriver->handle_admin_packet(packet, packet_length);

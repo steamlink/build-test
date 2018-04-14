@@ -28,7 +28,7 @@ class SteamLinkGeneric {
   /// ADMIN DATA PACKETS
 
   virtual bool send_data(uint8_t op,uint8_t* payload, uint8_t payload_length);
-  virtual bool send_control(uint8_t op, uint32_t slid, uint8_t* payload, uint8_t payload_length);
+  
   virtual bool send_td(uint8_t *td, uint8_t len);
 
   virtual bool send_on();

@@ -132,10 +132,10 @@ bool SteamLinkLora::driver_receive(uint8_t* &packet, uint8_t &packet_size, uint3
   }
 
   // determin slid for this packet
-  if ((driverbuffer[0] & 0x01) == 0x01) {
+  if ((driverbuffer[0] & 0x01) == 0x01) { // IF IT'S A DATA PACKET
     struct data_header *header = (struct data_header *)&driverbuffer[0];
-    slid = SL_DEFAULT_STORE_ADDR;
-	header->rssi = _driver->packetRssi();
+    slid = 0; // No "To" SLID ID
+	  header->rssi = _driver->packetRssi();
   } else {
     struct control_header *header = (struct control_header *)&driverbuffer[0];
     slid = header->slid;
