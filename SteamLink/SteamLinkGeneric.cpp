@@ -17,7 +17,6 @@ bool SteamLinkGeneric::send(uint8_t* buf) {
 }
 
 #define UPDATE_INTERVAL 30000
-uint32_t  last_update_time = 0;
 
 void SteamLinkGeneric::update() {
 	
@@ -33,30 +32,33 @@ void SteamLinkGeneric::update() {
 	bool received = driver_receive(packet, packet_length, slid);
 	
 	if (received) { // RECEIVED NEW PACKET ON THE PHY
+		INFO("SLID: "); INFO(_slid); INFONL("SteamLinkGeneric:: update():: Received pkt");
 		if (slid != SL_DEFAULT_TEST_ADDR) {
+			INFO("SLID: "); INFO(_slid); INFONL("SteamLinkGeneric:: update():: Received pkt is not test pkt");
 			// Determine if we are data or control?
 			if ((packet[0] & 0x01) == 0x01) { // DATA
-				INFO("SteamLinkGeneric:: update():: Data packet received ");
+			INFO("SLID: "); INFO(_slid); INFONL("SteamLinkGeneric:: update():: Received pkt is a `data` pkt intended for store");
 				if (_bridge_mode != unbridged) { // CAN BRIDGE
+					INFO("SLID: "); INFO(_slid); INFONL("SteamLinkGeneric:: update():: Node is bridged. Handling packet.");
 					handle_admin_packet(packet, packet_length);
 				} else { // CANNOT BRIDGE
-					WARN("Unable to bridge data packet addressed to me: ");
-					WARNPHEX(packet, packet_length);
+					WARN("SLID: "); WARN(_slid); WARNNL("SteamLinkGeneric:: update():: Node is unbridged. Dropping packet.");
+					INFOPKT(packet, packet_length);
 				}
 			} else { // CONTROL PACKETS
+				INFO("SLID: "); INFO(_slid); INFONL("SteamLinkGeneric:: update():: Received pkt is `control` pkt");
 				// Determine if the packet is for me
 				if (slid == _slid) { // MY PACKET
+					INFO("SLID: "); INFO(_slid); INFONL("SteamLinkGeneric:: update():: Received pkt is for this node");
 					handle_admin_packet(packet, packet_length);
 				} else { // NOT MY PACKET
-					if (_bridge_mode != unbridged) { // CAN BRIDGE
-						handle_admin_packet(packet, packet_length);
-					} else { // CANNOT BRIDGE
-						WARN("Unable to bridge data packet addressed to me: ");
-						WARNPHEX(packet, packet_length);
-					}
+					WARN("SLID: "); WARN(_slid); WARNNL("SteamLinkGeneric:: update():: Received control packet NOT addressed for this node.");
+					WARNNL("WARNING: DROPPING PACKET!");
+					INFOPKT(packet, packet_length);					
 				}
 			}
 		} else { // Tell the store we saw a test packet
+			INFO("SLID: "); INFO(_slid); INFONL("SteamLinkGeneric:: update():: Received test pkt");
 			send_tr(packet, packet_length);
 		}
 	}
@@ -74,7 +76,9 @@ void SteamLinkGeneric::update() {
 	}
 	if (millis() > (last_update_time + UPDATE_INTERVAL)) {
 		last_update_time = millis();
-	send_ss("OK");
+		if (!_config->sleeps) {
+			send_ss("OK");
+		}
 	}
 }
 
@@ -109,7 +113,6 @@ bool SteamLinkGeneric::driver_receive(uint8_t* &packet, uint8_t &packet_size, ui
 bool SteamLinkGeneric::send_data(uint8_t op, uint8_t* payload, uint8_t payload_length) {
 	uint8_t* packet;
 	uint8_t packet_length = payload_length + sizeof(data_header);
-	INFONL("SteamLinkGeneric::send_data packet: ");
 	packet = (uint8_t*) malloc(packet_length);
 	data_header *header = (data_header *)packet;
 	header->op = op;
@@ -123,7 +126,6 @@ bool SteamLinkGeneric::send_data(uint8_t op, uint8_t* payload, uint8_t payload_l
 	if (payload_length > 0) {
 		memcpy(&packet[sizeof(data_header)], payload, payload_length);
 	}
-	INFOPHEX(packet, packet_length);
 	bool sent = generic_send(packet, packet_length, SL_DEFAULT_STORE_ADDR);
 	return sent;
 }
@@ -133,8 +135,7 @@ bool SteamLinkGeneric::send_td(uint8_t *td, uint8_t len) {
 	INFO("SteamLinkGeneric::send_td malloc: "); Serial.println((unsigned int)packet, HEX);
 	memcpy(packet, td, len);
 	uint8_t packet_length;
-	INFONL("SteamLinkGeneric::send_td packet: ");
-	INFOPHEX(packet, len);
+	INFONL("SteamLinkGeneric::send_td packet");
 	bool sent = send_enqueue(packet, len, SL_DEFAULT_TEST_ADDR);  // update will free this
 	return sent;
 }
@@ -170,6 +171,8 @@ bool SteamLinkGeneric::send_ss(char* status) {
 }
 
 void SteamLinkGeneric::handle_admin_packet(uint8_t* packet, uint8_t packet_length) {
+	INFO("SLID: "); INFO(_slid); INFONL("SteamLinkGeneric:: handle_admin_packet():: Handling packet:");
+	INFOPKT(packet, packet_length);
 	uint8_t op = packet[0];
 	if (op == SL_OP_DN) {          // CONTROL PACKETS
 		INFONL("DN Packet Received");
@@ -184,14 +187,23 @@ void SteamLinkGeneric::handle_admin_packet(uint8_t* packet, uint8_t packet_lengt
 		INFONL("BN Packet Received");
 		uint8_t* payload = packet + sizeof(control_header);
 		uint8_t payload_length = packet_length - sizeof(control_header);
-		uint32_t to_slid = ((control_header*) packet)->slid;
 		memcpy(packet, payload, payload_length);    // move payload to start of allc'd pkt
+		uint32_t to_slid = ((control_header*) packet)->slid;
 		generic_send(packet, payload_length, to_slid);
 
 	} else if (op == SL_OP_GS) {
 		INFONL("GetStatus Received");
 		send_ss("OK");
+		/* ---- TEST ONLY ----
+		// This is useful to test whether the store is sending 
+		// GS packets to the storeside driver
 
+		if (_bridge_mode == storeside) {
+			send_ss("OK");
+		} else {
+			INFONL("!!!! WARNING IGNORING NODESIDE GET STATUS !!!!");
+		}
+		// ------------------- */
 	} else if (op == SL_OP_TD) {
 		INFONL("Transmit Test Received");
 		send_ak();
@@ -237,25 +249,33 @@ uint32_t SteamLinkGeneric::get_slid() {
 }
 
 bool SteamLinkGeneric::generic_send(uint8_t* packet, uint8_t packet_length, uint32_t slid) {
+	INFO("SLID: "); INFO(_slid); INFONL("SteamLinkGeneric:: generic_send():: send pkt via BRIDGE or PHY:");	
+	INFOPKT(packet, packet_length);
+	
 	bool is_data = ((packet[0] & 0x1) == 1); // data or control?
 	bool rc = true;
 
 	if ( is_data ) { // DATA
 		if  (_bridge_mode == storeside ) {
+			INFO("SLID: "); INFO(_slid); INFONL("SteamLinkGeneric:: generic_send():: sending pkt via PHY");
 			rc = send_enqueue(packet, packet_length, slid);
 		} else if ( _bridge_mode == nodeside  ) {
+			INFO("SLID: "); INFO(_slid); INFONL("SteamLinkGeneric:: generic_send():: sending pkt via BRIDGE");
 			_bridge_handler(packet, packet_length, slid);
 		} else if ( _bridge_mode == unbridged ) {
-			INFONL("sending_enqueue");
+			INFO("SLID: "); INFO(_slid); INFONL("SteamLinkGeneric:: generic_send():: sending pkt via PHY");
 			rc = send_enqueue(packet, packet_length, slid);
 		}
 	} else { // CONTROL
 		if ( _bridge_mode == nodeside  ) {
+			INFO("SLID: "); INFO(_slid); INFONL("SteamLinkGeneric:: generic_send():: sending pkt via PHY");
 			rc = send_enqueue(packet, packet_length, slid);
 		} else if ( _bridge_mode == unbridged ) {
-			WARNNL("Sending a control packet as an unbridged node");
+			INFO("SLID: "); INFO(_slid); INFONL("SteamLinkGeneric:: generic_send():: sending pkt via PHY");
+			WARNNL("WARNING: Sending a control packet as an unbridged node");
 			rc = send_enqueue(packet, packet_length, slid); // TODO: is this even a valid case?
 		} else  if ( _bridge_mode == storeside ) {
+			INFO("SLID: "); INFO(_slid); INFONL("SteamLinkGeneric:: generic_send():: sending pkt via BRIDGE");
 			_bridge_handler(packet, packet_length, slid);
 		}
 	}

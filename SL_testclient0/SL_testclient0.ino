@@ -48,9 +48,9 @@ struct SL_NodeCfgStruct config = {
 	43.43,
 	-79.23,
 	180,
-	10,
-	0,
-	1,
+	45, // max_silence
+	0,  // sleeps
+	1,  // pingable
 	0,
 	0
 };

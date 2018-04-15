@@ -101,6 +101,7 @@ class SteamLinkGeneric {
   BridgeMode _bridge_mode = unbridged;
 
   bool sign_on_complete = false;
+  uint32_t  last_update_time = 0;
 
   SL_RingBuff sendQ;
 

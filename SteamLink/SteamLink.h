@@ -50,6 +50,8 @@ typedef void (*on_receive_bridge_handler_function)(uint8_t* packet, uint8_t pack
 //     Debugger uses Serial.println() to debug
 #define DEBUG_ENABLED DEBUG_LEVEL_INFO
 
+#define DEBUG_PACKET_VERBOSE 0
+
 #define DEBUG_LEVEL_INFO   4
 #define DEBUG_LEVEL_WARN   3
 #define DEBUG_LEVEL_ERR    2
@@ -60,10 +62,12 @@ typedef void (*on_receive_bridge_handler_function)(uint8_t* packet, uint8_t pack
  #define INFONL(text) Serial.println(text)
  #define INFO(text) Serial.print(text)
  #define INFOPHEX(data, len) phex(data, len)
+ #define INFOPKT(packet, packet_length) print_packet(packet, packet_length)
 #else 
  #define INFONL(text) ((void)0)
  #define INFO(text) ((void)0)
  #define INFOPHEX(data, len) ((void)0)
+ #define INFOPKT(packet, packet_length) ((void)0)
 #endif
 
 #if DEBUG_ENABLED >= DEBUG_LEVEL_WARN
@@ -96,8 +100,6 @@ typedef void (*on_receive_bridge_handler_function)(uint8_t* packet, uint8_t pack
  #define FATALPHEX(data, len) ((void)0)
 #endif
 
-
-
 ////////////////////////////////////////
 // HEADER STRUCTURES
 ////////////////////////////////////////
@@ -122,112 +124,11 @@ struct control_header {
 };
 #pragma pack(pop)
 
-
-/*
-#pragma pack(push,1)
-struct ds_header {
-  uint8_t op;
-  uint32_t slid;
-  uint8_t qos;
-};
-#pragma pack(pop)
-
-#pragma pack(push,1)
-struct bs_header {
-  uint8_t op;
-  uint32_t slid;
-  uint8_t rssi;
-  uint8_t qos;
-};
-#pragma pack(pop)
-
-#pragma pack(push,1)
-struct on_header {
-  uint8_t op;
-  uint32_t slid;
-};
-#pragma pack(pop)
-
-#pragma pack(push,1)
-struct ak_header { // no payload required
-  uint8_t op;
-  uint32_t slid;
-};
-#pragma pack(pop)
-
-#pragma pack(push,1)
-struct nk_header { // no payload required
-  uint8_t op;
-  uint32_t slid;
-};
-#pragma pack(pop)
-
-#pragma pack(push,1)
-struct tr_header { // data received is payload
-  uint8_t op;
-  uint32_t slid;
-  uint8_t rssi;
-};
-#pragma pack(pop)
-
-#pragma pack(push,1)
-struct ss_header { // payload contains queue and fill information
-  uint8_t op;
-  uint32_t slid;
-};
-#pragma pack(pop)
-
-//////////////////////////////
-
-// CONTROL PACKETS
-
-#pragma pack(push,1)
-struct dn_header {
-  uint8_t op;
-  uint32_t slid;
-  uint8_t qos;
-};
-#pragma pack(pop)
-
-#pragma pack(push,1)
-struct bn_header {
-  uint8_t op;
-  uint32_t slid;
-};
-#pragma pack(pop)
-
-#pragma pack(push,1)
-struct gs_header { // no payload required
-  uint8_t op;
-};
-#pragma pack(pop)
-
-#pragma pack(push,1)
-struct td_header { // no payload required
-  uint8_t op;
-};
-#pragma pack(pop)
-
-#pragma pack(push,1)
-struct sr_header { // payload contains radio parameters
-  uint8_t op;
-};
-#pragma pack(pop)
-
-#pragma pack(push, 1)
-struct bc_header {  // no payload required
-  uint8_t op;
-};
-#pragma pack(pop)
-
-#pragma pack(push, 1)
-struct br_header { // no payload required
-  uint8_t op;
-};
-#pragma pack(pop)
-*/
-
 void phex(uint8_t *data, unsigned int length);
+
+void print_packet(uint8_t* packet, uint8_t packet_length);
+
+void print_op_code(uint8_t op);
 
 enum BridgeMode { unbridged, storeside, nodeside };
 
