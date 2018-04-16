@@ -149,7 +149,7 @@ bool SteamLinkLora::driver_receive(uint8_t* &packet, uint8_t &packet_size, uint3
   INFOPHEX(driverbuffer, rcvlen);
   _last_rssi = _driver->packetRssi();
   packet = (uint8_t *) malloc(rcvlen);
-  INFO("SSteamLinkLora::driver_receive: malloc "); Serial.println((unsigned int) packet, HEX);
+  INFO("SteamLinkLora::driver_receive: malloc "); Serial.println((unsigned int) packet, HEX);
   memcpy(packet,driverbuffer, rcvlen);
   packet_size = rcvlen;
 

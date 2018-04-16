@@ -114,6 +114,7 @@ bool SteamLinkGeneric::send_data(uint8_t op, uint8_t* payload, uint8_t payload_l
 	uint8_t* packet;
 	uint8_t packet_length = payload_length + sizeof(data_header);
 	packet = (uint8_t*) malloc(packet_length);
+	INFO("SteamLinkGeneric::send_data malloc: "); Serial.println((unsigned int)packet, HEX);
 	data_header *header = (data_header *)packet;
 	header->op = op;
 	header->slid = _slid;
